@@ -22,41 +22,43 @@ Multi-service educational prediction platform built with modern technologies.
 ### Prerequisites
 
 - Docker and Docker Compose installed
-- Git
+- Google Cloud Console account (for OAuth credentials)
 
-### Running the Application
+### Setup Instructions
 
-1. Clone the repository:
-   ```bash
-   git clone <repository-url>
-   cd proyecto-final
+1. **Configure environment variables** (see `SETUP_SPRINT1.md` for details):
+   - Copy `backend/env.example` to `backend/.env`
+   - Copy `frontend/env.example` to `frontend/.env`
+   - Add your Google OAuth Client ID to both files
+
+2. **Start services**:
+   ```powershell
+   docker compose up -d --build
    ```
 
-2. Start all services with Docker Compose:
-   ```bash
-   docker compose up -d
+3. **Seed the database**:
+   ```powershell
+   docker compose exec backend npm run prisma:seed
    ```
 
-3. The application will be available at:
+4. **Access the application**:
    - Frontend: http://localhost:3000
    - Backend API: http://localhost:3001
    - AI Service: http://localhost:8000
 
-4. Check health status:
-   ```bash
-   curl http://localhost:3001/health
-   curl http://localhost:8000/health
-   ```
+5. **Test login**:
+   - Click "Sign in with Google"
+   - Use an @usal.edu.ar email address
 
 ### Stopping the Application
 
-```bash
+```powershell
 docker compose down
 ```
 
 To also remove volumes:
 
-```bash
+```powershell
 docker compose down -v
 ```
 
@@ -126,11 +128,16 @@ cd backend
 npm run prisma:migrate
 ```
 
-## Sprint 0 Goal
+## Sprint 1: Authentication & RBAC
 
-✅ Health checks operational in backend and ai-service  
-✅ Database migrated (empty schema)  
-✅ Frontend serving "It works" screen with commit version  
+✅ Google OAuth integration  
+✅ JWT-based authentication  
+✅ Role-Based Access Control (RBAC)  
+✅ Protected routes and role guards  
+✅ Database with user roles  
+✅ Seed data for testing
+
+See `SPRINT1_README.md` for complete details.  
 
 ## Next Steps
 
