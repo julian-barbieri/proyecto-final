@@ -23,12 +23,15 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: edu-predict-backend
+    env_file:
+      - ./backend/.env
     environment:
       DATABASE_URL: postgresql://postgres:postgres@db:5432/edupredict
       JWT_SECRET: your-secret-key-change-in-production
       NODE_ENV: development
     ports:
       - "3001:3001"
+      - "5555:5555"  # Prisma Studio
     depends_on:
       db:
         condition: service_healthy
