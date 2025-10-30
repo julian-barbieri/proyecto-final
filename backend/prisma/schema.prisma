@@ -1,0 +1,116 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  DIRECTOR
+  TUTOR
+  PROFESOR
+  ALUMNO
+}
+
+enum AssessmentType {
+  PARCIAL1
+  PARCIAL2
+  RECUP1
+  RECUP2
+  FINAL1
+  FINAL2
+  FINAL3
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  role         Role     @default(ALUMNO)
+  gender       String?  // "M" | "F" | "X" | null
+  birthDate    DateTime?
+  isTechnicalHS Boolean? // colegio técnico (true/false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  enrollments           Enrollment[]
+  tutorAssignments      TutorAssignment[]    @relation("TutorAssignments")
+  professorAssignments  ProfessorAssignment[] @relation("ProfessorAssignments")
+}
+
+model Subject {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  year      Int?
+  kind      String?   // "inicial", etc.
+  modality  String?   // "presencial" | "virtual"
+  hasTutor  Boolean?  @default(false)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  enrollments Enrollment[]
+  tutors     TutorAssignment[]    @relation("SubjectTutors")
+  professors ProfessorAssignment[] @relation("SubjectProfessors")
+}
+
+model TutorAssignment {
+  id         String   @id @default(cuid())
+  tutorId    String
+  subjectId  String
+  createdAt  DateTime @default(now())
+
+  tutor   User   @relation("TutorAssignments", fields: [tutorId], references: [id])
+  subject Subject @relation("SubjectTutors", fields: [subjectId], references: [id])
+
+  @@unique([tutorId, subjectId])
+}
+
+model ProfessorAssignment {
+  id          String   @id @default(cuid())
+  professorId String
+  subjectId   String
+  createdAt   DateTime @default(now())
+
+  professor User   @relation("ProfessorAssignments", fields: [professorId], references: [id])
+  subject   Subject @relation("SubjectProfessors", fields: [subjectId], references: [id])
+
+  @@unique([professorId, subjectId])
+}
+
+model Enrollment {
+  id           String   @id @default(cuid())
+  studentId    String
+  subjectId    String
+  academicYear Int
+  recursadas   Int?     @default(0)
+  attendancePct Float?  // 0..100
+  dropoutFlag  Boolean? // 1/0 del CSV
+  createdAt    DateTime @default(now())
+
+  student   User    @relation(fields: [studentId], references: [id])
+  subject   Subject @relation(fields: [subjectId], references: [id])
+  grades    Assessment[]
+
+  @@index([studentId, subjectId, academicYear])
+  @@unique([studentId, subjectId, academicYear])
+}
+
+model Assessment {
+  id           String         @id @default(cuid())
+  enrollmentId String
+  kind         AssessmentType
+  grade        Int?           // enteros (1..10), puede ser null
+  createdAt    DateTime       @default(now())
+
+  enrollment Enrollment @relation(fields: [enrollmentId], references: [id])
+
+  @@unique([enrollmentId, kind])
+  @@index([enrollmentId, kind])
+}
+
