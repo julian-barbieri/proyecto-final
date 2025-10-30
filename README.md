@@ -137,7 +137,122 @@ npm run prisma:migrate
 ✅ Database with user roles  
 ✅ Seed data for testing
 
-See `SPRINT1_README.md` for complete details.  
+## Sprint 2: Modelo de Datos + Carga Inicial
+
+### Características Implementadas
+
+✅ **Esquema Prisma actualizado** con entidades académicas:
+- User (con campos adicionales: gender, birthDate, isTechnicalHS)
+- Subject (materias)
+- Enrollment (inscripciones)
+- Assessment (evaluaciones)
+- TutorAssignment y ProfessorAssignment
+
+✅ **ETL/Importador CSV** (`backend/src/etl/`):
+- Mapeo flexible de columnas con múltiples aliases
+- Validación con Zod
+- Procesamiento idempotente (upsert)
+- Reporte JSON con métricas y errores
+- Soporte para CSV con columnas AM1/AM2
+
+✅ **CRUD Endpoints**:
+- `/api/subjects` - Gestión de materias (GET, POST, PUT, DELETE)
+- `/api/enrollments` - Gestión de inscripciones (GET, POST, PUT)
+- `/api/assessments` - Gestión de evaluaciones (GET, POST, PUT)
+- Paginación y filtrado en todos los endpoints
+
+✅ **Migraciones y Seed**:
+- Migración Prisma para Sprint 2
+- Seed con Subjects AM1 y SN, tutores y profesores
+
+✅ **Tests**:
+- Tests unitarios para ETL
+- Tests de integración para endpoints API
+
+### Importar Datos desde CSV
+
+1. **Preparar el archivo CSV**:
+   - Colocar el archivo en `backend/data/dataset_alumnos.csv`
+   - O especificar la ruta con `--file`
+
+2. **Configurar variables de entorno** en `backend/.env`:
+   ```env
+   DATASET_CSV="./data/dataset_alumnos.csv"
+   CSV_DELIMITER=","
+   ALLOWED_EMAIL_DOMAIN="usal.edu.ar"
+   ```
+
+3. **Ejecutar importación**:
+   ```bash
+   cd backend
+   npm run import:csv
+   
+   # O con ruta personalizada:
+   npm run import:csv -- --file ./data/dataset_alumnosV4.csv
+   ```
+
+4. **Ver reporte de importación**:
+   - Se genera `import_report.json` en la raíz del backend
+   - Incluye métricas: filas procesadas, usuarios creados, errores, etc.
+
+### API Endpoints Sprint 2
+
+#### Subjects
+
+```
+GET    /api/subjects?name=AM1&page=1&pageSize=20
+GET    /api/subjects/:id
+POST   /api/subjects (requiere DIRECTOR/TUTOR)
+PUT    /api/subjects/:id (requiere DIRECTOR/TUTOR)
+DELETE /api/subjects/:id (requiere DIRECTOR)
+```
+
+#### Enrollments
+
+```
+GET    /api/enrollments?subjectId=&academicYear=&minAttendance=&risk=dropout
+GET    /api/enrollments/:id
+POST   /api/enrollments (requiere DIRECTOR/TUTOR)
+PUT    /api/enrollments/:id (requiere DIRECTOR/TUTOR/PROFESOR)
+```
+
+#### Assessments
+
+```
+GET    /api/assessments?enrollmentId=&kind=
+GET    /api/assessments/:id
+POST   /api/assessments (requiere DIRECTOR/TUTOR/PROFESOR)
+PUT    /api/assessments/:id (requiere DIRECTOR/TUTOR/PROFESOR)
+```
+
+### Ejecutar Tests
+
+```bash
+cd backend
+npm test
+```
+
+### Migraciones y Seed
+
+```bash
+# Crear migración
+cd backend
+npx prisma migrate dev --name sprint2_schema
+
+# Ejecutar seed
+npm run prisma:seed
+```
+
+### Estructura ETL
+
+```
+backend/src/etl/
+├── csvMapping.ts      # Mapeo flexible de columnas
+├── rowSchema.ts       # Validación Zod
+└── importDataset.ts   # Script principal de importación
+```
+
+Ver `DOCUMENTATION.md` para detalles completos.  
 
 ## Next Steps
 
