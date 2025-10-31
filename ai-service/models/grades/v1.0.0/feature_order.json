@@ -1,0 +1,50 @@
+{
+  "numeric_features": [
+    "edad",
+    "AsistenciaAM1",
+    "VecesRecursadaAM1",
+    "Parcial1AM1",
+    "Parcial2AM1",
+    "Recuperatorio1AM1",
+    "Recuperatorio2AM1",
+    "PromedioNotasColegio",
+    "AniosUniversidad",
+    "promedio_parciales",
+    "max_parcial",
+    "min_parcial",
+    "tendencia_parciales",
+    "tiene_recuperatorio",
+    "promedio_historico",
+    "rango_parciales",
+    "std_parciales"
+  ],
+  "categorical_features": [
+    "Genero",
+    "ProfesorAM1",
+    "ColegioTecnico",
+    "AyudaFinanciera"
+  ],
+  "all_features": [
+    "edad",
+    "AsistenciaAM1",
+    "VecesRecursadaAM1",
+    "Parcial1AM1",
+    "Parcial2AM1",
+    "Recuperatorio1AM1",
+    "Recuperatorio2AM1",
+    "PromedioNotasColegio",
+    "AniosUniversidad",
+    "promedio_parciales",
+    "max_parcial",
+    "min_parcial",
+    "tendencia_parciales",
+    "tiene_recuperatorio",
+    "promedio_historico",
+    "rango_parciales",
+    "std_parciales",
+    "Genero",
+    "ProfesorAM1",
+    "ColegioTecnico",
+    "AyudaFinanciera"
+  ]
+}
