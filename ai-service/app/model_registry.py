@@ -1,7 +1,7 @@
 """Model registry for loading and saving ML models."""
 import joblib
 from pathlib import Path
-from typing import Optional, Dict, Tuple, List
+from typing import Optional, Dict, Tuple, List, Any
 import logging
 
 from .config import MODEL_DIR, MODEL_VERSION
@@ -169,3 +169,82 @@ def list_available_models() -> Dict[str, List[str]]:
     
     return models
 
+
+def ensure_models_loaded(name: str, version: Optional[str] = None) -> Dict[str, Any]:
+    """
+    Load all model artifacts (model, scaler, encoders, feature_order, meta).
+    Caches loaded models to avoid reloading.
+    
+    Args:
+        name: Model name (e.g., 'grades', 'dropout')
+        version: Model version (defaults to MODEL_VERSION)
+    
+    Returns:
+        Dictionary with keys: 'model', 'scaler', 'encoders', 'feature_order', 'meta'
+    
+    Raises:
+        FileNotFoundError: If model or required artifacts are not found
+        Exception: If loading fails
+    """
+    version = version or MODEL_VERSION
+    
+    # Cache key
+    cache_key = f"{name}:{version}"
+    
+    # Simple in-memory cache (could be improved with proper caching library)
+    if not hasattr(ensure_models_loaded, "_cache"):
+        ensure_models_loaded._cache = {}
+    
+    # Return cached if available
+    if cache_key in ensure_models_loaded._cache:
+        logger.info(f"Using cached model: {name} (version: {version})")
+        return ensure_models_loaded._cache[cache_key]
+    
+    logger.info(f"Loading model artifacts: {name} (version: {version})")
+    
+    # Load model
+    model = load_model(name, version)
+    if model is None:
+        raise FileNotFoundError(f"Model not found: {name} (version: {version})")
+    
+    # Load scaler (may be None if not used)
+    scaler = load_scaler(name, version)
+    
+    # Load encoders (may be None if not used)
+    encoders = load_encoder(name, version)
+    
+    # Load feature order
+    import json
+    paths = get_model_paths(name, version)
+    feature_order_path = paths["feature_order"]
+    
+    if not feature_order_path.exists():
+        raise FileNotFoundError(f"Feature order not found: {feature_order_path}")
+    
+    with open(feature_order_path, 'r', encoding='utf-8') as f:
+        feature_order_data = json.load(f)
+    
+    # Load metadata
+    meta_path = paths["meta"]
+    if not meta_path.exists():
+        # Try legacy metadata path
+        meta_path = paths.get("metadata", meta_path)
+        if not meta_path.exists():
+            raise FileNotFoundError(f"Metadata not found: {meta_path}")
+    
+    with open(meta_path, 'r', encoding='utf-8') as f:
+        meta = json.load(f)
+    
+    result = {
+        "model": model,
+        "scaler": scaler,
+        "encoders": encoders,
+        "feature_order": feature_order_data,
+        "meta": meta
+    }
+    
+    # Cache result
+    ensure_models_loaded._cache[cache_key] = result
+    
+    logger.info(f"Successfully loaded all artifacts for {name} (version: {version})")
+    return result

@@ -89,60 +89,111 @@ def identify_columns_to_drop() -> List[str]:
 def prepare_target(df: pd.DataFrame) -> pd.Series:
     """
     Prepare target variable for regression.
-    IMPORTANT: Only use Final grades as target, NOT parciales.
-    This avoids data leakage since parciales are used as features.
-    
-    Priority: NotaFinalAM1 > average of Final1AM1/Final2AM1/Final3AM1
+    Target: NotaFinal1AM1 = Final1AM1 o promedio entre Final1AM1, Final2AM1 (si existe), Final3AM1 (si existe).
     
     Returns NaN for rows without final grades (these will be filtered out).
     """
-    # Try explicit final grade column first
-    if "NotaFinalAM1" in df.columns:
-        target = pd.to_numeric(df["NotaFinalAM1"], errors="coerce")
-        valid_count = target.notna().sum()
-        if valid_count > 0:
-            logger.info(f"Using NotaFinalAM1 as target ({valid_count} valid values)")
-            return target
-    
-    # Try average of Final exams
-    final_cols = ["Final1AM1", "Final2AM1", "Final3AM1"]
-    available_finals = [col for col in final_cols if col in df.columns]
-    if available_finals:
-        finals_df = df[available_finals].apply(pd.to_numeric, errors="coerce")
-        # Only calculate mean if at least one final exists
-        has_any_final = finals_df.notna().any(axis=1)
-        target = pd.Series(index=df.index, dtype=float)
-        target[has_any_final] = finals_df[has_any_final].mean(axis=1, skipna=True)
+    # Use Final1AM1 as primary target
+    if "Final1AM1" in df.columns:
+        target = pd.to_numeric(df["Final1AM1"], errors="coerce")
+        
+        # Calculate average of Final1AM1, Final2AM1, Final3AM1 where Final1AM1 is NaN
+        final_cols = ["Final1AM1", "Final2AM1", "Final3AM1"]
+        available_finals = [col for col in final_cols if col in df.columns]
+        
+        if len(available_finals) > 1:
+            finals_df = df[available_finals].apply(pd.to_numeric, errors="coerce")
+            # Fill NaN in Final1AM1 with average of available finals
+            final1_nan_mask = target.isna()
+            if final1_nan_mask.any():
+                avg_finals = finals_df[final1_nan_mask].mean(axis=1, skipna=True)
+                target[final1_nan_mask] = avg_finals
         
         valid_count = target.notna().sum()
         if valid_count > 0:
-            logger.info(f"Using average of {available_finals} as target ({valid_count} valid values)")
-            logger.warning(f"Removing {len(df) - valid_count} rows without final grades")
+            logger.info(f"Using NotaFinal1AM1 (Final1AM1 or avg of finals) as target ({valid_count} valid values)")
+            if valid_count < len(df):
+                logger.warning(f"Removing {len(df) - valid_count} rows without final grades")
             return target
     
-    # NO FALLBACK to parciales - that would cause data leakage
-    logger.error("No final grades found! Cannot use parciales as target (they are features).")
-    logger.error("Only rows with Final1AM1, Final2AM1, Final3AM1, or NotaFinalAM1 can be used.")
+    logger.error("No final grades found! Final1AM1 column is required.")
     return pd.Series(index=df.index, dtype=float)  # All NaN
+
+
+def impute_missing_values(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Impute missing values according to business rules:
+    - Recuperatorio1AM1 vacío → usar Parcial1AM1
+    - Recuperatorio2AM1 vacío → usar Parcial2AM1
+    - Final1AM1 vacío → usar promedio de Parcial1AM1, Parcial2AM1, Recuperatorio1AM1, Recuperatorio2AM1 (si existen)
+    """
+    df = df.copy()
+    
+    # Convert to numeric first
+    for col in ["Parcial1AM1", "Parcial2AM1", "Recuperatorio1AM1", "Recuperatorio2AM1", "Final1AM1"]:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+    
+    # Imputación 1: Recuperatorio1AM1 vacío → Parcial1AM1
+    if "Recuperatorio1AM1" in df.columns and "Parcial1AM1" in df.columns:
+        recup1_nan_mask = df["Recuperatorio1AM1"].isna()
+        parcial1_exists = df["Parcial1AM1"].notna()
+        fill_mask = recup1_nan_mask & parcial1_exists
+        if fill_mask.any():
+            df.loc[fill_mask, "Recuperatorio1AM1"] = df.loc[fill_mask, "Parcial1AM1"]
+            logger.info(f"Imputed Recuperatorio1AM1 with Parcial1AM1 for {fill_mask.sum()} rows")
+    
+    # Imputación 2: Recuperatorio2AM1 vacío → Parcial2AM1
+    if "Recuperatorio2AM1" in df.columns and "Parcial2AM1" in df.columns:
+        recup2_nan_mask = df["Recuperatorio2AM1"].isna()
+        parcial2_exists = df["Parcial2AM1"].notna()
+        fill_mask = recup2_nan_mask & parcial2_exists
+        if fill_mask.any():
+            df.loc[fill_mask, "Recuperatorio2AM1"] = df.loc[fill_mask, "Parcial2AM1"]
+            logger.info(f"Imputed Recuperatorio2AM1 with Parcial2AM1 for {fill_mask.sum()} rows")
+    
+    # Imputación 3: Final1AM1 vacío → promedio de Parcial1AM1, Parcial2AM1, Recuperatorio1AM1, Recuperatorio2AM1
+    if "Final1AM1" in df.columns:
+        final1_nan_mask = df["Final1AM1"].isna()
+        if final1_nan_mask.any():
+            # Get available columns for average
+            score_cols = []
+            for col in ["Parcial1AM1", "Parcial2AM1", "Recuperatorio1AM1", "Recuperatorio2AM1"]:
+                if col in df.columns:
+                    score_cols.append(col)
+            
+            if score_cols:
+                scores_df = df.loc[final1_nan_mask, score_cols]
+                avg_scores = scores_df.mean(axis=1, skipna=True)
+                # Only fill where at least one score exists
+                valid_avg_mask = avg_scores.notna()
+                if valid_avg_mask.any():
+                    df.loc[final1_nan_mask & valid_avg_mask, "Final1AM1"] = avg_scores[valid_avg_mask]
+                    logger.info(f"Imputed Final1AM1 with average of {score_cols} for {valid_avg_mask.sum()} rows")
+    
+    return df
 
 
 def preprocess_features(df: pd.DataFrame, encoders: Dict[str, LabelEncoder]) -> pd.DataFrame:
     """
     Preprocess features:
-    - Parse FechaNacimiento → edad
+    - Parse FechaNacimiento → edad (if edad not exists)
     - Drop specified columns
     - Label encode categorical columns
     - Handle missing values
-    - Create derived features (feature engineering)
+    
+    NOTE: No feature engineering - only base features are used.
     """
     df = df.copy()
     
-    # Parse edad from FechaNacimiento
+    # Parse edad from FechaNacimiento if edad doesn't exist
     if "edad" not in df.columns and "FechaNacimiento" in df.columns:
         df["edad"] = parse_fecha_nacimiento_to_edad(df)
     
     # Identify and drop columns
     columns_to_drop = identify_columns_to_drop()
+    # Don't drop Final1AM1, Final2AM1, Final3AM1 as they are used for target calculation
+    columns_to_drop = [col for col in columns_to_drop if col not in ["Final1AM1", "Final2AM1", "Final3AM1"]]
     existing_drop_cols = [col for col in columns_to_drop if col in df.columns]
     if existing_drop_cols:
         logger.info(f"Dropping columns: {existing_drop_cols}")
@@ -157,77 +208,10 @@ def preprocess_features(df: pd.DataFrame, encoders: Dict[str, LabelEncoder]) -> 
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce")
     
-    # FEATURE ENGINEERING: Create derived features
-    logger.info("Creating derived features...")
-    
-    # 1. Promedio de parciales (antes de finales)
-    if "Parcial1AM1" in df.columns and "Parcial2AM1" in df.columns:
-        p1 = pd.to_numeric(df["Parcial1AM1"], errors="coerce")
-        p2 = pd.to_numeric(df["Parcial2AM1"], errors="coerce")
-        # Promedio solo si al menos uno existe
-        df["promedio_parciales"] = pd.concat([p1, p2], axis=1).mean(axis=1, skipna=True)
-        logger.info("  Created: promedio_parciales")
-    
-    # 2. Máximo entre parciales
-    if "Parcial1AM1" in df.columns and "Parcial2AM1" in df.columns:
-        p1 = pd.to_numeric(df["Parcial1AM1"], errors="coerce")
-        p2 = pd.to_numeric(df["Parcial2AM1"], errors="coerce")
-        df["max_parcial"] = pd.concat([p1, p2], axis=1).max(axis=1, skipna=True)
-        logger.info("  Created: max_parcial")
-    
-    # 3. Mínimo entre parciales
-    if "Parcial1AM1" in df.columns and "Parcial2AM1" in df.columns:
-        p1 = pd.to_numeric(df["Parcial1AM1"], errors="coerce")
-        p2 = pd.to_numeric(df["Parcial2AM1"], errors="coerce")
-        df["min_parcial"] = pd.concat([p1, p2], axis=1).min(axis=1, skipna=True)
-        logger.info("  Created: min_parcial")
-    
-    # 4. Tendencia (mejora/deterioro entre parciales)
-    if "Parcial1AM1" in df.columns and "Parcial2AM1" in df.columns:
-        p1 = pd.to_numeric(df["Parcial1AM1"], errors="coerce")
-        p2 = pd.to_numeric(df["Parcial2AM1"], errors="coerce")
-        # Tendencia positiva = mejora, negativa = deterioro
-        df["tendencia_parciales"] = (p2 - p1).fillna(0)
-        logger.info("  Created: tendencia_parciales")
-    
-    # 5. Indicador de si tiene recuperatorios
-    if "Recuperatorio1AM1" in df.columns or "Recuperatorio2AM1" in df.columns:
-        recup_cols = []
-        if "Recuperatorio1AM1" in df.columns:
-            recup_cols.append(pd.to_numeric(df["Recuperatorio1AM1"], errors="coerce"))
-        if "Recuperatorio2AM1" in df.columns:
-            recup_cols.append(pd.to_numeric(df["Recuperatorio2AM1"], errors="coerce"))
-        
-        if recup_cols:
-            recup_df = pd.concat(recup_cols, axis=1)
-            # 1 si tiene al menos un recuperatorio > 0, 0 en caso contrario
-            df["tiene_recuperatorio"] = (recup_df > 0).any(axis=1).astype(int)
-            logger.info("  Created: tiene_recuperatorio")
-    
-    # 6. Promedio histórico (ponderado: parciales + recuperatorios)
-    if all(col in df.columns for col in ["Parcial1AM1", "Parcial2AM1"]):
-        p1 = pd.to_numeric(df["Parcial1AM1"], errors="coerce")
-        p2 = pd.to_numeric(df["Parcial2AM1"], errors="coerce")
-        recup1 = pd.to_numeric(df.get("Recuperatorio1AM1", pd.Series()), errors="coerce") if "Recuperatorio1AM1" in df.columns else pd.Series(index=df.index)
-        recup2 = pd.to_numeric(df.get("Recuperatorio2AM1", pd.Series()), errors="coerce") if "Recuperatorio2AM1" in df.columns else pd.Series(index=df.index)
-        
-        # Promedio de todas las notas disponibles (parciales y recuperatorios)
-        all_scores = pd.concat([p1, p2, recup1, recup2], axis=1)
-        df["promedio_historico"] = all_scores.mean(axis=1, skipna=True)
-        logger.info("  Created: promedio_historico")
-    
-    # 7. Rango de parciales (diferencia entre max y min)
-    if "max_parcial" in df.columns and "min_parcial" in df.columns:
-        df["rango_parciales"] = df["max_parcial"] - df["min_parcial"]
-        df["rango_parciales"] = df["rango_parciales"].fillna(0)
-        logger.info("  Created: rango_parciales")
-    
-    # 8. Desviación estándar de parciales (variabilidad)
-    if "Parcial1AM1" in df.columns and "Parcial2AM1" in df.columns:
-        p1 = pd.to_numeric(df["Parcial1AM1"], errors="coerce")
-        p2 = pd.to_numeric(df["Parcial2AM1"], errors="coerce")
-        df["std_parciales"] = pd.concat([p1, p2], axis=1).std(axis=1, skipna=True).fillna(0)
-        logger.info("  Created: std_parciales")
+    # Handle FechaNacimiento - keep it as feature but also ensure edad exists
+    # Convert FechaNacimiento to numeric representation (days since epoch) if needed
+    # Or keep as categorical if it makes more sense - for now we'll keep it as string/date
+    # The user wants to keep it as feature
     
     # Handle categorical columns with LabelEncoder
     categorical_cols = ["Genero", "ProfesorAM1", "ColegioTecnico", "AyudaFinanciera"]
@@ -248,47 +232,53 @@ def preprocess_features(df: pd.DataFrame, encoders: Dict[str, LabelEncoder]) -> 
                 df.loc[non_null_mask, col] = encoders[col].transform(
                     df.loc[non_null_mask, col].astype(str)
                 )
-            # Fill NaN with -1 or most frequent
+            # Fill NaN with -1
             df[col] = df[col].fillna(-1).astype(int)
+    
+    logger.info("Feature preprocessing completed (no derived features created)")
     
     return df
 
 
 def select_feature_columns(df: pd.DataFrame) -> List[str]:
-    """Select feature columns for training."""
-    # Original numeric features
+    """Select feature columns for training - only base features, no derived features."""
+    # Base numeric features (including FechaNacimiento if user wants to keep it)
     base_numeric_features = [
-        "edad", "AsistenciaAM1", "VecesRecursadaAM1",
-        "Parcial1AM1", "Parcial2AM1", "Recuperatorio1AM1", "Recuperatorio2AM1",
-        "PromedioNotasColegio", "AniosUniversidad"
+        "edad", 
+        "AsistenciaAM1", 
+        "VecesRecursadaAM1",
+        "Parcial1AM1", 
+        "Parcial2AM1", 
+        "Recuperatorio1AM1", 
+        "Recuperatorio2AM1",
+        "PromedioNotasColegio", 
+        "AniosUniversidad"
     ]
     
-    # Derived features (feature engineering)
-    derived_numeric_features = [
-        "promedio_parciales",
-        "max_parcial",
-        "min_parcial",
-        "tendencia_parciales",
-        "tiene_recuperatorio",
-        "promedio_historico",
-        "rango_parciales",
-        "std_parciales"
-    ]
-    
-    # All numeric features (base + derived)
-    numeric_features = base_numeric_features + derived_numeric_features
+    # FechaNacimiento can be kept as feature (though typically we use edad)
+    # For now, we'll include it if it exists and convert it appropriately
+    # But the user said to keep it, so we'll handle it separately
     
     # Categorical features (already encoded)
     categorical_features = ["Genero", "ProfesorAM1", "ColegioTecnico", "AyudaFinanciera"]
     
-    # Select only existing columns
-    all_features = numeric_features + categorical_features
+    # Optional: FechaNacimiento (if user wants it as feature)
+    optional_features = ["FechaNacimiento"]
+    
+    # Select only existing columns from base features
+    all_features = base_numeric_features + categorical_features
+    # Add FechaNacimiento if it exists (we'll handle it in preprocessing)
+    for opt_feat in optional_features:
+        if opt_feat in df.columns and opt_feat not in all_features:
+            all_features.append(opt_feat)
+    
     available_features = [col for col in all_features if col in df.columns]
     
-    logger.info(f"Selected {len(available_features)} features:")
-    logger.info(f"  Base numeric: {[f for f in base_numeric_features if f in available_features]}")
-    logger.info(f"  Derived numeric: {[f for f in derived_numeric_features if f in available_features]}")
+    logger.info(f"Selected {len(available_features)} features (BASE FEATURES ONLY, NO DERIVED FEATURES):")
+    logger.info(f"  Numeric: {[f for f in base_numeric_features if f in available_features]}")
     logger.info(f"  Categorical: {[f for f in categorical_features if f in available_features]}")
+    if "FechaNacimiento" in available_features:
+        logger.info(f"  Date feature: FechaNacimiento")
     
     return available_features
 
@@ -334,7 +324,11 @@ def main():
     df = pd.read_csv(csv_path, sep=args.sep, encoding="utf-8")
     logger.info(f"Loaded dataset: {df.shape[0]} rows, {df.shape[1]} columns")
     
-    # Prepare target
+    # Impute missing values BEFORE preparing target (imputation rules apply)
+    logger.info("Applying imputation rules...")
+    df = impute_missing_values(df)
+    
+    # Prepare target (after imputation, so Final1AM1 might have been filled)
     y = prepare_target(df)
     logger.info(f"Target stats: mean={y.mean():.2f}, std={y.std():.2f}, range=[{y.min():.2f}, {y.max():.2f}]")
     
@@ -344,6 +338,21 @@ def main():
     
     # Select features
     feature_columns = select_feature_columns(df_processed)
+    
+    # Handle FechaNacimiento if present - convert to numeric before creating X
+    if "FechaNacimiento" in feature_columns:
+        if "FechaNacimiento" in df_processed.columns:
+            try:
+                dates = pd.to_datetime(df_processed["FechaNacimiento"], dayfirst=True, errors="coerce")
+                # Convert to numeric (using year for simplicity)
+                df_processed["FechaNacimiento_numeric"] = dates.dt.year.fillna(dates.dt.year.median())
+                # Replace FechaNacimiento with FechaNacimiento_numeric in feature_columns
+                feature_columns = [col if col != "FechaNacimiento" else "FechaNacimiento_numeric" for col in feature_columns]
+                logger.info("Converted FechaNacimiento to numeric (year)")
+            except Exception as e:
+                logger.warning(f"Could not convert FechaNacimiento to numeric: {e}, excluding it")
+                feature_columns = [col for col in feature_columns if col != "FechaNacimiento"]
+    
     X = df_processed[feature_columns].copy()
     
     # Handle missing values in numeric columns
@@ -374,22 +383,17 @@ def main():
     logger.info(f"Train set: {X_train.shape[0]} samples, Test set: {X_test.shape[0]} samples")
     
     # Separate numeric and categorical for scaling
-    # After LabelEncoding, categorical become int, so we need to track them explicitly
-    # Define which are numeric (base + derived) vs categorical
+    # Define which are numeric (BASE ONLY, NO DERIVED) vs categorical
     base_numeric = [
         "edad", "AsistenciaAM1", "VecesRecursadaAM1",
         "Parcial1AM1", "Parcial2AM1", "Recuperatorio1AM1", "Recuperatorio2AM1",
-        "PromedioNotasColegio", "AniosUniversidad"
-    ]
-    derived_numeric = [
-        "promedio_parciales", "max_parcial", "min_parcial",
-        "tendencia_parciales", "tiene_recuperatorio", "promedio_historico",
-        "rango_parciales", "std_parciales"
+        "PromedioNotasColegio", "AniosUniversidad", "FechaNacimiento_numeric"
     ]
     categorical = ["Genero", "ProfesorAM1", "ColegioTecnico", "AyudaFinanciera"]
     
-    # Build numeric list from feature_columns
-    numeric_features = [col for col in feature_columns if col in base_numeric + derived_numeric]
+    # Build numeric list from feature_columns (only base numeric, no derived)
+    numeric_features = [col for col in feature_columns if col in base_numeric]
+    
     # Categorical features (were encoded with LabelEncoder)
     categorical_features = [col for col in feature_columns if col in categorical]
     
@@ -526,7 +530,11 @@ def main():
     logger.info("=" * 60)
     logger.info("Training Summary:")
     logger.info(f"  Model type: {args.model}")
+    logger.info(f"  Target: NotaFinal1AM1 (Final1AM1 or avg of Final1AM1/Final2AM1/Final3AM1)")
+    logger.info(f"  Features: BASE FEATURES ONLY (no derived features)")
     logger.info(f"  Feature order: {feature_columns}")
+    logger.info(f"  Numeric features: {numeric_features}")
+    logger.info(f"  Categorical features: {categorical_features}")
     logger.info(f"  X shape: {X.shape}")
     logger.info(f"  R²: {r2:.4f}")
     logger.info(f"  MAE: {mae:.4f}")

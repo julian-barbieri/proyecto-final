@@ -15,7 +15,7 @@ METRICS_DIR.mkdir(parents=True, exist_ok=True)
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 # Model configuration
-MODEL_VERSION = os.getenv("MODEL_VERSION", "v1.0.0")  # Production model: Random Forest (max_depth=3)
+MODEL_VERSION = os.getenv("MODEL_VERSION", "v2.0.0")  # Production model: Random Forest (max_depth=3) - Base features only
 
 # Timeouts (in seconds)
 TIMEOUTS: Dict[str, float] = {

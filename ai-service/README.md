@@ -89,6 +89,83 @@ Información sobre modelos disponibles.
 }
 ```
 
+### POST /predict/grades
+
+Predicción de notas finales para estudiantes.
+
+**Request:**
+```json
+{
+  "items": [
+    {
+      "edad": 20,
+      "Genero": "F",
+      "ColegioTecnico": 1,
+      "AsistenciaAM1": 0.85,
+      "Parcial1AM1": 7,
+      "Parcial2AM1": 6,
+      "Recuperatorio1AM1": 0,
+      "Recuperatorio2AM1": 0,
+      "PromedioNotasColegio": 8.5,
+      "AniosUniversidad": 2,
+      "VecesRecursadaAM1": 0,
+      "ProfesorAM1": "ProfesorA",
+      "AyudaFinanciera": "Si"
+    }
+  ]
+}
+```
+
+**Respuesta exitosa (200):**
+```json
+{
+  "preds": [8.1, 6.7],
+  "meta": {
+    "model": "grades",
+    "version": "v1.0.0",
+    "r2": -0.0349,
+    "mae": 1.5250,
+    "features_hash": "abc123...",
+    "latency_ms": 45.2,
+    "n_items": 1,
+    "timestamp": "2024-01-01T00:00:00"
+  }
+}
+```
+
+**Errores:**
+- `400`: Features inválidas o lista de items vacía
+- `503`: Modelo no disponible o error al cargar
+
+**Ejemplo con cURL:**
+```bash
+curl -X POST http://localhost:8000/predict/grades \
+  -H "Content-Type: application/json" \
+  -d '{
+    "items": [{
+      "edad": 20,
+      "Genero": "F",
+      "ColegioTecnico": 1,
+      "AsistenciaAM1": 0.85,
+      "Parcial1AM1": 7,
+      "Parcial2AM1": 6,
+      "Recuperatorio1AM1": 0,
+      "Recuperatorio2AM1": 0,
+      "PromedioNotasColegio": 8.5,
+      "AniosUniversidad": 2,
+      "VecesRecursadaAM1": 0,
+      "ProfesorAM1": "ProfesorA",
+      "AyudaFinanciera": "Si"
+    }]
+  }'
+```
+
+**Notas:**
+- Las predicciones están en el rango [1, 10] (clamped sin redondear)
+- Features faltantes se imputan con valores conservadores (0 para numéricas, -1 para categóricas)
+- Se crean automáticamente features derivadas (promedio_parciales, max_parcial, etc.)
+- El preprocesamiento replica exactamente el pipeline de entrenamiento
+
 ## Variables de Entorno
 
 - `MODEL_DIR`: Directorio para modelos (default: `./models`)

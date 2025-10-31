@@ -5,15 +5,11 @@ from pydantic import BaseModel, Field
 
 class ItemFeatures(BaseModel):
     """Features for a single item (student/record)."""
-    # Using dict to allow flexible feature names
-    # In production, you might want to define specific fields
-    features: Dict[str, Any] = Field(
-        ..., 
-        description="Dictionary of feature names to values"
-    )
-
+    # Allow flexible feature names directly as fields
+    # The features can be passed directly as fields or via a 'features' dict
+    
     class Config:
-        extra = "allow"  # Allow additional fields
+        extra = "allow"  # Allow additional fields beyond defined ones
 
 
 class PredictGradesRequest(BaseModel):

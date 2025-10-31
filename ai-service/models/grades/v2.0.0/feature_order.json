@@ -9,14 +9,7 @@
     "Recuperatorio2AM1",
     "PromedioNotasColegio",
     "AniosUniversidad",
-    "promedio_parciales",
-    "max_parcial",
-    "min_parcial",
-    "tendencia_parciales",
-    "tiene_recuperatorio",
-    "promedio_historico",
-    "rango_parciales",
-    "std_parciales"
+    "FechaNacimiento_numeric"
   ],
   "categorical_features": [
     "Genero",
@@ -34,17 +27,10 @@
     "Recuperatorio2AM1",
     "PromedioNotasColegio",
     "AniosUniversidad",
-    "promedio_parciales",
-    "max_parcial",
-    "min_parcial",
-    "tendencia_parciales",
-    "tiene_recuperatorio",
-    "promedio_historico",
-    "rango_parciales",
-    "std_parciales",
     "Genero",
     "ProfesorAM1",
     "ColegioTecnico",
-    "AyudaFinanciera"
+    "AyudaFinanciera",
+    "FechaNacimiento_numeric"
   ]
 }

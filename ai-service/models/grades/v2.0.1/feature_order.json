@@ -1,0 +1,36 @@
+{
+  "numeric_features": [
+    "edad",
+    "AsistenciaAM1",
+    "VecesRecursadaAM1",
+    "Parcial1AM1",
+    "Parcial2AM1",
+    "Recuperatorio1AM1",
+    "Recuperatorio2AM1",
+    "PromedioNotasColegio",
+    "AniosUniversidad",
+    "FechaNacimiento_numeric"
+  ],
+  "categorical_features": [
+    "Genero",
+    "ProfesorAM1",
+    "ColegioTecnico",
+    "AyudaFinanciera"
+  ],
+  "all_features": [
+    "edad",
+    "AsistenciaAM1",
+    "VecesRecursadaAM1",
+    "Parcial1AM1",
+    "Parcial2AM1",
+    "Recuperatorio1AM1",
+    "Recuperatorio2AM1",
+    "PromedioNotasColegio",
+    "AniosUniversidad",
+    "Genero",
+    "ProfesorAM1",
+    "ColegioTecnico",
+    "AyudaFinanciera",
+    "FechaNacimiento_numeric"
+  ]
+}
