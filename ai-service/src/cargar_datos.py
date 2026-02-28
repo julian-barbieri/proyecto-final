@@ -38,6 +38,6 @@ def cargar_datos(data_dir: str = 'data') -> tuple[pd.DataFrame, pd.DataFrame, pd
         if not os.path.exists(ruta):
             raise FileNotFoundError(f"No se encontró el archivo: {ruta}")
         dataframes[nombre] = pd.read_csv(ruta)
-        print(f"[OK] {archivo:<25} → {dataframes[nombre].shape[0]:>5} filas, {dataframes[nombre].shape[1]} columnas")
+        print(f"[OK] {archivo:<25} -> {dataframes[nombre].shape[0]:>5} filas, {dataframes[nombre].shape[1]} columnas")
 
     return dataframes['alumno'], dataframes['materia'], dataframes['examen']
