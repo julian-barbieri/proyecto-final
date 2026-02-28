@@ -1,2 +1,0 @@
-"""AI Service application package."""
-
