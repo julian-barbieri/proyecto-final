@@ -1,6 +1,7 @@
 import os
 import sys
 import warnings
+import joblib
 import pandas as pd
 import numpy as np
 
@@ -127,6 +128,8 @@ def evaluate_classification(dataset_name, X_train, X_test, y_train, y_test):
     print(f'{"="*60}')
 
     results = []
+    best_estimator = None
+    best_f1        = -np.inf
 
     for name, config in CLASSIFICATION_MODELS.items():
         print(f'\n  [{name}] Entrenando...')
@@ -159,6 +162,10 @@ def evaluate_classification(dataset_name, X_train, X_test, y_train, y_test):
         }
         results.append(row)
 
+        if row['F1'] > best_f1:
+            best_f1        = row['F1']
+            best_estimator = best
+
         print(f'    Accuracy:  {row["Accuracy"]}')
         print(f'    Precision: {row["Precision"]}')
         print(f'    Recall:    {row["Recall"]}')
@@ -176,7 +183,7 @@ def evaluate_classification(dataset_name, X_train, X_test, y_train, y_test):
     print(f'    Params:  {best_row["MejoresParams"]}')
     print(f'{"*"*60}')
 
-    return df
+    return df, best_estimator
 
 
 # ---------------------------------------------------------------------------
@@ -189,6 +196,8 @@ def evaluate_regression(dataset_name, X_train, X_test, y_train, y_test):
     print(f'{"="*60}')
 
     results = []
+    best_estimator = None
+    best_r2        = -np.inf
 
     for name, config in REGRESSION_MODELS.items():
         print(f'\n  [{name}] Entrenando...')
@@ -218,6 +227,10 @@ def evaluate_regression(dataset_name, X_train, X_test, y_train, y_test):
         }
         results.append(row)
 
+        if row['R2'] > best_r2:
+            best_r2        = row['R2']
+            best_estimator = best
+
         print(f'    MAE:  {row["MAE"]}')
         print(f'    RMSE: {row["RMSE"]}')
         print(f'    R2:   {row["R2"]}')
@@ -234,7 +247,7 @@ def evaluate_regression(dataset_name, X_train, X_test, y_train, y_test):
     print(f'    Params: {best_row["MejoresParams"]}')
     print(f'{"*"*60}')
 
-    return df
+    return df, best_estimator
 
 
 # ---------------------------------------------------------------------------
@@ -254,6 +267,10 @@ def _combinations(params: dict) -> int:
 
 if __name__ == '__main__':
     all_results = {}
+    best_models = {}
+
+    MODELS_DIR = os.path.join(os.path.dirname(__file__), 'models')
+    os.makedirs(MODELS_DIR, exist_ok=True)
 
     # -- Clasificacion --------------------------------------------------------
     for ds in ['alumno', 'materia']:
@@ -261,14 +278,23 @@ if __name__ == '__main__':
         print(f'  Procesando dataset: {ds.upper()}')
         print(f'{"#"*60}')
         X_train, X_test, y_train, y_test = ft_engineering_procesado(dataset=ds)
-        all_results[ds] = evaluate_classification(ds, X_train, X_test, y_train, y_test)
+        all_results[ds], best_models[ds] = evaluate_classification(ds, X_train, X_test, y_train, y_test)
 
     # -- Regresion ------------------------------------------------------------
     print(f'\n{"#"*60}')
     print(f'  Procesando dataset: EXAMEN')
     print(f'{"#"*60}')
     X_train, X_test, y_train, y_test = ft_engineering_procesado(dataset='examen')
-    all_results['examen'] = evaluate_regression('examen', X_train, X_test, y_train, y_test)
+    all_results['examen'], best_models['examen'] = evaluate_regression('examen', X_train, X_test, y_train, y_test)
+
+    # -- Guardar modelos ------------------------------------------------------
+    print(f'\n{"="*60}')
+    print('  GUARDANDO MODELOS')
+    print(f'{"="*60}')
+    for ds, model in best_models.items():
+        path = os.path.join(MODELS_DIR, f'modelo_{ds}.pkl')
+        joblib.dump(model, path)
+        print(f'  [OK] {ds.upper():10} -> {path}')
 
     # -- Resumen final --------------------------------------------------------
     print(f'\n{"="*60}')
