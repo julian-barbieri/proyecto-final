@@ -3,10 +3,8 @@ import sys
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
 from feature_engine.imputation import MeanMedianImputer
 from feature_engine.encoding import OneHotEncoder as FeOneHotEncoder
-from feature_engine.wrappers import SklearnTransformerWrapper
 
 sys.path.append(os.path.dirname(__file__))
 from cargar_datos import cargar_datos
@@ -48,16 +46,16 @@ def ft_engineering_procesado(dataset: str = 'examen'):
         # de cada alumno a nivel de cursadas
         mat_agg = materia.groupby('IdAlumno').agg(
             # Total de materias cursadas (una fila en nivel_materia = una cursada)
-            CantMaterias      = ('Recursa',        'count'),
+            CantMaterias      = ('Recursa',    'count'),
             # Cuantas de esas cursadas termino recursando (Recursa=1)
-            CantRecursa       = ('Recursa',        'sum'),
+            CantRecursa       = ('Recursa',    'sum'),
             # Promedio de asistencia a clases a lo largo de todas las cursadas
-            PromedioAsistencia= ('Asistencia',     'mean'),
-            # Promedio del rendimiento en el colegio secundario (disponible en materia)
-            PromedioColegio   = ('PromedioColegio','mean'),
+            PromedioAsistencia= ('Asistencia', 'mean'),
             # Cantidad de anos distintos en los que tuvo actividad academica
-            CantAniosCursados = ('AnioCursada',    'nunique'),
+            CantAniosCursados = ('AnioCursada','nunique'),
         ).reset_index()
+        # Nota: PromedioColegio NO se agrega desde mat_agg porque alumno.csv
+        # ya lo contiene directamente. Agregarlo causaria duplicados (_x/_y).
         # Proporcion de materias recursadas sobre el total cursado
         # Se reemplaza 0 por NaN para evitar division por cero; luego se rellena con 0
         mat_agg['TasaRecursa'] = (
@@ -117,7 +115,7 @@ def ft_engineering_procesado(dataset: str = 'examen'):
         # agregadas (ausencia de actividad es informacion valida, no un dato faltante)
         fill_zero = [
             'CantMaterias', 'CantRecursa', 'TasaRecursa',
-            'PromedioAsistencia', 'PromedioColegio', 'CantAniosCursados',
+            'PromedioAsistencia', 'CantAniosCursados',
             'CantExamenesRendidos', 'PromedioNota', 'CantFinalesRendidos',
             'CantAusencias', 'TasaAusencia', 'CantAprobados',
         ]
@@ -414,9 +412,6 @@ def ft_engineering_procesado(dataset: str = 'examen'):
     # One-Hot Encoding para variables categoricas nominales (TipoExamen)
     ohe = FeOneHotEncoder(variables=cat_vars, drop_last=False) if cat_vars else None
 
-    # Escalado estandar solo sobre variables numericas
-    scaler = SklearnTransformerWrapper(StandardScaler(), variables=num_vars)
-
     # -- 4) Division train-test ------------------------------------------------
     # Clasificacion: estratificamos por target para mantener proporcion de clases
     stratify = y if dataset in ['alumno', 'materia'] else None
@@ -433,9 +428,6 @@ def ft_engineering_procesado(dataset: str = 'examen'):
     if ohe:
         X_train = ohe.fit_transform(X_train)
         X_test  = ohe.transform(X_test)
-
-    X_train = scaler.fit_transform(X_train)
-    X_test  = scaler.transform(X_test)
 
     # -- 6) Convertimos a DataFrame --------------------------------------------
     X_train_processed_fe = pd.DataFrame(X_train).reset_index(drop=True)
