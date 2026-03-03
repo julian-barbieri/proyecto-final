@@ -11,3 +11,5 @@ ipykernel==6.25.2
 fastapi==0.110.0
 uvicorn==0.29.0
 pydantic==2.6.4
+shap==0.45.0
+streamlit>=1.32.0

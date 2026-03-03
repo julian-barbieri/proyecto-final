@@ -268,6 +268,7 @@ def _combinations(params: dict) -> int:
 if __name__ == '__main__':
     all_results = {}
     best_models = {}
+    test_sets   = {}   # acumula (X_test, y_test) por dataset para guardar como CSV
 
     MODELS_DIR = os.path.join(os.path.dirname(__file__), 'models')
     os.makedirs(MODELS_DIR, exist_ok=True)
@@ -278,6 +279,7 @@ if __name__ == '__main__':
         print(f'  Procesando dataset: {ds.upper()}')
         print(f'{"#"*60}')
         X_train, X_test, y_train, y_test = ft_engineering_procesado(dataset=ds)
+        test_sets[ds] = (X_test, y_test)
         all_results[ds], best_models[ds] = evaluate_classification(ds, X_train, X_test, y_train, y_test)
 
     # -- Regresion ------------------------------------------------------------
@@ -285,6 +287,7 @@ if __name__ == '__main__':
     print(f'  Procesando dataset: EXAMEN')
     print(f'{"#"*60}')
     X_train, X_test, y_train, y_test = ft_engineering_procesado(dataset='examen')
+    test_sets['examen'] = (X_test, y_test)
     all_results['examen'], best_models['examen'] = evaluate_regression('examen', X_train, X_test, y_train, y_test)
 
     # -- Guardar modelos ------------------------------------------------------
@@ -295,6 +298,15 @@ if __name__ == '__main__':
         path = os.path.join(MODELS_DIR, f'modelo_{ds}.pkl')
         joblib.dump(model, path)
         print(f'  [OK] {ds.upper():10} -> {path}')
+
+    # -- Guardar conjuntos de test (para model_explainability.py) -------------
+    print(f'\n{"="*60}')
+    print('  GUARDANDO CONJUNTOS DE TEST')
+    print(f'{"="*60}')
+    for ds, (X_te, y_te) in test_sets.items():
+        X_te.to_csv(os.path.join(MODELS_DIR, f'X_test_{ds}.csv'), index=False)
+        y_te.to_csv(os.path.join(MODELS_DIR, f'y_test_{ds}.csv'), index=False)
+        print(f'  [OK] {ds.upper():10} -> X_test_{ds}.csv  |  y_test_{ds}.csv')
 
     # -- Resumen final --------------------------------------------------------
     print(f'\n{"="*60}')
