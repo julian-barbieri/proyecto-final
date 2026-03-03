@@ -146,6 +146,68 @@ DEFAULTS = {
     'NotaPromedioParcialCursada': 6.0,
 }
 
+# Descripciones en lenguaje llano para mostrar como tooltip en cada widget
+TOOLTIPS = {
+    # --- Identificación temporal ---
+    'AnioIngreso':          'Año en que el alumno ingresó a la carrera universitaria.',
+    'AnioCursada':          'Año lectivo en que cursó la materia.',
+    'Anio':                 'Año en que rindió el examen.',
+    'Instancia':            'Número de instancia del examen dentro del año: 1 = primer parcial, 2 = recuperatorio, 3 = final.',
+
+    # --- Datos personales ---
+    'Edad':                 'Edad del alumno al momento de cursar o rendir (en años).',
+    'Genero':               'Género del alumno.',
+    'AyudaFinanciera':      'Indica si el alumno recibe beca u otro tipo de ayuda financiera.',
+    'ColegioTecnico':       'Indica si el alumno proviene de un colegio secundario técnico.',
+    'PromedioColegio':      'Promedio de calificaciones del colegio secundario (escala 0 a 10).',
+
+    # --- Materia ---
+    'Materia':              'Materia cursada o examinada (AM1 = Análisis Matemático 1, AM2 = Análisis Matemático 2).',
+
+    # --- Historial académico general (modelo alumno) ---
+    'AniosDesdeIngreso':    'Cantidad de años transcurridos desde que el alumno ingresó a la carrera.',
+    'CantMaterias':         'Total de materias cursadas por el alumno hasta la fecha.',
+    'CantRecursa':          'Cantidad de materias que el alumno tuvo que recursar.',
+    'CantAniosCursados':    'Cantidad de años distintos en los que el alumno tuvo actividad académica.',
+    'CantExamenesRendidos': 'Total de exámenes que el alumno se presentó a rendir (sin contar ausencias).',
+    'CantFinalesRendidos':  'Cantidad de veces que el alumno llegó a rendir la instancia Final.',
+    'CantAusencias':        'Total de veces que el alumno estuvo ausente en un examen inscripto.',
+    'CantAprobados':        'Cantidad de exámenes que el alumno aprobó (nota >= 4).',
+
+    # --- Tasas y proporciones generales ---
+    'TasaRecursa':          'Proporción de materias recursadas sobre el total cursado. Ej: 0.30 significa que recursó el 30 % de sus materias.',
+    'TasaAusencia':         'Proporción de exámenes en los que estuvo ausente sobre el total de inscripciones.',
+    'TasaAprobacion':       'Proporción de exámenes aprobados sobre el total de exámenes rendidos.',
+    'PromedioAsistencia':   'Promedio de asistencia a clases a lo largo de todas las cursadas del alumno (0 = nunca asistió, 1 = asistió siempre).',
+    'PromedioNota':         'Promedio general de notas obtenidas en todos los exámenes rendidos (escala 0 a 10).',
+
+    # --- Historial específico por materia ---
+    'VecesRendidaExamenMateria':         'Cantidad de veces que el alumno rindió examenes de esta materia en particular.',
+    'VecesAusenteMateria':               'Cantidad de veces que el alumno estuvo ausente en exámenes de esta materia.',
+    'VecesRecursada':                    'Cantidad de veces que el alumno recursó esta materia.',
+    'VecesCursadaMateria':               'Cantidad de veces que el alumno cursó esta materia (incluyendo recursadas).',
+    'PromedioNotaMateria':               'Promedio de notas en los exámenes de esta materia específica (escala 0 a 10).',
+    'TasaAprobacionMateria':             'Proporción de exámenes aprobados en esta materia sobre el total rendido en ella.',
+    'TasaRecursaMateria':                'Proporción de veces que recursó esta materia sobre el total de veces que la cursó.',
+    'PromedioAsistenciaHistMateria':     'Promedio histórico de asistencia a clases en todas las cursadas de esta materia (0 a 1).',
+
+    # --- Historial general (modelo examen) ---
+    'TotalCursadasGeneral':              'Total de cursadas registradas en todas las materias del alumno.',
+    'TasaRecursaGeneral':                'Tasa de recursado considerando todas las materias cursadas.',
+    'PromedioAsistenciaGeneral':         'Promedio de asistencia ponderado sobre todas las materias cursadas (0 a 1).',
+    'PromedioNotaGeneral':               'Promedio de notas en todos los exámenes rendidos, sin distinción de materia.',
+    'TasaAprobacionGeneral':             'Proporción de exámenes aprobados sobre el total rendido en todas las materias.',
+
+    # --- Contexto del examen actual ---
+    'Asistencia':                        'Asistencia a clases en la cursada actual (0 = 0 %, 1 = 100 %). Por debajo de 0.75 se considera riesgo.',
+    'PosicionFlujo':                     'Posición del examen dentro del flujo anual (1 = Primer Parcial, 2 = Rec. Parcial, 3 = Segundo Parcial, ... 7 = Tercer Final).',
+    'AsistenciaBajaRiesgo':              'Indica si la asistencia está por debajo del 75 %, umbral a partir del cual el alumno pierde regularidad.',
+    'EsUltimaInstancia':                 'Indica si este examen es la tercera instancia del Final (último intento disponible en el ciclo).',
+    'TieneFinalAM1':                     'Indica si el alumno ya tiene aprobado el Final de Análisis Matemático 1.',
+    'NotaPromedioParcialCursada':        'Promedio de las notas obtenidas en los parciales de la cursada actual (escala 0 a 10).',
+    'CantParcialesAprobados':            'Cantidad de parciales aprobados durante la cursada actual.',
+}
+
 
 # ===========================================================================
 # FUNCIONES CACHEADAS
@@ -186,10 +248,15 @@ def _calcular_shap(_model, _X_test: pd.DataFrame, nombre_modelo: str, tipo: str)
 
 
 @st.cache_data(show_spinner=False)
-def _calcular_metricas(_model, _X_test: pd.DataFrame, _y_test: pd.Series, tipo: str) -> dict:
+def _calcular_metricas(_model, _X_test: pd.DataFrame, _y_test: pd.Series, tipo: str, nombre_modelo: str = '') -> dict:
     """
     Calcula métricas de evaluación en tiempo de ejecución.
     No usa valores hardcodeados: siempre usa el conjunto de test actual.
+
+    nombre_modelo es un parámetro hashable que diferencia entradas de caché
+    entre modelos del mismo tipo (ej: 'alumno' vs 'materia', ambos clasificación).
+    Sin él, Streamlit usaría solo 'tipo' como clave y devolvería el caché del
+    primer modelo al segundo.
     """
     if tipo == 'clasificacion':
         y_pred  = _model.predict(_X_test)
@@ -299,27 +366,29 @@ def _widget_feature(nombre: str, col):
     - selectbox  → variables binarias con etiquetas legibles
     - slider     → tasas y proporciones [0, 1]
     - number_input → el resto (int o float)
+    Todos los widgets muestran un tooltip con la descripción en lenguaje llano.
     """
     # Etiqueta legible: reemplaza camelCase por espacios
-    label = nombre.replace('_', ' ')
+    label   = nombre.replace('_', ' ')
+    tooltip = TOOLTIPS.get(nombre, '')
 
     if nombre in SELECTBOX_FEATURES:
-        mapa    = SELECTBOX_FEATURES[nombre]
+        mapa     = SELECTBOX_FEATURES[nombre]
         opciones = list(mapa.values())
-        sel      = col.selectbox(label, opciones)
+        sel      = col.selectbox(label, opciones, help=tooltip)
         return [k for k, v in mapa.items() if v == sel][0]
 
     elif nombre in SLIDER_FEATURES:
         default = 0.75 if 'Asistencia' in nombre or 'Promedio' in nombre else 0.5
-        return col.slider(label, 0.0, 1.0, default, step=0.01)
+        return col.slider(label, 0.0, 1.0, default, step=0.01, help=tooltip)
 
     elif nombre in INT_FEATURES:
         default = DEFAULTS.get(nombre, 1)
-        return col.number_input(label, value=default, step=1, min_value=0)
+        return col.number_input(label, value=default, step=1, min_value=0, help=tooltip)
 
     else:
         default = DEFAULTS.get(nombre, 5.0)
-        return col.number_input(label, value=float(default), step=0.1, min_value=0.0)
+        return col.number_input(label, value=float(default), step=0.1, min_value=0.0, help=tooltip)
 
 
 # ===========================================================================
@@ -579,7 +648,7 @@ with tab_metricas:
     st.subheader(f'Métricas de Evaluación — {info["nombre_display"]}')
     st.caption('Calculadas sobre el conjunto de test cada vez que se carga la app.')
 
-    metricas = _calcular_metricas(modelo_activo, X_test, y_test, tipo)
+    metricas = _calcular_metricas(modelo_activo, X_test, y_test, tipo, nombre_modelo=modelo_key)
 
     cols_m = st.columns(len(metricas))
     for col_m, (nombre_m, valor_m) in zip(cols_m, metricas.items()):
@@ -621,7 +690,7 @@ with tab_comparacion:
         for mk, mi in MODELOS_INFO.items():
             try:
                 Xt, yt = _cargar_datos(mk)
-                mt     = _calcular_metricas(modelos[mk], Xt, yt, mi['tipo'])
+                mt     = _calcular_metricas(modelos[mk], Xt, yt, mi['tipo'], nombre_modelo=mk)
                 fila   = {'Modelo': f"{mi['icono']} {mi['nombre_display']}", 'Tipo': mi['tipo']}
                 fila.update(mt)
                 filas.append(fila)
