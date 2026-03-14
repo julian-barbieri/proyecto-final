@@ -40,6 +40,19 @@ except FileNotFoundError as exc:
 
 
 # ---------------------------------------------------------------------------
+# 3b) Health check
+# ---------------------------------------------------------------------------
+
+@app.get('/health', summary='Health check', tags=['Sistema'])
+def health():
+    """Verifica que la API está activa y los tres modelos están cargados."""
+    return {
+        'status': 'ok',
+        'modelos_cargados': ['modelo_alumno', 'modelo_materia', 'modelo_examen'],
+    }
+
+
+# ---------------------------------------------------------------------------
 # 4) Modelos de datos de entrada (validacion con Pydantic)
 # ---------------------------------------------------------------------------
 
