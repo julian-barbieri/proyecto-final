@@ -1,268 +1,224 @@
-# Edu Predict MVP
+# 📚 Sistema de Predicción Académica
 
-Multi-service educational prediction platform built with modern technologies.
+## 🎯 ¿De qué trata este proyecto?
 
-## Architecture
+Este es un **sistema inteligente de predicción académica** que utiliza Inteligencia Artificial y Machine Learning para predecir el desempeño de estudiantes universitarios. 
 
-- **Frontend**: Vite + React + TypeScript + Tailwind CSS + React Router
-- **Backend**: Node.js + Express + Prisma ORM + PostgreSQL
-- **AI Service**: Python + FastAPI + scikit-learn
-- **Database**: PostgreSQL
-- **Orchestration**: Docker Compose
+El sistema puede predecir:
+- 🚀 **Abandono de carrera**: Si un estudiante tiene riesgo de abandonar sus estudios
+- 📖 **Recursado de materia**: Si un estudiante probablemente deba repetir una asignatura
+- 📊 **Nota de examen**: La calificación estimada que obtendrá en un examen
 
-## Services
+---
 
-- **Frontend** (port 3000): React application with modern UI
-- **Backend** (port 3001): REST API with authentication
-- **AI Service** (port 8000): Machine learning predictions
-- **Database** (port 5432): PostgreSQL database
+## 🏗️ ¿Cómo está organizado el proyecto?
 
-## Quick Start
-
-### Prerequisites
-
-- Docker and Docker Compose installed
-- Google Cloud Console account (for OAuth credentials)
-
-### Setup Instructions
-
-1. **Configure environment variables** (see `SETUP_SPRINT1.md` for details):
-   - Copy `backend/env.example` to `backend/.env`
-   - Copy `frontend/env.example` to `frontend/.env`
-   - Add your Google OAuth Client ID to both files
-
-2. **Start services**:
-   ```powershell
-   docker compose up -d --build
-   ```
-
-3. **Seed the database**:
-   ```powershell
-   docker compose exec backend npm run prisma:seed
-   ```
-
-4. **Access the application**:
-   - Frontend: http://localhost:3000
-   - Backend API: http://localhost:3001
-   - AI Service: http://localhost:8000
-
-5. **Test login**:
-   - Click "Sign in with Google"
-   - Use an @usal.edu.ar email address
-
-### Stopping the Application
-
-```powershell
-docker compose down
-```
-
-To also remove volumes:
-
-```powershell
-docker compose down -v
-```
-
-## Project Structure
+El proyecto está dividido en **3 componentes principales**:
 
 ```
 proyecto-final/
-├── frontend/          # React application
-├── backend/           # Node.js API
-├── ai-service/        # Python FastAPI service
-├── docker-compose.yml # Orchestration
-└── README.md
+├── frontend/          → Aplicación web (donde los usuarios interactúan)
+├── backend/           → Servidor API (procesa las solicitudes)
+└── ai-service/        → Modelos de IA (hace las predicciones)
 ```
 
-## Development
+### **Frontend** 🖥️
+- Interfaz web moderna y fácil de usar
+- Construido con React + Vite + Tailwind CSS
+- Los usuarios pueden autenticarse e ingresar datos de estudiantes
 
-### Backend Development
+### **Backend** 🔧
+- Servidor Express.js que actúa como intermediario
+- Maneja autenticación de usuarios
+- Almacena historial de predicciones en una base de datos SQLite
+- Proporciona API REST para comunicarse con el frontend
+
+### **AI Service** 🤖
+- Aplicación Streamlit con modelos de Machine Learning
+- 3 modelos entrenados para diferentes predicciones
+- Proporciona explicabilidad con gráficos SHAP
+
+---
+
+## 📋 Requisitos previos
+
+Antes de ejecutar el proyecto, necesitas tener instalado:
+
+- **Python 3.8 o superior** ([Descargar](https://www.python.org/))
+- **Node.js 14 o superior** ([Descargar](https://nodejs.org/))
+- **npm** (viene incluido con Node.js)
+- **Git** (opcional, para clonar el proyecto)
+
+Puedes verificar si los tienes instalados ejecutando en terminal:
+```bash
+python --version
+node --version
+npm --version
+```
+
+---
+
+## 🚀 ¿Cómo ejecutar el proyecto?
+
+### **Paso 1: Preparar el entorno backend**
+
+Abre una terminal en la carpeta `backend/` y ejecuta:
 
 ```bash
 cd backend
+
+# Instalar dependencias
 npm install
-npm run dev
+
+# Ejecutar el servidor
+npm start
 ```
 
-### AI Service Development
+El backend estará disponible en: `http://localhost:3001`
 
-```bash
-cd ai-service
-pip install -r requirements.txt
-uvicorn main:app --reload
-```
+---
 
-### Frontend Development
+### **Paso 2: Preparar el entorno frontend**
+
+Abre una **nueva terminal** en la carpeta `frontend/` y ejecuta:
 
 ```bash
 cd frontend
+
+# Instalar dependencias
 npm install
+
+# Ejecutar la aplicación web
 npm run dev
 ```
 
-## Health Checks
+El frontend estará disponible en: `http://localhost:5173`
 
-All services include health check endpoints:
+---
 
-- Backend: `GET /health`
-- AI Service: `GET /health`
+### **Paso 3: Configurar el entorno AI Service**
 
-Health checks return service status, commit hash, and version information.
-
-## Environment Variables
-
-Create `.env` files in each service directory as needed:
-
-### Backend (.env)
-```env
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/edupredict
-JWT_SECRET=your-secret-key
-ALLOWED_DOMAINS=gmail.com
-```
-
-## Database Migration
-
-Prisma migrations are automatically applied on container startup. To manually run migrations:
+Abre una **tercera terminal** en la carpeta `ai-service/` y ejecuta:
 
 ```bash
-cd backend
-npm run prisma:migrate
+cd ai-service
+
+# Crear un entorno virtual de Python
+python -m venv venv
+
+# Activar el entorno virtual
+# En Windows:
+venv\Scripts\activate
+# En Mac/Linux:
+source venv/bin/activate
+
+# Instalar dependencias
+pip install -r requirements.txt
+
+# Ejecutar la aplicación Streamlit
+streamlit run app/streamlit_app.py
 ```
 
-## Sprint 1: Authentication & RBAC
+La aplicación Streamlit estará disponible en: `http://localhost:8501`
 
-✅ Google OAuth integration  
-✅ JWT-based authentication  
-✅ Role-Based Access Control (RBAC)  
-✅ Protected routes and role guards  
-✅ Database with user roles  
-✅ Seed data for testing
+---
 
-## Sprint 2: Modelo de Datos + Carga Inicial
+## ✅ Verificar que todo funciona
 
-### Características Implementadas
+Cuando todo esté en marcha, deberías ver:
 
-✅ **Esquema Prisma actualizado** con entidades académicas:
-- User (con campos adicionales: gender, birthDate, isTechnicalHS)
-- Subject (materias)
-- Enrollment (inscripciones)
-- Assessment (evaluaciones)
-- TutorAssignment y ProfessorAssignment
+| Servicio | URL | Estado |
+|----------|-----|--------|
+| Frontend | `http://localhost:5173` | Aplicación web cargada |
+| Backend | `http://localhost:3001/health` | `{ "status": "ok" }` |
+| AI Service | `http://localhost:8501` | Dashboard de predicciones |
 
-✅ **ETL/Importador CSV** (`backend/src/etl/`):
-- Mapeo flexible de columnas con múltiples aliases
-- Validación con Zod
-- Procesamiento idempotente (upsert)
-- Reporte JSON con métricas y errores
-- Soporte para CSV con columnas AM1/AM2
+---
 
-✅ **CRUD Endpoints**:
-- `/api/subjects` - Gestión de materias (GET, POST, PUT, DELETE)
-- `/api/enrollments` - Gestión de inscripciones (GET, POST, PUT)
-- `/api/assessments` - Gestión de evaluaciones (GET, POST, PUT)
-- Paginación y filtrado en todos los endpoints
-
-✅ **Migraciones y Seed**:
-- Migración Prisma para Sprint 2
-- Seed con Subjects AM1 y SN, tutores y profesores
-
-✅ **Tests**:
-- Tests unitarios para ETL
-- Tests de integración para endpoints API
-
-### Importar Datos desde CSV
-
-1. **Preparar el archivo CSV**:
-   - Colocar el archivo en `backend/data/dataset_alumnos.csv`
-   - O especificar la ruta con `--file`
-
-2. **Configurar variables de entorno** en `backend/.env`:
-   ```env
-   DATASET_CSV="./data/dataset_alumnos.csv"
-   CSV_DELIMITER=","
-   ALLOWED_EMAIL_DOMAIN="usal.edu.ar"
-   ```
-
-3. **Ejecutar importación**:
-   ```bash
-   cd backend
-   npm run import:csv
-   
-   # O con ruta personalizada:
-   npm run import:csv -- --file ./data/dataset_alumnosV4.csv
-   ```
-
-4. **Ver reporte de importación**:
-   - Se genera `import_report.json` en la raíz del backend
-   - Incluye métricas: filas procesadas, usuarios creados, errores, etc.
-
-### API Endpoints Sprint 2
-
-#### Subjects
+## 📁 Estructura del proyecto en detalle
 
 ```
-GET    /api/subjects?name=AM1&page=1&pageSize=20
-GET    /api/subjects/:id
-POST   /api/subjects (requiere DIRECTOR/TUTOR)
-PUT    /api/subjects/:id (requiere DIRECTOR/TUTOR)
-DELETE /api/subjects/:id (requiere DIRECTOR)
-```
-
-#### Enrollments
-
-```
-GET    /api/enrollments?subjectId=&academicYear=&minAttendance=&risk=dropout
-GET    /api/enrollments/:id
-POST   /api/enrollments (requiere DIRECTOR/TUTOR)
-PUT    /api/enrollments/:id (requiere DIRECTOR/TUTOR/PROFESOR)
-```
-
-#### Assessments
-
-```
-GET    /api/assessments?enrollmentId=&kind=
-GET    /api/assessments/:id
-POST   /api/assessments (requiere DIRECTOR/TUTOR/PROFESOR)
-PUT    /api/assessments/:id (requiere DIRECTOR/TUTOR/PROFESOR)
-```
-
-### Ejecutar Tests
-
-```bash
-cd backend
-npm test
-```
-
-### Migraciones y Seed
-
-```bash
-# Crear migración
-cd backend
-npx prisma migrate dev --name sprint2_schema
-
-# Ejecutar seed
-npm run prisma:seed
-```
-
-### Estructura ETL
+proyecto-final/
+│
+├── frontend/                    # Aplicación web (React)
+│   ├── src/
+│   │   ├── components/          # Componentes React
+│   │   ├── pages/               # Páginas principales
+│   │   ├── context/             # Autenticación
+│   │   └── api/                 # Llamadas al backend
+│   ├── package.json
+│   └── vite.config.js
+│
+├── backend/                     # Servidor API (Express.js)
+│   ├── src/
+│   │   ├── app.js               # Archivo principal del servidor
+│   │   ├── routes/              # Rutas de la API
+│   │   ├── db/                  # Base de datos SQLite
+│   │   ├── config/              # Configuración (autenticación)
+│   │   └── middleware/          # Middleware personalizado
+│   ├── package.json
+│   └── .env                     # Variables de entorno
+│
+└── ai-service/                  # Modelos de IA (Streamlit + ML)
+    ├── app/
+    │   └── streamlit_app.py     # Aplicación Streamlit
+    ├── src/
+    │   ├── model_training_evaluation.py  # Entrenamiento de modelos
+    │   ├── model_explainability.py       # Explicabilidad SHAP
+    │   └── model_deploy.py               # Despliegue
+    ├── data/                    # Datos para entrenar modelos
+    ├── models/                  # Modelos entrenados (.pkl)
+    ├── requirements.txt         # Dependencias Python
+    └── Dockerfile              # Para ejecutar en Docker
 
 ```
-backend/src/etl/
-├── csvMapping.ts      # Mapeo flexible de columnas
-├── rowSchema.ts       # Validación Zod
-└── importDataset.ts   # Script principal de importación
-```
 
-Ver `DOCUMENTATION.md` para detalles completos.  
+---
 
-## Next Steps
+## 🛠️ Tecnologías utilizadas
 
-- [ ] Implement Google OAuth authentication
-- [ ] Set up shadcn/ui components library
-- [ ] Add ML model training endpoints
-- [ ] Configure MinIO for file storage
-- [ ] Add comprehensive error handling
-- [ ] Set up CI/CD pipeline
+- **Frontend**: React, Vite, Tailwind CSS
+- **Backend**: Express.js, SQLite, Passport.js
+- **AI**: Python, Streamlit, Scikit-learn, SHAP
+- **Autenticación**: Passport.js con sesiones
 
-## License
+---
 
-MIT
+## 🔧 Solución de problemas
+
+### El frontend no puede conectar con el backend
+- Asegúrate de que el backend esté ejecutándose en `http://localhost:3001`
+- Verifica las variables de entorno en `backend/.env`
+
+### Error al instalar dependencias Python
+- Asegúrate de tener Python 3.8+ instalado
+- Usa un entorno virtual: `python -m venv venv`
+
+### Puerto reservado
+Si un puerto ya está en uso, puedes cambiar el puerto en:
+- **Frontend**: Edita `frontend/vite.config.js`
+- **Backend**: Edita la variable `PORT` en `backend/.env`
+- **Streamlit**: Usa `streamlit run app/streamlit_app.py --server.port 8502`
+
+---
+
+## 📖 Flujo de uso
+
+1. **Abre el navegador** en `http://localhost:5173` (frontend)
+2. **Inicia sesión** con tu usuario
+3. **Ingresa datos del estudiante** (historial académico, etc.)
+4. **Recibe predicciones** del sistema de IA
+5. **Visualiza explicaciones** de por qué el modelo hizo esa predicción
+
+---
+
+## 📞 Contacto
+
+Si tienes dudas sobre cómo ejecutar este proyecto, verifica que:
+- ✅ Todos los requisitos estén instalados
+- ✅ Estés ejecutando los comandos en las carpetas correctas
+- ✅ Los puertos estén disponibles (5173, 3001, 8501)
+
+---
+
+**¡Listo! Ya puedes usar el sistema de predicción académica.** 🎉
