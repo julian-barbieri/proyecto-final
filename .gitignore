@@ -1,0 +1,174 @@
+# ==========================================
+# ENTORNOS VIRTUALES Y DEPENDENCIAS
+# ==========================================
+
+# Python - Entornos virtuales
+venv/
+.venv/
+env/
+.env/
+ENV/
+ai-service/.venv/
+ai-service/venv/
+
+# Node.js - Dependencias
+node_modules/
+npm-debug.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+package-lock.json
+yarn.lock
+
+# ==========================================
+# ARCHIVOS COMPILADOS Y CACHÉ
+# ==========================================
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Node.js
+.next/
+.nuxt/
+dist/
+out/
+
+# Pytest
+.pytest_cache/
+.coverage
+htmlcov/
+
+# ==========================================
+# VARIABLES DE ENTORNO (¡IMPORTANTES!)
+# ==========================================
+
+.env
+.env.local
+.env.*.local
+.env.development.local
+.env.test.local
+.env.production.local
+backend/.env
+frontend/.env
+ai-service/.env
+
+# ==========================================
+# IDE Y EDITORES
+# ==========================================
+
+# VS Code
+.vscode/
+.vscode-settings.json
+.vscode/settings.json
+.vscode/tasks.json
+.vscode/launch.json
+.vscode/extensions.json
+*.code-workspace
+
+# PyCharm / JetBrains
+.idea/
+.idea_modules/
+*.iml
+*.iws
+*.ipr
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
+[._]*.s[a-v][a-z]
+*~
+.vim/
+
+# Nano
+.nano_history
+
+# ==========================================
+# SISTEMA OPERATIVO
+# ==========================================
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+.Icon
+._*
+.Spotlight-V100
+.Trashes
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+.directory
+
+# ==========================================
+# ARCHIVOS DE DESARROLLO
+# ==========================================
+
+# Logs
+logs/
+*.log
+
+# Temporal
+temp/
+tmp/
+*.tmp
+
+# Bases de datos locales
+*.sqlite
+*.db
+
+# ==========================================
+# OUTPUTS Y MODELOS ENTRENADOS (OPCIONAL)
+# ==========================================
+# Descomenta si NO quieres subir los modelos/outputs
+# ai-service/models/*.pkl
+# ai-service/outputs/shap/*.csv
+
+# ==========================================
+# DOCKER
+# ==========================================
+
+.dockerignore
+docker-compose.override.yml
+
+# ==========================================
+# OTROS
+# ==========================================
+
+.DS_Store
+.env.*.swp
+*.swp
+*.swo
+*~
+.sass-cache
+.ruby-version
+.ruby-gemset
