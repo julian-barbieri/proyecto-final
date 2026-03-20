@@ -12,10 +12,12 @@ const OAUTH_ERROR_MESSAGES = {
 
 export default function Login() {
   const [searchParams] = useSearchParams();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, login } = useAuth();
 
   const [isLoading, setIsLoading] = useState(false);
+  const [isSubmittingLocal, setIsSubmittingLocal] = useState(false);
   const [error, setError] = useState("");
+  const [form, setForm] = useState({ username: "", password: "" });
 
   const oauthUrl = useMemo(() => {
     const apiBase = import.meta.env.VITE_API_URL || "http://localhost:3001";
@@ -44,6 +46,20 @@ export default function Login() {
     setError("");
     setIsLoading(true);
     window.location.href = oauthUrl;
+  };
+
+  const handleLocalLogin = async (event) => {
+    event.preventDefault();
+    setError("");
+    setIsSubmittingLocal(true);
+
+    try {
+      await login(form.username, form.password);
+    } catch (err) {
+      setError(err?.message || "No se pudo iniciar sesión.");
+    } finally {
+      setIsSubmittingLocal(false);
+    }
   };
 
   if (isAuthenticated) {
@@ -94,9 +110,66 @@ export default function Login() {
           {isLoading ? "Redirigiendo..." : "Continuar con Google"}
         </button>
 
+        <div className="my-5 flex items-center gap-3">
+          <span className="h-px flex-1 bg-slate-200" />
+          <span className="text-xs uppercase tracking-wide text-slate-400">
+            o
+          </span>
+          <span className="h-px flex-1 bg-slate-200" />
+        </div>
+
+        <form onSubmit={handleLocalLogin} className="space-y-3">
+          <div>
+            <label
+              htmlFor="username"
+              className="mb-1 block text-sm text-slate-700"
+            >
+              Usuario
+            </label>
+            <input
+              id="username"
+              type="text"
+              value={form.username}
+              onChange={(event) =>
+                setForm((prev) => ({ ...prev, username: event.target.value }))
+              }
+              className="w-full rounded border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500"
+              placeholder="Ej: director"
+              required
+            />
+          </div>
+
+          <div>
+            <label
+              htmlFor="password"
+              className="mb-1 block text-sm text-slate-700"
+            >
+              Contraseña
+            </label>
+            <input
+              id="password"
+              type="password"
+              value={form.password}
+              onChange={(event) =>
+                setForm((prev) => ({ ...prev, password: event.target.value }))
+              }
+              className="w-full rounded border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500"
+              placeholder="Tu contraseña"
+              required
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={isSubmittingLocal || isLoading}
+            className="w-full rounded bg-slate-800 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-70"
+          >
+            {isSubmittingLocal ? "Ingresando..." : "Ingresar con usuario"}
+          </button>
+        </form>
+
         <p className="mt-4 text-xs text-slate-500">
-          Si necesitás usar cuentas de desarrollo, el endpoint tradicional sigue
-          disponible en <code>/api/auth/login</code>.
+          También podés usar usuario y contraseña precargados en la base.
         </p>
       </section>
     </main>
