@@ -4,6 +4,8 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import AlumnoDetalle from "./pages/AlumnoDetalle";
 import Alumnos from "./pages/Alumnos";
 import AuthCallback from "./pages/AuthCallback";
+import Contenido from "./pages/Contenido";
+import ContenidoDocente from "./pages/ContenidoDocente";
 import Dashboard from "./pages/Dashboard";
 import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
@@ -38,6 +40,34 @@ export default function App() {
               subtitle="Ejecutá predicciones de abandono, recursado y nota de examen."
             >
               <Predicciones />
+            </PageLayout>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/contenido"
+        element={
+          <ProtectedRoute allowedRoles={["alumno"]}>
+            <PageLayout
+              title="Contenido"
+              subtitle="Material académico publicado por tus tutores"
+            >
+              <Contenido />
+            </PageLayout>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/contenido-docente"
+        element={
+          <ProtectedRoute allowedRoles={["docente", "admin"]}>
+            <PageLayout
+              title="Cargar contenido"
+              subtitle="Publicá material académico para tus alumnos"
+            >
+              <ContenidoDocente />
             </PageLayout>
           </ProtectedRoute>
         }

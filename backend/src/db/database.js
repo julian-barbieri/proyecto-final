@@ -133,4 +133,49 @@ db.exec(`
   );
 `);
 
+db.exec(`
+  CREATE TABLE IF NOT EXISTS materias (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nombre TEXT NOT NULL,
+    codigo TEXT UNIQUE NOT NULL,
+    descripcion TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+`);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS inscripciones (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    alumno_id INTEGER NOT NULL REFERENCES users(id),
+    materia_id INTEGER NOT NULL REFERENCES materias(id),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(alumno_id, materia_id)
+  );
+`);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS contenido (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tutor_id INTEGER NOT NULL REFERENCES users(id),
+    materia_id INTEGER NOT NULL REFERENCES materias(id),
+    titulo TEXT NOT NULL,
+    descripcion TEXT,
+    tipo TEXT NOT NULL CHECK(tipo IN ('pdf', 'word', 'video', 'imagen', 'texto')),
+    archivo_path TEXT,
+    video_url TEXT,
+    texto_contenido TEXT,
+    alumno_id INTEGER REFERENCES users(id),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+`);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS visualizaciones (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    alumno_id INTEGER NOT NULL REFERENCES users(id),
+    contenido_id INTEGER NOT NULL REFERENCES contenido(id),
+    visto_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+`);
+
 module.exports = db;

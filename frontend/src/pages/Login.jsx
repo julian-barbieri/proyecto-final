@@ -69,6 +69,14 @@ export default function Login() {
   return (
     <main className="flex min-h-screen items-center justify-center px-4">
       <section className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="mb-4 flex justify-center">
+          <img
+            src="/logo-usal.webp"
+            alt="Logo USAL"
+            className="h-20 w-auto"
+          />
+        </div>
+
         <h2 className="mb-2 text-xl font-semibold">
           Sistema de Predicciones Académicas
         </h2>
