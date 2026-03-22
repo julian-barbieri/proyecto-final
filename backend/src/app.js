@@ -15,7 +15,10 @@ const predictRoutes = require("./routes/predict.routes");
 const historyRoutes = require("./routes/history.routes");
 const studentsRoutes = require("./routes/students.routes");
 const contenidoRoutes = require("./routes/contenido.routes");
-const { authenticate } = require("./middleware/auth.middleware");
+const mensajesRoutes = require("./routes/mensajes.routes");
+const misCursosRoutes = require("./routes/miscursos.routes");
+const gestionMateriasRoutes = require("./routes/gestion-materias.routes");
+const { authenticate, authorize } = require("./middleware/auth.middleware");
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -61,6 +64,9 @@ app.use("/api/predict", predictRoutes);
 app.use("/api/history", historyRoutes);
 app.use("/api/students", studentsRoutes);
 app.use("/api/contenido", authenticate, contenidoRoutes);
+app.use("/api/mensajes", authenticate, mensajesRoutes);
+app.use("/api/mis-cursos", authenticate, authorize("alumno"), misCursosRoutes);
+app.use("/api/gestion", authenticate, gestionMateriasRoutes);
 
 seedUsers()
   .then(() => {

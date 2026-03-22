@@ -2,6 +2,8 @@ const bcrypt = require("bcryptjs");
 const db = require("./database");
 
 function seedMateriasInscripcionesYContenido() {
+  const currentYear = new Date().getFullYear();
+
   const totalMaterias = db
     .prepare("SELECT COUNT(*) AS count FROM materias")
     .get();
@@ -24,8 +26,8 @@ function seedMateriasInscripcionesYContenido() {
   }
 
   const alumno =
-    db.prepare("SELECT id FROM users WHERE username = ?").get("alumno") ||
-    db.prepare("SELECT id FROM users WHERE username = ?").get("alumno1");
+    db.prepare("SELECT id FROM users WHERE username = ?").get("alumno1") ||
+    db.prepare("SELECT id FROM users WHERE username = ?").get("alumno");
 
   const tutor =
     db.prepare("SELECT id FROM users WHERE username = ?").get("docente") ||
@@ -46,10 +48,9 @@ function seedMateriasInscripcionesYContenido() {
   }
 
   const insertInscripcion = db.prepare(
-    "INSERT OR IGNORE INTO inscripciones (alumno_id, materia_id) VALUES (?, ?)",
+    "INSERT OR IGNORE INTO inscripciones (alumno_id, materia_id, anio, periodo_id, estado) VALUES (?, ?, ?, ?, ?)",
   );
-  insertInscripcion.run(alumno.id, am1.id);
-  insertInscripcion.run(alumno.id, am2.id);
+  insertInscripcion.run(alumno.id, am1.id, currentYear, null, "activa");
 
   const totalContenido = db
     .prepare("SELECT COUNT(*) AS count FROM contenido")
@@ -134,12 +135,271 @@ function seedMateriasInscripcionesYContenido() {
   );
 }
 
+function seedGestionMateriasCDU005() {
+  const currentYear = new Date().getFullYear();
+
+  const coordinator =
+    db.prepare("SELECT id FROM users WHERE username = ?").get("coordinador") ||
+    db.prepare("SELECT id FROM users WHERE role = 'coordinador' LIMIT 1").get();
+
+  const docente =
+    db.prepare("SELECT id FROM users WHERE username = ?").get("docente1") ||
+    db.prepare("SELECT id FROM users WHERE username = ?").get("docente");
+
+  const alumno =
+    db.prepare("SELECT id FROM users WHERE username = ?").get("alumno1") ||
+    db.prepare("SELECT id FROM users WHERE username = ?").get("alumno");
+
+  const am1 = db.prepare("SELECT id FROM materias WHERE codigo = ?").get("AM1");
+  const am2 = db.prepare("SELECT id FROM materias WHERE codigo = ?").get("AM2");
+
+  if (!coordinator || !docente || !alumno || !am1 || !am2) {
+    return;
+  }
+
+  const totalPeriodos = db
+    .prepare("SELECT COUNT(*) AS count FROM periodos_inscripcion")
+    .get();
+
+  if (totalPeriodos.count === 0) {
+    db.prepare(
+      `
+      INSERT INTO periodos_inscripcion (
+        anio,
+        descripcion,
+        fecha_inicio,
+        fecha_fin,
+        activo,
+        creado_por
+      ) VALUES (?, ?, ?, ?, 1, ?)
+    `,
+    ).run(
+      currentYear,
+      `Cuatrimestre 1 - ${currentYear}`,
+      `${currentYear}-03-01`,
+      `${currentYear}-03-31`,
+      coordinator.id,
+    );
+  }
+
+  const totalAsignaciones = db
+    .prepare("SELECT COUNT(*) AS count FROM docente_materia")
+    .get();
+
+  if (totalAsignaciones.count === 0) {
+    const insertAsignacion = db.prepare(
+      `
+      INSERT INTO docente_materia (
+        docente_id,
+        materia_id,
+        anio,
+        activo,
+        asignado_por
+      ) VALUES (?, ?, ?, ?, ?)
+    `,
+    );
+
+    insertAsignacion.run(docente.id, am1.id, currentYear, 1, coordinator.id);
+    insertAsignacion.run(docente.id, am2.id, currentYear, 1, coordinator.id);
+    insertAsignacion.run(
+      docente.id,
+      am1.id,
+      currentYear - 1,
+      0,
+      coordinator.id,
+    );
+  }
+
+  const periodoActivo = db
+    .prepare(
+      "SELECT id FROM periodos_inscripcion WHERE activo = 1 ORDER BY id DESC LIMIT 1",
+    )
+    .get();
+
+  if (!periodoActivo) {
+    return;
+  }
+
+  const yaInscriptoAm1 = db
+    .prepare(
+      "SELECT id FROM inscripciones WHERE alumno_id = ? AND materia_id = ? AND anio = ? AND estado = 'activa' LIMIT 1",
+    )
+    .get(alumno.id, am1.id, currentYear);
+
+  if (!yaInscriptoAm1) {
+    db.prepare(
+      `
+      INSERT INTO inscripciones (
+        alumno_id,
+        materia_id,
+        anio,
+        periodo_id,
+        estado
+      ) VALUES (?, ?, ?, ?, 'activa')
+    `,
+    ).run(alumno.id, am1.id, currentYear, periodoActivo.id);
+  }
+}
+
+function seedMensajeriaCDU003() {
+  const am1 = db.prepare("SELECT id FROM materias WHERE codigo = ?").get("AM1");
+  const am2 = db.prepare("SELECT id FROM materias WHERE codigo = ?").get("AM2");
+
+  if (!am1 || !am2) {
+    return;
+  }
+
+  const totalUnidades = db
+    .prepare("SELECT COUNT(*) AS count FROM unidades")
+    .get();
+
+  if (totalUnidades.count === 0) {
+    const insertUnidad = db.prepare(
+      "INSERT INTO unidades (materia_id, nombre, orden) VALUES (?, ?, ?)",
+    );
+
+    insertUnidad.run(am1.id, "Unidad 1 - Límites y continuidad", 1);
+    insertUnidad.run(am1.id, "Unidad 2 - Derivadas", 2);
+    insertUnidad.run(am1.id, "Unidad 3 - Integrales", 3);
+
+    insertUnidad.run(am2.id, "Unidad 1 - Funciones de varias variables", 1);
+    insertUnidad.run(am2.id, "Unidad 2 - Integrales dobles", 2);
+  }
+
+  const totalConversaciones = db
+    .prepare("SELECT COUNT(*) AS count FROM conversaciones")
+    .get();
+
+  if (totalConversaciones.count > 0) {
+    return;
+  }
+
+  const alumno =
+    db.prepare("SELECT id FROM users WHERE username = ?").get("alumno1") ||
+    db.prepare("SELECT id FROM users WHERE username = ?").get("alumno");
+
+  const tutor =
+    db.prepare("SELECT id FROM users WHERE username = ?").get("docente1") ||
+    db.prepare("SELECT id FROM users WHERE username = ?").get("docente");
+
+  const unidadAm1 = db
+    .prepare(
+      "SELECT id FROM unidades WHERE materia_id = ? AND orden = 1 ORDER BY id ASC LIMIT 1",
+    )
+    .get(am1.id);
+
+  if (!alumno || !tutor || !unidadAm1) {
+    return;
+  }
+
+  const createSampleConversation = db.transaction(() => {
+    const conversacionResult = db
+      .prepare(
+        `
+        INSERT INTO conversaciones (
+          asunto,
+          alumno_id,
+          tutor_id,
+          materia_id,
+          unidad_id,
+          ultimo_mensaje_at
+        ) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+      `,
+      )
+      .run(
+        "¿Cómo se resuelven los límites indeterminados?",
+        alumno.id,
+        tutor.id,
+        am1.id,
+        unidadAm1.id,
+      );
+
+    const conversacionId = Number(conversacionResult.lastInsertRowid);
+
+    const insertMensaje = db.prepare(
+      `
+      INSERT INTO mensajes (conversacion_id, remitente_id, cuerpo, leido)
+      VALUES (?, ?, ?, ?)
+    `,
+    );
+
+    insertMensaje.run(
+      conversacionId,
+      alumno.id,
+      "Hola, no entiendo cómo resolver el límite 0/0. ¿Podés explicarme?",
+      0,
+    );
+
+    insertMensaje.run(
+      conversacionId,
+      tutor.id,
+      "Hola! Para los límites indeterminados podés usar la regla de L Hôpital...",
+      1,
+    );
+
+    insertMensaje.run(
+      conversacionId,
+      alumno.id,
+      "Muchas gracias, me quedó claro.",
+      0,
+    );
+  });
+
+  createSampleConversation();
+}
+
+function seedMisCursosCDU004() {
+  const totalCursadas = db
+    .prepare("SELECT COUNT(*) AS count FROM cursadas")
+    .get();
+  const totalExamenes = db
+    .prepare("SELECT COUNT(*) AS count FROM examenes")
+    .get();
+
+  if (totalCursadas.count > 0 || totalExamenes.count > 0) {
+    return;
+  }
+
+  const alumno =
+    db.prepare("SELECT id FROM users WHERE username = ?").get("alumno1") ||
+    db.prepare("SELECT id FROM users WHERE username = ?").get("alumno");
+
+  const am1 = db.prepare("SELECT id FROM materias WHERE codigo = ?").get("AM1");
+  const am2 = db.prepare("SELECT id FROM materias WHERE codigo = ?").get("AM2");
+
+  if (!alumno || !am1 || !am2) {
+    return;
+  }
+
+  const insertCursada = db.prepare(
+    "INSERT INTO cursadas (alumno_id, materia_id, anio, asistencia, estado) VALUES (?, ?, ?, ?, ?)",
+  );
+
+  insertCursada.run(alumno.id, am1.id, 2023, 0.9, "aprobada");
+  insertCursada.run(alumno.id, am2.id, 2024, 0.8, "cursando");
+
+  const insertExamen = db.prepare(
+    "INSERT INTO examenes (alumno_id, materia_id, anio, tipo, instancia, rendido, nota) VALUES (?, ?, ?, ?, ?, ?, ?)",
+  );
+
+  insertExamen.run(alumno.id, am1.id, 2025, "Parcial", 1, 1, 7.5);
+  insertExamen.run(alumno.id, am1.id, 2025, "Parcial", 2, 1, 6.0);
+  insertExamen.run(alumno.id, am1.id, 2025, "Recuperatorio", 1, 1, 5.0);
+  insertExamen.run(alumno.id, am1.id, 2025, "Final", 1, 1, 4.5);
+
+  insertExamen.run(alumno.id, am2.id, 2026, "Parcial", 1, 0, null);
+  insertExamen.run(alumno.id, am2.id, 2026, "Parcial", 2, 0, null);
+  insertExamen.run(alumno.id, am2.id, 2026, "Final", 1, 0, null);
+}
+
 async function seedUsers() {
   const users = [
     { username: "director", password: "director123", role: "admin" },
     { username: "docente", password: "docente123", role: "docente" },
+    { username: "docente1", password: "docente123", role: "docente" },
     { username: "coordinador", password: "coord123", role: "coordinador" },
     { username: "alumno", password: "alumno123", role: "alumno" },
+    { username: "alumno1", password: "alumno123", role: "alumno" },
   ];
 
   const insertUser = db.prepare(
@@ -171,6 +431,9 @@ async function seedUsers() {
   );
 
   seedMateriasInscripcionesYContenido();
+  seedMensajeriaCDU003();
+  seedMisCursosCDU004();
+  seedGestionMateriasCDU005();
 }
 
 if (require.main === module) {

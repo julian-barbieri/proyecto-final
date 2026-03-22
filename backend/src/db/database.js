@@ -148,9 +148,101 @@ db.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     alumno_id INTEGER NOT NULL REFERENCES users(id),
     materia_id INTEGER NOT NULL REFERENCES materias(id),
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(alumno_id, materia_id)
+    anio INTEGER,
+    periodo_id INTEGER REFERENCES periodos_inscripcion(id),
+    estado TEXT NOT NULL DEFAULT 'activa' CHECK(estado IN ('activa', 'baja')),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
+`);
+
+function migrateInscripcionesSchemaIfNeeded() {
+  const tableInfo = db.prepare("PRAGMA table_info(inscripciones)").all();
+
+  if (!tableInfo.length) {
+    return;
+  }
+
+  const columnNames = new Set(tableInfo.map((column) => column.name));
+  const hasAnio = columnNames.has("anio");
+  const hasPeriodoId = columnNames.has("periodo_id");
+  const hasEstado = columnNames.has("estado");
+
+  const indexes = db.prepare("PRAGMA index_list(inscripciones)").all();
+  const uniqueAlumnoMateriaIndex = indexes.some((index) => {
+    if (!index.unique) {
+      return false;
+    }
+    const cols = db
+      .prepare(`PRAGMA index_info(${index.name})`)
+      .all()
+      .map((c) => c.name);
+    return (
+      cols.length === 2 &&
+      cols.includes("alumno_id") &&
+      cols.includes("materia_id")
+    );
+  });
+
+  if (hasAnio && hasPeriodoId && hasEstado && !uniqueAlumnoMateriaIndex) {
+    return;
+  }
+
+  const currentYear = new Date().getFullYear();
+
+  try {
+    db.exec("PRAGMA foreign_keys = OFF");
+    db.exec("BEGIN");
+
+    db.exec(`
+      CREATE TABLE inscripciones_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        alumno_id INTEGER NOT NULL REFERENCES users(id),
+        materia_id INTEGER NOT NULL REFERENCES materias(id),
+        anio INTEGER,
+        periodo_id INTEGER REFERENCES periodos_inscripcion(id),
+        estado TEXT NOT NULL DEFAULT 'activa' CHECK(estado IN ('activa', 'baja')),
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    db.exec(`
+      INSERT INTO inscripciones_new (
+        id,
+        alumno_id,
+        materia_id,
+        anio,
+        periodo_id,
+        estado,
+        created_at
+      )
+      SELECT
+        id,
+        alumno_id,
+        materia_id,
+        ${hasAnio ? "COALESCE(anio, " + currentYear + ")" : currentYear},
+        ${hasPeriodoId ? "periodo_id" : "NULL"},
+        ${hasEstado ? "COALESCE(estado, 'activa')" : "'activa'"},
+        COALESCE(created_at, CURRENT_TIMESTAMP)
+      FROM inscripciones;
+    `);
+
+    db.exec("DROP TABLE inscripciones");
+    db.exec("ALTER TABLE inscripciones_new RENAME TO inscripciones");
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  } finally {
+    db.exec("PRAGMA foreign_keys = ON");
+  }
+}
+
+migrateInscripcionesSchemaIfNeeded();
+
+db.exec(`
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_inscripciones_unique_activa
+  ON inscripciones(alumno_id, materia_id, anio)
+  WHERE estado = 'activa';
 `);
 
 db.exec(`
@@ -175,6 +267,92 @@ db.exec(`
     alumno_id INTEGER NOT NULL REFERENCES users(id),
     contenido_id INTEGER NOT NULL REFERENCES contenido(id),
     visto_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+`);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS unidades (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    materia_id INTEGER NOT NULL REFERENCES materias(id),
+    nombre TEXT NOT NULL,
+    orden INTEGER NOT NULL DEFAULT 1,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+`);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS conversaciones (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    asunto TEXT NOT NULL,
+    alumno_id INTEGER NOT NULL REFERENCES users(id),
+    tutor_id INTEGER NOT NULL REFERENCES users(id),
+    materia_id INTEGER NOT NULL REFERENCES materias(id),
+    unidad_id INTEGER REFERENCES unidades(id),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    ultimo_mensaje_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+`);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS mensajes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    conversacion_id INTEGER NOT NULL REFERENCES conversaciones(id),
+    remitente_id INTEGER NOT NULL REFERENCES users(id),
+    cuerpo TEXT NOT NULL,
+    leido INTEGER NOT NULL DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+`);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS cursadas (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    alumno_id INTEGER NOT NULL REFERENCES users(id),
+    materia_id INTEGER NOT NULL REFERENCES materias(id),
+    anio INTEGER NOT NULL,
+    asistencia REAL,
+    estado TEXT NOT NULL DEFAULT 'cursando' CHECK(estado IN ('cursando', 'aprobada', 'recursada', 'abandonada')),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+`);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS examenes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    alumno_id INTEGER NOT NULL REFERENCES users(id),
+    materia_id INTEGER NOT NULL REFERENCES materias(id),
+    anio INTEGER NOT NULL,
+    tipo TEXT NOT NULL,
+    instancia INTEGER NOT NULL,
+    rendido INTEGER NOT NULL DEFAULT 1,
+    nota REAL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+`);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS periodos_inscripcion (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    anio INTEGER NOT NULL,
+    descripcion TEXT,
+    fecha_inicio DATE NOT NULL,
+    fecha_fin DATE NOT NULL,
+    activo INTEGER NOT NULL DEFAULT 0,
+    creado_por INTEGER NOT NULL REFERENCES users(id),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+`);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS docente_materia (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    docente_id INTEGER NOT NULL REFERENCES users(id),
+    materia_id INTEGER NOT NULL REFERENCES materias(id),
+    anio INTEGER NOT NULL,
+    activo INTEGER NOT NULL DEFAULT 1,
+    asignado_por INTEGER NOT NULL REFERENCES users(id),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(docente_id, materia_id, anio)
   );
 `);
 

@@ -7,7 +7,13 @@ import AuthCallback from "./pages/AuthCallback";
 import Contenido from "./pages/Contenido";
 import ContenidoDocente from "./pages/ContenidoDocente";
 import Dashboard from "./pages/Dashboard";
+import GestionMaterias from "./pages/GestionMaterias";
+import Inscripcion from "./pages/Inscripcion";
 import Login from "./pages/Login";
+import MateriaDetalle from "./pages/MateriaDetalle";
+import Mensajes from "./pages/Mensajes";
+import MisMateriasDocente from "./pages/MisMateriasDocente";
+import MisCursos from "./pages/MisCursos";
 import NotFound from "./pages/NotFound";
 import Predicciones from "./pages/Predicciones";
 
@@ -68,6 +74,87 @@ export default function App() {
               subtitle="Publicá material académico para tus alumnos"
             >
               <ContenidoDocente />
+            </PageLayout>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/mensajes"
+        element={
+          <ProtectedRoute allowedRoles={["alumno", "docente"]}>
+            <PageLayout
+              title="Mensajes"
+              subtitle="Comunicación entre alumnos y tutores"
+            >
+              <Mensajes />
+            </PageLayout>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/gestion-materias"
+        element={
+          <ProtectedRoute allowedRoles={["admin", "coordinador"]}>
+            <PageLayout
+              title="Gestión de materias"
+              subtitle="Administrá asignaciones docentes y períodos de inscripción"
+            >
+              <GestionMaterias />
+            </PageLayout>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/mis-materias"
+        element={
+          <ProtectedRoute allowedRoles={["docente"]}>
+            <PageLayout
+              title="Mis materias"
+              subtitle="Materias activas e historial de asignaciones"
+            >
+              <MisMateriasDocente />
+            </PageLayout>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/mis-cursos"
+        element={
+          <ProtectedRoute allowedRoles={["alumno"]}>
+            <PageLayout
+              title="Mis cursos"
+              subtitle="Seguimiento de cursadas, finales pendientes y materias aprobadas"
+            >
+              <MisCursos />
+            </PageLayout>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/inscripcion"
+        element={
+          <ProtectedRoute allowedRoles={["alumno"]}>
+            <PageLayout
+              title="Inscripción"
+              subtitle="Inscribite o date de baja en materias según período vigente"
+            >
+              <Inscripcion />
+            </PageLayout>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/mis-cursos/:materiaId"
+        element={
+          <ProtectedRoute allowedRoles={["alumno"]}>
+            <PageLayout>
+              <MateriaDetalle />
             </PageLayout>
           </ProtectedRoute>
         }

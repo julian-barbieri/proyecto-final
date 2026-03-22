@@ -1,15 +1,47 @@
 import { useEffect, useMemo, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
+import api from "../api/axios";
 import { useAuth } from "../context/AuthContext";
 
 export default function Navbar() {
   const { user, logout } = useAuth();
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [unreadMessages, setUnreadMessages] = useState(0);
 
   useEffect(() => {
     setIsMobileMenuOpen(false);
   }, [location.pathname]);
+
+  useEffect(() => {
+    if (!["alumno", "docente"].includes(user?.role)) {
+      setUnreadMessages(0);
+      return;
+    }
+
+    let active = true;
+
+    const fetchUnread = async () => {
+      try {
+        const response = await api.get("/api/mensajes/no-leidos");
+        if (active) {
+          setUnreadMessages(Number(response.data?.total || 0));
+        }
+      } catch {
+        if (active) {
+          setUnreadMessages(0);
+        }
+      }
+    };
+
+    fetchUnread();
+    const intervalId = window.setInterval(fetchUnread, 30000);
+
+    return () => {
+      active = false;
+      window.clearInterval(intervalId);
+    };
+  }, [user?.role]);
 
   const links = useMemo(() => {
     const role = user?.role;
@@ -17,19 +49,17 @@ export default function Navbar() {
     if (["admin", "coordinador"].includes(role)) {
       return [
         { to: "/", label: "Dashboard" },
+        { to: "/gestion-materias", label: "Gestión de materias" },
         { to: "/predicciones", label: "Predicciones" },
-        ...(role === "admin"
-          ? [{ to: "/contenido-docente", label: "Cargar contenido" }]
-          : []),
-        { to: "/alumnos", label: "Alumnos" },
+        ...(role === "admin" ? [{ to: "/alumnos", label: "Alumnos" }] : []),
       ];
     }
 
     if (role === "docente") {
       return [
         { to: "/", label: "Dashboard" },
-        { to: "/predicciones", label: "Predicciones" },
-        { to: "/contenido-docente", label: "Cargar contenido" },
+        { to: "/mis-materias", label: "Mis materias" },
+        { to: "/mensajes", label: "Mensajes" },
       ];
     }
 
@@ -37,6 +67,9 @@ export default function Navbar() {
       return [
         { to: "/", label: "Dashboard" },
         { to: "/contenido", label: "Contenido" },
+        { to: "/mensajes", label: "Mensajes" },
+        { to: "/mis-cursos", label: "Mis cursos" },
+        { to: "/inscripcion", label: "Inscripción" },
       ];
     }
 
@@ -64,7 +97,14 @@ export default function Navbar() {
           <nav className="flex items-center gap-2">
             {links.map((link) => (
               <NavLink key={link.to} to={link.to} className={linkClassName}>
-                {link.label}
+                <span className="relative inline-flex items-center gap-1">
+                  {link.label}
+                  {link.to === "/mensajes" && unreadMessages > 0 ? (
+                    <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold text-white">
+                      {unreadMessages > 9 ? "9+" : unreadMessages}
+                    </span>
+                  ) : null}
+                </span>
               </NavLink>
             ))}
           </nav>
@@ -130,7 +170,14 @@ export default function Navbar() {
           <nav className="flex flex-col gap-2">
             {links.map((link) => (
               <NavLink key={link.to} to={link.to} className={linkClassName}>
-                {link.label}
+                <span className="relative inline-flex items-center gap-1">
+                  {link.label}
+                  {link.to === "/mensajes" && unreadMessages > 0 ? (
+                    <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold text-white">
+                      {unreadMessages > 9 ? "9+" : unreadMessages}
+                    </span>
+                  ) : null}
+                </span>
               </NavLink>
             ))}
           </nav>
