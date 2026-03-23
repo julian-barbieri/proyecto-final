@@ -3,6 +3,8 @@ const db = require("../db/database");
 const { authorize } = require("../middleware/auth.middleware");
 
 const router = express.Router();
+const TIPO_ALUMNO_TUTOR = "alumno_tutor";
+const TIPO_DOCENTE_COORDINADOR = "docente_coordinador";
 
 function parsePositiveInteger(value) {
   const parsed = Number(value);
@@ -12,20 +14,63 @@ function parsePositiveInteger(value) {
   return parsed;
 }
 
+function mapConversacionForResponse(item) {
+  const participanteANombre =
+    item.participante_a_nombre || item.participante_a_username || null;
+  const participanteBNombre =
+    item.participante_b_nombre || item.participante_b_username || null;
+
+  return {
+    ...item,
+    tipo_conversacion: item.tipo_conversacion || TIPO_ALUMNO_TUTOR,
+    participante_a_id: Number(item.participante_a_id || item.alumno_id),
+    participante_b_id: Number(item.participante_b_id || item.tutor_id),
+    participante_a_nombre: participanteANombre,
+    participante_b_nombre: participanteBNombre,
+    alumno_nombre:
+      item.alumno_nombre || item.alumno_username || participanteANombre,
+    tutor_nombre:
+      item.tutor_nombre || item.tutor_username || participanteBNombre,
+  };
+}
+
+function getParticipantIds(conversacion) {
+  if (!conversacion) {
+    return { participanteAId: null, participanteBId: null };
+  }
+
+  return {
+    participanteAId: Number(
+      conversacion.participante_a_id || conversacion.alumno_id,
+    ),
+    participanteBId: Number(
+      conversacion.participante_b_id || conversacion.tutor_id,
+    ),
+  };
+}
+
 function getConversacionById(conversacionId) {
-  return db
+  const conversacion = db
     .prepare(
       `
-      SELECT c.*, 
+      SELECT c.*,
         a.nombre_completo AS alumno_nombre,
         a.username AS alumno_username,
         t.nombre_completo AS tutor_nombre,
         t.username AS tutor_username,
+        pa.nombre_completo AS participante_a_nombre,
+        pa.username AS participante_a_username,
+        pa.role AS participante_a_role,
+        pb.nombre_completo AS participante_b_nombre,
+        pb.username AS participante_b_username,
+        pb.role AS participante_b_role,
         m.nombre AS materia_nombre,
         u.nombre AS unidad_nombre
       FROM conversaciones c
-      JOIN users a ON c.alumno_id = a.id
-      JOIN users t ON c.tutor_id = t.id
+      LEFT JOIN users a ON c.alumno_id = a.id
+      LEFT JOIN users t ON c.tutor_id = t.id
+      LEFT JOIN users pa ON pa.id = COALESCE(c.participante_a_id, c.alumno_id)
+      LEFT JOIN users pb ON pb.id = COALESCE(c.participante_b_id, c.tutor_id)
       JOIN materias m ON c.materia_id = m.id
       LEFT JOIN unidades u ON c.unidad_id = u.id
       WHERE c.id = ?
@@ -33,13 +78,17 @@ function getConversacionById(conversacionId) {
     `,
     )
     .get(conversacionId);
+
+  return conversacion ? mapConversacionForResponse(conversacion) : null;
 }
 
 function hasConversationAccess(conversacion, userId) {
-  return (
-    conversacion &&
-    (conversacion.alumno_id === userId || conversacion.tutor_id === userId)
-  );
+  if (!conversacion) {
+    return false;
+  }
+
+  const { participanteAId, participanteBId } = getParticipantIds(conversacion);
+  return participanteAId === userId || participanteBId === userId;
 }
 
 router.get("/no-leidos", (req, res) => {
@@ -49,7 +98,10 @@ router.get("/no-leidos", (req, res) => {
       SELECT COUNT(*) AS total
       FROM mensajes ms
       JOIN conversaciones c ON c.id = ms.conversacion_id
-      WHERE (c.alumno_id = ? OR c.tutor_id = ?)
+      WHERE (
+        COALESCE(c.participante_a_id, c.alumno_id) = ?
+        OR COALESCE(c.participante_b_id, c.tutor_id) = ?
+      )
         AND ms.remitente_id != ?
         AND ms.leido = 0
     `,
@@ -105,8 +157,106 @@ router.get("/datos/tutores-por-materia", authorize("alumno"), (req, res) => {
 });
 
 router.get(
+  "/datos/coordinadores-por-materia",
+  authorize("docente"),
+  (req, res) => {
+    const coordinadoresPorMateria = db
+      .prepare(
+        `
+      SELECT DISTINCT
+        u.id AS coordinador_id,
+        COALESCE(u.nombre_completo, u.username) AS coordinador_nombre,
+        m.id AS materia_id,
+        m.nombre AS materia_nombre
+      FROM docente_materia dm
+      JOIN users u ON u.id = dm.asignado_por
+      JOIN materias m ON m.id = dm.materia_id
+      WHERE dm.docente_id = ?
+        AND dm.activo = 1
+        AND u.role = 'coordinador'
+      ORDER BY m.nombre ASC, coordinador_nombre ASC
+    `,
+      )
+      .all(req.user.id);
+
+    if (coordinadoresPorMateria.length > 0) {
+      return res.status(200).json(coordinadoresPorMateria);
+    }
+
+    const fallback = db
+      .prepare(
+        `
+      SELECT
+        id AS coordinador_id,
+        COALESCE(nombre_completo, username) AS coordinador_nombre
+      FROM users
+      WHERE role = 'coordinador'
+      ORDER BY coordinador_nombre ASC
+    `,
+      )
+      .all()
+      .map((item) => ({
+        ...item,
+        materia_id: null,
+        materia_nombre: null,
+      }));
+
+    return res.status(200).json(fallback);
+  },
+);
+
+router.get(
+  "/datos/docentes-por-materia",
+  authorize("coordinador"),
+  (req, res) => {
+    const docentesPorMateria = db
+      .prepare(
+        `
+      SELECT DISTINCT
+        u.id AS docente_id,
+        COALESCE(u.nombre_completo, u.username) AS docente_nombre,
+        m.id AS materia_id,
+        m.nombre AS materia_nombre
+      FROM docente_materia dm
+      JOIN users u ON u.id = dm.docente_id
+      JOIN materias m ON m.id = dm.materia_id
+      WHERE dm.asignado_por = ?
+        AND dm.activo = 1
+        AND u.role = 'docente'
+      ORDER BY m.nombre ASC, docente_nombre ASC
+    `,
+      )
+      .all(req.user.id);
+
+    if (docentesPorMateria.length > 0) {
+      return res.status(200).json(docentesPorMateria);
+    }
+
+    const fallback = db
+      .prepare(
+        `
+      SELECT
+        id AS docente_id,
+        COALESCE(nombre_completo, username) AS docente_nombre
+      FROM users
+      WHERE role = 'docente'
+      ORDER BY docente_nombre ASC
+    `,
+      )
+      .all()
+      .map((item) => ({
+        ...item,
+        materia_id: null,
+        materia_nombre: null,
+      }));
+
+    return res.status(200).json(fallback);
+  },
+);
+
+router.get(
   "/datos/unidades/:materiaId",
-  authorize("alumno", "docente"),
+  authorize("alumno", "docente", "coordinador"),
   (req, res) => {
     const materiaId = parsePositiveInteger(req.params.materiaId);
 
@@ -161,6 +311,12 @@ router.get("/", (req, res) => {
     .prepare(
       `
       SELECT c.*,
+        pa.nombre_completo AS participante_a_nombre,
+        pa.username AS participante_a_username,
+        pa.role AS participante_a_role,
+        pb.nombre_completo AS participante_b_nombre,
+        pb.username AS participante_b_username,
+        pb.role AS participante_b_role,
         m_alumno.nombre_completo AS alumno_nombre,
         m_alumno.username AS alumno_username,
         m_tutor.nombre_completo AS tutor_nombre,
@@ -175,20 +331,19 @@ router.get("/", (req, res) => {
             AND remitente_id != ?
         ) AS no_leidos
       FROM conversaciones c
-      JOIN users m_alumno ON c.alumno_id = m_alumno.id
-      JOIN users m_tutor ON c.tutor_id = m_tutor.id
+      LEFT JOIN users m_alumno ON c.alumno_id = m_alumno.id
+      LEFT JOIN users m_tutor ON c.tutor_id = m_tutor.id
+      JOIN users pa ON pa.id = COALESCE(c.participante_a_id, c.alumno_id)
+      JOIN users pb ON pb.id = COALESCE(c.participante_b_id, c.tutor_id)
       JOIN materias mat ON c.materia_id = mat.id
       LEFT JOIN unidades u ON c.unidad_id = u.id
-      WHERE c.alumno_id = ? OR c.tutor_id = ?
+      WHERE COALESCE(c.participante_a_id, c.alumno_id) = ?
+         OR COALESCE(c.participante_b_id, c.tutor_id) = ?
       ORDER BY c.ultimo_mensaje_at DESC
     `,
     )
     .all(userId, userId, userId)
-    .map((item) => ({
-      ...item,
-      alumno_nombre: item.alumno_nombre || item.alumno_username,
-      tutor_nombre: item.tutor_nombre || item.tutor_username,
-    }));
+    .map(mapConversacionForResponse);
 
   return res.status(200).json(conversaciones);
 });
@@ -266,11 +421,23 @@ router.post("/", authorize("alumno"), (req, res) => {
           tutor_id,
           materia_id,
           unidad_id,
+          participante_a_id,
+          participante_b_id,
+          tipo_conversacion,
           ultimo_mensaje_at
-        ) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
       `,
       )
-      .run(asunto, req.user.id, tutorId, materiaId, unidadId);
+      .run(
+        asunto,
+        req.user.id,
+        tutorId,
+        materiaId,
+        unidadId,
+        req.user.id,
+        tutorId,
+        TIPO_ALUMNO_TUTOR,
+      );
 
     const conversacionId = Number(conversacionResult.lastInsertRowid);
 
@@ -370,11 +537,23 @@ router.post("/tutor/nuevo", authorize("docente"), (req, res) => {
           tutor_id,
           materia_id,
           unidad_id,
+          participante_a_id,
+          participante_b_id,
+          tipo_conversacion,
           ultimo_mensaje_at
-        ) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
       `,
       )
-      .run(asunto, alumnoId, req.user.id, materiaId, unidadId);
+      .run(
+        asunto,
+        alumnoId,
+        req.user.id,
+        materiaId,
+        unidadId,
+        alumnoId,
+        req.user.id,
+        TIPO_ALUMNO_TUTOR,
+      );
 
     const conversacionId = Number(conversacionResult.lastInsertRowid);
 
@@ -400,6 +579,176 @@ router.post("/tutor/nuevo", authorize("docente"), (req, res) => {
   const created = createConversacion();
   return res.status(201).json(created);
 });
+
+router.post(
+  "/docente-coordinador",
+  authorize("docente", "coordinador"),
+  (req, res) => {
+    const materiaId = parsePositiveInteger(req.body.materia_id);
+    const unidadId = req.body.unidad_id
+      ? parsePositiveInteger(req.body.unidad_id)
+      : null;
+    const destinatarioId = parsePositiveInteger(
+      req.body.destinatario_id ||
+        req.body.coordinador_id ||
+        req.body.docente_id,
+    );
+    const asunto = String(req.body.asunto || "").trim();
+    const cuerpo = String(req.body.cuerpo || "").trim();
+
+    if (!destinatarioId || !materiaId || !asunto || !cuerpo) {
+      return res
+        .status(422)
+        .json({ message: "Completá todos los campos obligatorios." });
+    }
+
+    if (asunto.length > 150) {
+      return res
+        .status(422)
+        .json({ message: "El asunto no puede superar 150 caracteres." });
+    }
+
+    if (cuerpo.length > 2000) {
+      return res
+        .status(422)
+        .json({ message: "El mensaje no puede superar 2000 caracteres." });
+    }
+
+    if (unidadId) {
+      const unidad = db
+        .prepare(
+          "SELECT id FROM unidades WHERE id = ? AND materia_id = ? LIMIT 1",
+        )
+        .get(unidadId, materiaId);
+
+      if (!unidad) {
+        return res
+          .status(422)
+          .json({ message: "La unidad indicada no pertenece a la materia." });
+      }
+    }
+
+    const remitenteId = req.user.id;
+    const remitenteRole = req.user.role;
+
+    const destinatario = db
+      .prepare("SELECT id, role FROM users WHERE id = ? LIMIT 1")
+      .get(destinatarioId);
+
+    if (!destinatario) {
+      return res.status(422).json({ message: "Destinatario inválido." });
+    }
+
+    if (remitenteRole === "docente") {
+      if (destinatario.role !== "coordinador") {
+        return res
+          .status(422)
+          .json({ message: "El destinatario debe ser un coordinador." });
+      }
+
+      const docenteAsignado = db
+        .prepare(
+          `
+          SELECT 1 AS ok
+          FROM docente_materia dm
+          WHERE dm.docente_id = ?
+            AND dm.materia_id = ?
+            AND dm.activo = 1
+          LIMIT 1
+        `,
+        )
+        .get(remitenteId, materiaId);
+
+      if (!docenteAsignado) {
+        return res.status(403).json({
+          message:
+            "No tenés asignación activa en la materia seleccionada para iniciar esta conversación.",
+        });
+      }
+    }
+
+    if (remitenteRole === "coordinador") {
+      if (destinatario.role !== "docente") {
+        return res
+          .status(422)
+          .json({ message: "El destinatario debe ser un docente." });
+      }
+
+      const puedeContactar = db
+        .prepare(
+          `
+          SELECT 1 AS ok
+          FROM docente_materia dm
+          WHERE dm.docente_id = ?
+            AND dm.materia_id = ?
+            AND dm.asignado_por = ?
+            AND dm.activo = 1
+          LIMIT 1
+        `,
+        )
+        .get(destinatarioId, materiaId, remitenteId);
+
+      if (!puedeContactar) {
+        return res.status(403).json({
+          message:
+            "Solo podés iniciar conversaciones con docentes asignados por vos en esa materia.",
+        });
+      }
+    }
+
+    const createConversacion = db.transaction(() => {
+      const conversacionResult = db
+        .prepare(
+          `
+          INSERT INTO conversaciones (
+            asunto,
+            alumno_id,
+            tutor_id,
+            materia_id,
+            unidad_id,
+            participante_a_id,
+            participante_b_id,
+            tipo_conversacion,
+            ultimo_mensaje_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        `,
+        )
+        .run(
+          asunto,
+          remitenteId,
+          destinatarioId,
+          materiaId,
+          unidadId,
+          remitenteId,
+          destinatarioId,
+          TIPO_DOCENTE_COORDINADOR,
+        );
+
+      const conversacionId = Number(conversacionResult.lastInsertRowid);
+
+      const mensajeResult = db
+        .prepare(
+          `
+          INSERT INTO mensajes (
+            conversacion_id,
+            remitente_id,
+            cuerpo,
+            leido
+          ) VALUES (?, ?, ?, 0)
+        `,
+        )
+        .run(conversacionId, remitenteId, cuerpo);
+
+      return {
+        conversacion_id: conversacionId,
+        mensaje_id: Number(mensajeResult.lastInsertRowid),
+      };
+    });
+
+    const created = createConversacion();
+    return res.status(201).json(created);
+  },
+);
 
 router.get("/:conversacionId", (req, res) => {
   const conversacionId = parsePositiveInteger(req.params.conversacionId);
@@ -446,11 +795,7 @@ router.get("/:conversacionId", (req, res) => {
     }));
 
   return res.status(200).json({
-    conversacion: {
-      ...conversacion,
-      alumno_nombre: conversacion.alumno_nombre || conversacion.alumno_username,
-      tutor_nombre: conversacion.tutor_nombre || conversacion.tutor_username,
-    },
+    conversacion,
     mensajes,
   });
 });

@@ -535,6 +535,37 @@ router.get("/docentes", authorize("admin", "coordinador"), (req, res) => {
 });
 
 router.get(
+  "/alumnos-por-materia/:materiaId",
+  authorize("docente", "admin", "coordinador"),
+  (req, res) => {
+    const materiaId = toPositiveInt(req.params.materiaId);
+
+    if (!materiaId) {
+      return res.status(400).json({ message: "Materia inválida." });
+    }
+
+    const alumnos = db
+      .prepare(
+        `
+      SELECT DISTINCT
+        u.id,
+        COALESCE(u.nombre_completo, u.username) AS nombre,
+        u.email
+      FROM inscripciones i
+      JOIN users u ON u.id = i.alumno_id
+      WHERE i.materia_id = ?
+        AND i.estado = 'activa'
+        AND u.role = 'alumno'
+      ORDER BY nombre ASC
+    `,
+      )
+      .all(materiaId);
+
+    return res.status(200).json(alumnos);
+  },
+);
+
+router.get(
   "/materias-disponibles",
   authorize("admin", "coordinador"),
   (req, res) => {
@@ -724,12 +755,10 @@ router.post("/inscripcion", authorize("alumno"), (req, res) => {
   }
 
   if (isMateriaAprobada(alumnoId, materiaId)) {
-    return res
-      .status(409)
-      .json({
-        message:
-          "Ya tenés esta materia aprobada. No podés inscribirte nuevamente.",
-      });
+    return res.status(409).json({
+      message:
+        "Ya tenés esta materia aprobada. No podés inscribirte nuevamente.",
+    });
   }
 
   if (materia.codigo === "AM2") {
@@ -795,11 +824,9 @@ router.delete("/inscripcion/:materiaId", authorize("alumno"), (req, res) => {
   }
 
   if (isMateriaAprobada(alumnoId, materiaId)) {
-    return res
-      .status(409)
-      .json({
-        message: "No podés darte de baja de una materia que ya está aprobada.",
-      });
+    return res.status(409).json({
+      message: "No podés darte de baja de una materia que ya está aprobada.",
+    });
   }
 
   const existing = db

@@ -1,488 +1,312 @@
 import { useEffect, useMemo, useState } from "react";
 import api from "../api/axios";
+import EmptyState from "../components/EmptyState";
 import ErrorMessage from "../components/ErrorMessage";
 import LoadingSpinner from "../components/LoadingSpinner";
+import ContentCardDocente from "../components/content/ContentCardDocente";
+import ContentViewer from "../components/content/ContentViewer";
+import SubirContenidoModal from "../components/content/SubirContenidoModal";
 
-const TIPOS = [
-  { value: "pdf", label: "PDF" },
-  { value: "word", label: "Word" },
-  { value: "video", label: "Video" },
-  { value: "imagen", label: "Imagen" },
-  { value: "texto", label: "Texto" },
-];
-
-const DESTINATARIOS = [
-  { value: "todos", label: "Todos" },
-  { value: "individual", label: "Individual" },
-];
-
-const FILE_ACCEPT = {
-  pdf: ".pdf",
-  word: ".doc,.docx",
-  imagen: ".jpg,.jpeg,.png,.gif",
-};
+function SkeletonGrid() {
+  return (
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+      {Array.from({ length: 4 }).map((_, index) => (
+        <div
+          key={index}
+          className="h-44 animate-pulse rounded-lg border border-slate-200 bg-slate-100"
+        />
+      ))}
+    </div>
+  );
+}
 
 export default function ContenidoDocente() {
-  const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
-  const [deletingId, setDeletingId] = useState(null);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
-
   const [materias, setMaterias] = useState([]);
-  const [alumnos, setAlumnos] = useState([]);
-  const [misContenidos, setMisContenidos] = useState([]);
+  const [materiaSeleccionada, setMateriaSeleccionada] = useState(null);
+  const [items, setItems] = useState([]);
 
-  const [form, setForm] = useState({
-    titulo: "",
-    descripcion: "",
-    tipo: "pdf",
-    materia_id: "",
-    destinatario: "todos",
-    alumno_id: "",
-    video_url: "",
-    texto_contenido: "",
-  });
-  const [archivo, setArchivo] = useState(null);
+  const [loadingLista, setLoadingLista] = useState(true);
+  const [loadingItems, setLoadingItems] = useState(false);
+  const [error, setError] = useState("");
 
-  const requiresFile = useMemo(
-    () => ["pdf", "word", "imagen"].includes(form.tipo),
-    [form.tipo],
+  const [visorAbierto, setVisorAbierto] = useState(false);
+  const [itemVisor, setItemVisor] = useState(null);
+  const [visorError, setVisorError] = useState("");
+  const [visorLoading, setVisorLoading] = useState(false);
+
+  const [cardLoadingId, setCardLoadingId] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
+  const [modalEliminar, setModalEliminar] = useState(null);
+  const [deleteError, setDeleteError] = useState("");
+
+  const [mostrarSubida, setMostrarSubida] = useState(false);
+
+  const materiaActual = useMemo(
+    () => materias.find((m) => m.id === materiaSeleccionada) || null,
+    [materias, materiaSeleccionada],
   );
 
-  const fetchMisContenidos = async () => {
-    const response = await api.get("/api/contenido/tutor/mis-contenidos");
-    setMisContenidos(response.data || []);
-  };
-
-  useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      setError("");
-
-      try {
-        const [materiasRes, alumnosRes, contenidosRes] = await Promise.all([
-          api.get("/api/contenido/tutor/materias"),
-          api.get("/api/contenido/tutor/alumnos"),
-          api.get("/api/contenido/tutor/mis-contenidos"),
-        ]);
-
-        const fetchedMaterias = materiasRes.data || [];
-        setMaterias(fetchedMaterias);
-        setAlumnos(alumnosRes.data || []);
-        setMisContenidos(contenidosRes.data || []);
-
-        if (fetchedMaterias.length > 0) {
-          setForm((prev) => ({
-            ...prev,
-            materia_id: String(fetchedMaterias[0].id),
-          }));
-        }
-      } catch (fetchError) {
-        setError(fetchError.message || "No se pudieron cargar los datos.");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchData();
-  }, []);
-
-  const handleChange = (event) => {
-    const { name, value } = event.target;
-    setSuccess("");
+  const loadMaterias = async () => {
+    setLoadingLista(true);
     setError("");
-
-    setForm((prev) => {
-      const next = { ...prev, [name]: value };
-
-      if (name === "tipo") {
-        next.video_url = "";
-        next.texto_contenido = "";
-        setArchivo(null);
-      }
-
-      if (name === "destinatario" && value === "todos") {
-        next.alumno_id = "";
-      }
-
-      return next;
-    });
-  };
-
-  const resetForm = () => {
-    setForm((prev) => ({
-      titulo: "",
-      descripcion: "",
-      tipo: "pdf",
-      materia_id: prev.materia_id,
-      destinatario: "todos",
-      alumno_id: "",
-      video_url: "",
-      texto_contenido: "",
-    }));
-    setArchivo(null);
-  };
-
-  const handleSubmit = async (event) => {
-    event.preventDefault();
-    setSubmitting(true);
-    setError("");
-    setSuccess("");
 
     try {
-      const payload = new FormData();
+      const response = await api.get("/api/contenido/docente/mis-materias");
+      const rows = response.data || [];
+      setMaterias(rows);
 
-      payload.append("titulo", form.titulo.trim());
-      payload.append("descripcion", form.descripcion.trim());
-      payload.append("tipo", form.tipo);
-      payload.append("materia_id", form.materia_id);
-      payload.append("destinatario", form.destinatario);
-
-      if (form.destinatario === "individual") {
-        payload.append("alumno_id", form.alumno_id);
+      if (rows.length > 0) {
+        const firstId = rows[0].id;
+        setMateriaSeleccionada(firstId);
+        await loadItems(firstId);
       }
-
-      if (form.tipo === "video") {
-        payload.append("video_url", form.video_url.trim());
-      }
-
-      if (form.tipo === "texto") {
-        payload.append("texto_contenido", form.texto_contenido.trim());
-      }
-
-      if (requiresFile && archivo) {
-        payload.append("archivo", archivo);
-      }
-
-      await api.post("/api/contenido", payload, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
-
-      await fetchMisContenidos();
-      setSuccess("Contenido publicado correctamente.");
-      resetForm();
-    } catch (submitError) {
-      setError(submitError.message || "No se pudo publicar el contenido.");
+    } catch (fetchError) {
+      setError(fetchError.message || "No se pudieron cargar tus materias.");
     } finally {
-      setSubmitting(false);
+      setLoadingLista(false);
     }
   };
 
-  const handleDelete = async (contenidoId) => {
+  const loadItems = async (materiaId) => {
+    setLoadingItems(true);
     setError("");
-    setSuccess("");
-    setDeletingId(contenidoId);
 
     try {
-      await api.delete(`/api/contenido/${contenidoId}`);
-      await fetchMisContenidos();
-      setSuccess("Contenido eliminado correctamente.");
-    } catch (deleteError) {
-      setError(deleteError.message || "No se pudo eliminar el contenido.");
+      const response = await api.get(
+        `/api/contenido/docente/materia/${materiaId}`,
+      );
+      setItems(response.data?.items || []);
+    } catch (fetchError) {
+      if (
+        (fetchError.message || "").toLowerCase().includes("asignación activa")
+      ) {
+        setError("No tenés acceso al contenido de esta materia.");
+      } else {
+        setError(fetchError.message || "No se pudo cargar el contenido.");
+      }
+      setItems([]);
+    } finally {
+      setLoadingItems(false);
+    }
+  };
+
+  useEffect(() => {
+    loadMaterias();
+  }, []);
+
+  const handleSelectMateria = async (materiaId) => {
+    if (materiaId === materiaSeleccionada) return;
+    setMateriaSeleccionada(materiaId);
+    await loadItems(materiaId);
+  };
+
+  const handleOpenItem = async (item) => {
+    setCardLoadingId(item.id);
+    setVisorAbierto(true);
+    setVisorError("");
+    setVisorLoading(true);
+
+    try {
+      const response = await api.get(`/api/contenido/docente/${item.id}`);
+      setItemVisor(response.data);
+    } catch (fetchError) {
+      setItemVisor(null);
+      setVisorError(
+        fetchError.message || "No se pudo cargar el detalle del contenido.",
+      );
+    } finally {
+      setVisorLoading(false);
+      setCardLoadingId(null);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!modalEliminar) return;
+
+    setDeletingId(modalEliminar.id);
+    setDeleteError("");
+
+    try {
+      await api.delete(`/api/contenido/${modalEliminar.id}`);
+      setItems((prev) => prev.filter((item) => item.id !== modalEliminar.id));
+      setModalEliminar(null);
+    } catch (actionError) {
+      setDeleteError(
+        actionError.message ||
+          "Solo podés eliminar contenido que vos mismo subiste.",
+      );
     } finally {
       setDeletingId(null);
     }
   };
 
-  const formatDate = (value) => {
-    if (!value) {
-      return "-";
-    }
-
-    const date = new Date(value);
-
-    if (Number.isNaN(date.getTime())) {
-      return "-";
-    }
-
-    return new Intl.DateTimeFormat("es-AR", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-    }).format(date);
-  };
-
-  if (loading) {
-    return <LoadingSpinner size="md" text="Cargando formulario..." />;
-  }
-
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
+      <section className="rounded-lg border border-slate-200 bg-white p-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-xl font-semibold text-slate-900">
+              Contenido académico
+            </h2>
+            <p className="mt-2 text-slate-600">
+              Visualizá material del tutor/coordinador y gestioná tu contenido.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setMostrarSubida(true)}
+            disabled={!materiaActual}
+            className="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            + Subir contenido
+          </button>
+        </div>
+      </section>
+
       {error ? (
         <ErrorMessage message={error} onDismiss={() => setError("")} />
       ) : null}
 
-      {success ? (
-        <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm font-medium text-emerald-800">
-          {success}
-        </div>
+      {loadingLista ? (
+        <LoadingSpinner size="md" text="Cargando materias..." />
       ) : null}
 
-      <section className="rounded-lg border border-slate-200 bg-white p-6">
-        <form className="space-y-4" onSubmit={handleSubmit}>
-          <div>
-            <label
-              className="mb-1 block text-sm font-medium text-slate-700"
-              htmlFor="titulo"
+      {!loadingLista && materias.length === 0 ? (
+        <EmptyState
+          icon="📭"
+          title="No tenés materias asignadas actualmente."
+          description="Contactá al coordinador."
+        />
+      ) : null}
+
+      {!loadingLista && materias.length > 0 ? (
+        <>
+          <section className="rounded-lg border border-slate-200 bg-white p-2 sm:p-4">
+            <div
+              className="-mx-1 flex gap-2 overflow-x-auto px-1"
+              role="tablist"
             >
-              Título
-            </label>
-            <input
-              id="titulo"
-              name="titulo"
-              value={form.titulo}
-              onChange={handleChange}
-              required
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-            />
-          </div>
-
-          <div>
-            <label
-              className="mb-1 block text-sm font-medium text-slate-700"
-              htmlFor="descripcion"
-            >
-              Descripción
-            </label>
-            <textarea
-              id="descripcion"
-              name="descripcion"
-              value={form.descripcion}
-              onChange={handleChange}
-              rows={3}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-            />
-          </div>
-
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div>
-              <label
-                className="mb-1 block text-sm font-medium text-slate-700"
-                htmlFor="tipo"
-              >
-                Tipo
-              </label>
-              <select
-                id="tipo"
-                name="tipo"
-                value={form.tipo}
-                onChange={handleChange}
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              >
-                {TIPOS.map((tipo) => (
-                  <option key={tipo.value} value={tipo.value}>
-                    {tipo.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label
-                className="mb-1 block text-sm font-medium text-slate-700"
-                htmlFor="materia_id"
-              >
-                Materia
-              </label>
-              <select
-                id="materia_id"
-                name="materia_id"
-                value={form.materia_id}
-                onChange={handleChange}
-                required
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              >
-                {materias.map((materia) => (
-                  <option key={materia.id} value={materia.id}>
-                    {materia.codigo} - {materia.nombre}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div>
-              <label
-                className="mb-1 block text-sm font-medium text-slate-700"
-                htmlFor="destinatario"
-              >
-                Destinatario
-              </label>
-              <select
-                id="destinatario"
-                name="destinatario"
-                value={form.destinatario}
-                onChange={handleChange}
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              >
-                {DESTINATARIOS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {form.destinatario === "individual" ? (
-              <div>
-                <label
-                  className="mb-1 block text-sm font-medium text-slate-700"
-                  htmlFor="alumno_id"
+              {materias.map((materia) => (
+                <button
+                  key={materia.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={materia.id === materiaSeleccionada}
+                  onClick={() => handleSelectMateria(materia.id)}
+                  className={`whitespace-nowrap rounded-md px-4 py-2 text-sm font-medium transition ${
+                    materia.id === materiaSeleccionada
+                      ? "bg-blue-100 text-blue-700"
+                      : "text-slate-600 hover:bg-slate-100"
+                  }`}
                 >
-                  Alumno
-                </label>
-                <select
-                  id="alumno_id"
-                  name="alumno_id"
-                  value={form.alumno_id}
-                  onChange={handleChange}
-                  required
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                >
-                  <option value="">Seleccioná un alumno</option>
-                  {alumnos.map((alumno) => (
-                    <option key={alumno.id} value={alumno.id}>
-                      {alumno.nombre}
-                    </option>
-                  ))}
-                </select>
+                  {materia.codigo} - {materia.nombre}
+                </button>
+              ))}
+            </div>
+          </section>
+
+          {loadingItems ? <SkeletonGrid /> : null}
+
+          {!loadingItems && items.length === 0 ? (
+            <EmptyState
+              icon="📚"
+              title="No hay contenido disponible para esta materia todavía."
+              description="Podés subir el primer material usando el botón superior."
+            />
+          ) : null}
+
+          {!loadingItems && items.length > 0 ? (
+            <section className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {items.map((item) => (
+                <ContentCardDocente
+                  key={item.id}
+                  item={item}
+                  onOpen={handleOpenItem}
+                  onDelete={(target) => {
+                    setDeleteError("");
+                    setModalEliminar(target);
+                  }}
+                  deleting={deletingId === item.id}
+                  loading={cardLoadingId === item.id}
+                />
+              ))}
+            </section>
+          ) : null}
+        </>
+      ) : null}
+
+      {visorAbierto ? (
+        <ContentViewer
+          item={itemVisor}
+          loading={visorLoading}
+          error={visorError}
+          onClose={() => {
+            setVisorAbierto(false);
+            setItemVisor(null);
+            setVisorError("");
+          }}
+          onRetry={() => {
+            if (itemVisor?.id) {
+              handleOpenItem(itemVisor);
+            }
+          }}
+        />
+      ) : null}
+
+      {mostrarSubida && materiaActual ? (
+        <SubirContenidoModal
+          materiaId={materiaActual.id}
+          materiaNombre={materiaActual.nombre}
+          onClose={() => setMostrarSubida(false)}
+          onSubido={async () => {
+            if (materiaSeleccionada) {
+              await loadItems(materiaSeleccionada);
+            }
+          }}
+        />
+      ) : null}
+
+      {modalEliminar ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-lg bg-white p-5 shadow-xl">
+            <h3 className="text-lg font-semibold text-slate-900">
+              Eliminar contenido
+            </h3>
+            <p className="mt-2 text-sm text-slate-600">
+              ¿Eliminás "{modalEliminar.titulo}"? Esta acción no se puede
+              deshacer.
+            </p>
+
+            {deleteError ? (
+              <div className="mt-3">
+                <ErrorMessage
+                  message={deleteError}
+                  onDismiss={() => setDeleteError("")}
+                />
               </div>
             ) : null}
+
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setModalEliminar(null)}
+                className="rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-700"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={deletingId === modalEliminar.id}
+                onClick={handleDelete}
+                className="rounded-md bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-60"
+              >
+                {deletingId === modalEliminar.id ? "Eliminando..." : "Eliminar"}
+              </button>
+            </div>
           </div>
-
-          {form.tipo === "video" ? (
-            <div>
-              <label
-                className="mb-1 block text-sm font-medium text-slate-700"
-                htmlFor="video_url"
-              >
-                URL de video
-              </label>
-              <input
-                id="video_url"
-                name="video_url"
-                value={form.video_url}
-                onChange={handleChange}
-                required
-                placeholder="https://www.youtube.com/watch?v=..."
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              />
-            </div>
-          ) : null}
-
-          {form.tipo === "texto" ? (
-            <div>
-              <label
-                className="mb-1 block text-sm font-medium text-slate-700"
-                htmlFor="texto_contenido"
-              >
-                Contenido de texto
-              </label>
-              <textarea
-                id="texto_contenido"
-                name="texto_contenido"
-                value={form.texto_contenido}
-                onChange={handleChange}
-                required
-                rows={8}
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              />
-            </div>
-          ) : null}
-
-          {requiresFile ? (
-            <div>
-              <label
-                className="mb-1 block text-sm font-medium text-slate-700"
-                htmlFor="archivo"
-              >
-                Archivo
-              </label>
-              <input
-                id="archivo"
-                name="archivo"
-                type="file"
-                required
-                accept={FILE_ACCEPT[form.tipo]}
-                onChange={(event) =>
-                  setArchivo(event.target.files?.[0] || null)
-                }
-                className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm file:mr-3 file:rounded file:border-0 file:bg-slate-100 file:px-3 file:py-1.5 file:text-sm"
-              />
-            </div>
-          ) : null}
-
-          <button
-            type="submit"
-            disabled={submitting || materias.length === 0}
-            className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {submitting ? "Publicando..." : "Publicar contenido"}
-          </button>
-        </form>
-      </section>
-
-      <section className="rounded-lg border border-slate-200 bg-white p-6">
-        <h2 className="mb-4 text-lg font-semibold text-slate-900">
-          Mis contenidos
-        </h2>
-
-        {misContenidos.length === 0 ? (
-          <p className="text-sm text-slate-500">
-            Aún no publicaste contenidos.
-          </p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-200 text-sm">
-              <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
-                <tr>
-                  <th className="px-3 py-2">Título</th>
-                  <th className="px-3 py-2">Tipo</th>
-                  <th className="px-3 py-2">Materia</th>
-                  <th className="px-3 py-2">Destinatario</th>
-                  <th className="px-3 py-2">Fecha</th>
-                  <th className="px-3 py-2 text-right">Acción</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {misContenidos.map((item) => (
-                  <tr key={item.id}>
-                    <td className="px-3 py-2 font-medium text-slate-800">
-                      {item.titulo}
-                    </td>
-                    <td className="px-3 py-2 capitalize text-slate-600">
-                      {item.tipo}
-                    </td>
-                    <td className="px-3 py-2 text-slate-600">
-                      {item.materia_nombre}
-                    </td>
-                    <td className="px-3 py-2 text-slate-600">
-                      {item.alumno_id
-                        ? item.alumno_nombre || "Individual"
-                        : "Todos"}
-                    </td>
-                    <td className="px-3 py-2 text-slate-600">
-                      {formatDate(item.created_at)}
-                    </td>
-                    <td className="px-3 py-2 text-right">
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(item.id)}
-                        disabled={deletingId === item.id}
-                        className="rounded-md border border-red-200 px-3 py-1.5 text-xs font-medium text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        {deletingId === item.id ? "Eliminando..." : "Eliminar"}
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
+        </div>
+      ) : null}
     </div>
   );
 }

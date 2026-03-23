@@ -293,6 +293,54 @@ db.exec(`
   );
 `);
 
+function migrateConversacionesSchemaIfNeeded() {
+  const tableInfo = db.prepare("PRAGMA table_info(conversaciones)").all();
+
+  if (!tableInfo.length) {
+    return;
+  }
+
+  const columnNames = new Set(tableInfo.map((column) => column.name));
+
+  if (!columnNames.has("participante_a_id")) {
+    db.exec(
+      "ALTER TABLE conversaciones ADD COLUMN participante_a_id INTEGER REFERENCES users(id)",
+    );
+  }
+
+  if (!columnNames.has("participante_b_id")) {
+    db.exec(
+      "ALTER TABLE conversaciones ADD COLUMN participante_b_id INTEGER REFERENCES users(id)",
+    );
+  }
+
+  if (!columnNames.has("tipo_conversacion")) {
+    db.exec(
+      "ALTER TABLE conversaciones ADD COLUMN tipo_conversacion TEXT DEFAULT 'alumno_tutor'",
+    );
+  }
+
+  db.exec(`
+    UPDATE conversaciones
+    SET participante_a_id = alumno_id
+    WHERE participante_a_id IS NULL
+  `);
+
+  db.exec(`
+    UPDATE conversaciones
+    SET participante_b_id = tutor_id
+    WHERE participante_b_id IS NULL
+  `);
+
+  db.exec(`
+    UPDATE conversaciones
+    SET tipo_conversacion = 'alumno_tutor'
+    WHERE tipo_conversacion IS NULL OR TRIM(tipo_conversacion) = ''
+  `);
+}
+
+migrateConversacionesSchemaIfNeeded();
+
 db.exec(`
   CREATE TABLE IF NOT EXISTS mensajes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

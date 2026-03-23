@@ -68,10 +68,10 @@ export default function App() {
       <Route
         path="/contenido-docente"
         element={
-          <ProtectedRoute allowedRoles={["docente", "admin"]}>
+          <ProtectedRoute allowedRoles={["docente"]}>
             <PageLayout
-              title="Cargar contenido"
-              subtitle="Publicá material académico para tus alumnos"
+              title="Contenido"
+              subtitle="Visualización y gestión de contenido académico"
             >
               <ContenidoDocente />
             </PageLayout>
@@ -82,10 +82,10 @@ export default function App() {
       <Route
         path="/mensajes"
         element={
-          <ProtectedRoute allowedRoles={["alumno", "docente"]}>
+          <ProtectedRoute allowedRoles={["alumno", "docente", "coordinador"]}>
             <PageLayout
               title="Mensajes"
-              subtitle="Comunicación entre alumnos y tutores"
+              subtitle="Comunicación entre alumnos, docentes y coordinadores"
             >
               <Mensajes />
             </PageLayout>

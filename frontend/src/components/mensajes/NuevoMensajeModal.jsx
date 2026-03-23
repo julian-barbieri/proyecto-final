@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import api from "../../api/axios";
 import ErrorMessage from "../ErrorMessage";
 import LoadingSpinner from "../LoadingSpinner";
@@ -24,10 +24,60 @@ function normalizeTutorEntries(entries) {
   return Array.from(byId.values());
 }
 
+function normalizeCoordinadorEntries(entries) {
+  const byId = new Map();
+
+  for (const item of entries) {
+    const key = Number(item.coordinador_id);
+
+    if (!byId.has(key)) {
+      byId.set(key, {
+        coordinador_id: key,
+        coordinador_nombre: item.coordinador_nombre,
+      });
+    }
+  }
+
+  return Array.from(byId.values());
+}
+
+function normalizeDocenteEntries(entries) {
+  const byId = new Map();
+
+  for (const item of entries) {
+    const key = Number(item.docente_id);
+
+    if (!byId.has(key)) {
+      byId.set(key, {
+        docente_id: key,
+        docente_nombre: item.docente_nombre,
+      });
+    }
+  }
+
+  return Array.from(byId.values());
+}
+
+function uniqueMaterias(entries) {
+  return entries
+    .filter((item) => item.materia_id || item.id)
+    .reduce((acc, current) => {
+      const materiaId = current.materia_id || current.id;
+      const materiaNombre = current.materia_nombre || current.nombre;
+
+      if (!acc.some((m) => m.id === materiaId)) {
+        acc.push({ id: materiaId, nombre: materiaNombre });
+      }
+
+      return acc;
+    }, []);
+}
+
 export default function NuevoMensajeModal({ onClose, onEnviado }) {
   const { user } = useAuth();
   const isAlumno = user?.role === "alumno";
   const isDocente = user?.role === "docente";
+  const isCoordinador = user?.role === "coordinador";
 
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
@@ -35,14 +85,18 @@ export default function NuevoMensajeModal({ onClose, onEnviado }) {
 
   const [materias, setMaterias] = useState([]);
   const [tutoresPorMateria, setTutoresPorMateria] = useState([]);
+  const [coordinadoresPorMateria, setCoordinadoresPorMateria] = useState([]);
+  const [docentesPorMateria, setDocentesPorMateria] = useState([]);
   const [tutores, setTutores] = useState([]);
+  const [coordinadores, setCoordinadores] = useState([]);
+  const [docentes, setDocentes] = useState([]);
   const [alumnos, setAlumnos] = useState([]);
   const [unidades, setUnidades] = useState([]);
+  const [docenteDestinoTipo, setDocenteDestinoTipo] = useState("alumno");
 
   const [form, setForm] = useState({
     materia_id: "",
-    tutor_id: "",
-    alumno_id: "",
+    destinatario_id: "",
     unidad_id: "",
     asunto: "",
     cuerpo: "",
@@ -62,18 +116,7 @@ export default function NuevoMensajeModal({ onClose, onEnviado }) {
           );
           const raw = tutoresResponse.data || [];
           setTutoresPorMateria(raw);
-
-          const mappedMaterias = raw
-            .filter((item) => item.materia_id)
-            .reduce((acc, current) => {
-              if (!acc.some((m) => m.id === current.materia_id)) {
-                acc.push({
-                  id: current.materia_id,
-                  nombre: current.materia_nombre,
-                });
-              }
-              return acc;
-            }, []);
+          const mappedMaterias = uniqueMaterias(raw);
 
           setMaterias(mappedMaterias);
           setTutores(normalizeTutorEntries(raw));
@@ -85,11 +128,37 @@ export default function NuevoMensajeModal({ onClose, onEnviado }) {
         }
 
         if (isDocente) {
-          const materiasResponse = await api.get(
-            "/api/contenido/tutor/materias",
-          );
+          const [materiasResponse, coordinadoresResponse] = await Promise.all([
+            api.get("/api/contenido/tutor/materias"),
+            api.get("/api/mensajes/datos/coordinadores-por-materia"),
+          ]);
+
           const availableMaterias = materiasResponse.data || [];
+          const coordinadoresRaw = coordinadoresResponse.data || [];
+
+          setCoordinadoresPorMateria(coordinadoresRaw);
           setMaterias(availableMaterias);
+          setCoordinadores(normalizeCoordinadorEntries(coordinadoresRaw));
+
+          if (availableMaterias.length > 0) {
+            const firstMateriaId = String(availableMaterias[0].id);
+            setForm((prev) => ({ ...prev, materia_id: firstMateriaId }));
+          }
+        }
+
+        if (isCoordinador) {
+          const [materiasResponse, docentesResponse] = await Promise.all([
+            api.get("/api/gestion/materias-disponibles"),
+            api.get("/api/mensajes/datos/docentes-por-materia"),
+          ]);
+
+          const materiasRaw = materiasResponse.data || [];
+          const docentesRaw = docentesResponse.data || [];
+
+          const availableMaterias = uniqueMaterias(materiasRaw);
+          setMaterias(availableMaterias);
+          setDocentesPorMateria(docentesRaw);
+          setDocentes(normalizeDocenteEntries(docentesRaw));
 
           if (availableMaterias.length > 0) {
             const firstMateriaId = String(availableMaterias[0].id);
@@ -107,7 +176,7 @@ export default function NuevoMensajeModal({ onClose, onEnviado }) {
     };
 
     loadData();
-  }, [isAlumno, isDocente]);
+  }, [isAlumno, isDocente, isCoordinador]);
 
   useEffect(() => {
     if (!form.materia_id) {
@@ -129,17 +198,11 @@ export default function NuevoMensajeModal({ onClose, onEnviado }) {
           setTutores(available);
           setForm((prev) => ({
             ...prev,
-            tutor_id: available[0] ? String(available[0].tutor_id) : "",
+            destinatario_id: available[0] ? String(available[0].tutor_id) : "",
           }));
-
-          const unidadesResponse = await api.get(
-            `/api/mensajes/datos/unidades/${materiaId}`,
-          );
-          setUnidades(unidadesResponse.data || []);
-          return;
         }
 
-        if (isDocente) {
+        if (isDocente && docenteDestinoTipo === "alumno") {
           const [alumnosResponse, unidadesResponse] = await Promise.all([
             api.get(`/api/mensajes/datos/alumnos-por-materia/${materiaId}`),
             api.get(`/api/mensajes/datos/unidades/${materiaId}`),
@@ -150,7 +213,44 @@ export default function NuevoMensajeModal({ onClose, onEnviado }) {
           setUnidades(unidadesResponse.data || []);
           setForm((prev) => ({
             ...prev,
-            alumno_id: alumnosData[0] ? String(alumnosData[0].id) : "",
+            destinatario_id: alumnosData[0] ? String(alumnosData[0].id) : "",
+          }));
+          return;
+        }
+
+        const unidadesResponse = await api.get(
+          `/api/mensajes/datos/unidades/${materiaId}`,
+        );
+        setUnidades(unidadesResponse.data || []);
+
+        if (isDocente && docenteDestinoTipo === "coordinador") {
+          const filtered = coordinadoresPorMateria.filter(
+            (item) => item.materia_id === materiaId || item.materia_id === null,
+          );
+
+          const available = normalizeCoordinadorEntries(filtered);
+          setCoordinadores(available);
+          setForm((prev) => ({
+            ...prev,
+            destinatario_id: available[0]
+              ? String(available[0].coordinador_id)
+              : "",
+          }));
+          return;
+        }
+
+        if (isCoordinador) {
+          const filtered = docentesPorMateria.filter(
+            (item) => item.materia_id === materiaId || item.materia_id === null,
+          );
+
+          const available = normalizeDocenteEntries(filtered);
+          setDocentes(available);
+          setForm((prev) => ({
+            ...prev,
+            destinatario_id: available[0]
+              ? String(available[0].docente_id)
+              : "",
           }));
         }
       } catch (loadError) {
@@ -161,7 +261,24 @@ export default function NuevoMensajeModal({ onClose, onEnviado }) {
     };
 
     loadRelatedData();
-  }, [form.materia_id, isAlumno, isDocente, tutoresPorMateria]);
+  }, [
+    form.materia_id,
+    isAlumno,
+    isDocente,
+    isCoordinador,
+    docenteDestinoTipo,
+    tutoresPorMateria,
+    coordinadoresPorMateria,
+    docentesPorMateria,
+  ]);
+
+  useEffect(() => {
+    if (!isDocente) {
+      return;
+    }
+
+    setForm((prev) => ({ ...prev, destinatario_id: "" }));
+  }, [docenteDestinoTipo, isDocente]);
 
   const handleChange = (event) => {
     const { name, value } = event.target;
@@ -175,8 +292,7 @@ export default function NuevoMensajeModal({ onClose, onEnviado }) {
       materia_id: !form.materia_id,
       asunto: !form.asunto.trim() || form.asunto.trim().length > MAX_ASUNTO,
       cuerpo: !form.cuerpo.trim() || form.cuerpo.trim().length > MAX_CUERPO,
-      tutor_id: isAlumno ? !form.tutor_id : false,
-      alumno_id: isDocente ? !form.alumno_id : false,
+      destinatario_id: !form.destinatario_id,
     };
 
     setFieldErrors(nextErrors);
@@ -206,12 +322,17 @@ export default function NuevoMensajeModal({ onClose, onEnviado }) {
       const response = isAlumno
         ? await api.post("/api/mensajes", {
             ...payloadBase,
-            tutor_id: Number(form.tutor_id),
+            tutor_id: Number(form.destinatario_id),
           })
-        : await api.post("/api/mensajes/tutor/nuevo", {
-            ...payloadBase,
-            alumno_id: Number(form.alumno_id),
-          });
+        : isDocente && docenteDestinoTipo === "alumno"
+          ? await api.post("/api/mensajes/tutor/nuevo", {
+              ...payloadBase,
+              alumno_id: Number(form.destinatario_id),
+            })
+          : await api.post("/api/mensajes/docente-coordinador", {
+              ...payloadBase,
+              destinatario_id: Number(form.destinatario_id),
+            });
 
       const conversacionId = response?.data?.conversacion_id;
       onEnviado(conversacionId);
@@ -278,20 +399,42 @@ export default function NuevoMensajeModal({ onClose, onEnviado }) {
                 </select>
               </div>
 
+              {isDocente ? (
+                <div>
+                  <label
+                    className="mb-1 block text-sm font-medium text-slate-700"
+                    htmlFor="docente_destino_tipo"
+                  >
+                    Tipo de conversación
+                  </label>
+                  <select
+                    id="docente_destino_tipo"
+                    value={docenteDestinoTipo}
+                    onChange={(event) =>
+                      setDocenteDestinoTipo(event.target.value)
+                    }
+                    className={inputClass(false)}
+                  >
+                    <option value="alumno">Docente ↔ Alumno</option>
+                    <option value="coordinador">Docente ↔ Coordinador</option>
+                  </select>
+                </div>
+              ) : null}
+
               {isAlumno ? (
                 <div>
                   <label
                     className="mb-1 block text-sm font-medium text-slate-700"
-                    htmlFor="tutor_id"
+                    htmlFor="destinatario_id"
                   >
                     Destinatario (Tutor)
                   </label>
                   <select
-                    id="tutor_id"
-                    name="tutor_id"
-                    value={form.tutor_id}
+                    id="destinatario_id"
+                    name="destinatario_id"
+                    value={form.destinatario_id}
                     onChange={handleChange}
-                    className={inputClass(fieldErrors.tutor_id)}
+                    className={inputClass(fieldErrors.destinatario_id)}
                   >
                     <option value="">Seleccioná un tutor</option>
                     {tutores.map((tutor) => (
@@ -303,20 +446,20 @@ export default function NuevoMensajeModal({ onClose, onEnviado }) {
                 </div>
               ) : null}
 
-              {isDocente ? (
+              {isDocente && docenteDestinoTipo === "alumno" ? (
                 <div>
                   <label
                     className="mb-1 block text-sm font-medium text-slate-700"
-                    htmlFor="alumno_id"
+                    htmlFor="destinatario_id"
                   >
                     Alumno
                   </label>
                   <select
-                    id="alumno_id"
-                    name="alumno_id"
-                    value={form.alumno_id}
+                    id="destinatario_id"
+                    name="destinatario_id"
+                    value={form.destinatario_id}
                     onChange={handleChange}
-                    className={inputClass(fieldErrors.alumno_id)}
+                    className={inputClass(fieldErrors.destinatario_id)}
                   >
                     <option value="">Seleccioná un alumno</option>
                     {alumnos.map((alumno) => (
@@ -324,6 +467,62 @@ export default function NuevoMensajeModal({ onClose, onEnviado }) {
                         {alumno.nombre_completo ||
                           alumno.email ||
                           `Alumno ${alumno.id}`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : null}
+
+              {isDocente && docenteDestinoTipo === "coordinador" ? (
+                <div>
+                  <label
+                    className="mb-1 block text-sm font-medium text-slate-700"
+                    htmlFor="destinatario_id"
+                  >
+                    Coordinador
+                  </label>
+                  <select
+                    id="destinatario_id"
+                    name="destinatario_id"
+                    value={form.destinatario_id}
+                    onChange={handleChange}
+                    className={inputClass(fieldErrors.destinatario_id)}
+                  >
+                    <option value="">Seleccioná un coordinador</option>
+                    {coordinadores.map((coordinador) => (
+                      <option
+                        key={coordinador.coordinador_id}
+                        value={coordinador.coordinador_id}
+                      >
+                        {coordinador.coordinador_nombre}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : null}
+
+              {isCoordinador ? (
+                <div>
+                  <label
+                    className="mb-1 block text-sm font-medium text-slate-700"
+                    htmlFor="destinatario_id"
+                  >
+                    Docente
+                  </label>
+                  <select
+                    id="destinatario_id"
+                    name="destinatario_id"
+                    value={form.destinatario_id}
+                    onChange={handleChange}
+                    className={inputClass(fieldErrors.destinatario_id)}
+                  >
+                    <option value="">Seleccioná un docente</option>
+                    {docentes.map((docente) => (
+                      <option
+                        key={docente.docente_id}
+                        value={docente.docente_id}
+                      >
+                        {docente.docente_nombre}
                       </option>
                     ))}
                   </select>

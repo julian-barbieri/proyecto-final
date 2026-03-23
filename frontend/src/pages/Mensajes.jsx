@@ -8,6 +8,19 @@ import { useAuth } from "../context/AuthContext";
 
 const MAX_CUERPO = 2000;
 
+const ROLE_LABELS = {
+  alumno: "Alumno",
+  docente: "Docente",
+  coordinador: "Coordinador",
+  admin: "Admin",
+};
+
+function getTipoConversacionLabel(tipo) {
+  return tipo === "docente_coordinador"
+    ? "Docente ↔ Coordinador"
+    : "Alumno ↔ Tutor";
+}
+
 function formatRelativeDate(value) {
   if (!value) {
     return "Sin actividad";
@@ -131,11 +144,26 @@ export default function Mensajes() {
       return "";
     }
 
-    const isAlumno = user?.role === "alumno";
-    return isAlumno
-      ? seleccionada.conversacion.tutor_nombre
-      : seleccionada.conversacion.alumno_nombre;
-  }, [seleccionada, user?.role]);
+    const currentUserId = Number(user?.id);
+    const conversacion = seleccionada.conversacion;
+
+    const isParticipantA =
+      Number(conversacion.participante_a_id) === currentUserId;
+
+    const nombre = isParticipantA
+      ? conversacion.participante_b_nombre
+      : conversacion.participante_a_nombre;
+
+    const role = isParticipantA
+      ? conversacion.participante_b_role
+      : conversacion.participante_a_role;
+
+    if (!nombre) {
+      return "";
+    }
+
+    return `${nombre}${role ? ` (${ROLE_LABELS[role] || role})` : ""}`;
+  }, [seleccionada, user?.id]);
 
   useEffect(() => {
     if (seleccionada?.mensajes) {
@@ -237,8 +265,14 @@ export default function Mensajes() {
 
   const renderConversationItem = (item) => {
     const isSelected = selectedConversationId === item.id;
-    const isAlumno = user?.role === "alumno";
-    const counterpart = isAlumno ? item.tutor_nombre : item.alumno_nombre;
+    const currentUserId = Number(user?.id);
+    const isParticipantA = Number(item.participante_a_id) === currentUserId;
+    const counterpart = isParticipantA
+      ? item.participante_b_nombre
+      : item.participante_a_nombre;
+    const tipoConversacionLabel = getTipoConversacionLabel(
+      item.tipo_conversacion,
+    );
 
     return (
       <button
@@ -264,6 +298,9 @@ export default function Mensajes() {
               </p>
               <p className="truncate text-xs text-slate-600">
                 {counterpart || "Participante"}
+              </p>
+              <p className="mt-1 inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-600">
+                {tipoConversacionLabel}
               </p>
               <p className="truncate text-xs text-slate-500">
                 {item.materia_nombre}
@@ -364,6 +401,11 @@ export default function Mensajes() {
                     ? ` · ${seleccionada.conversacion.unidad_nombre}`
                     : ""}
                   {selectedLabel ? ` · ${selectedLabel}` : ""}
+                </p>
+                <p className="mt-1 text-xs text-slate-500">
+                  {getTipoConversacionLabel(
+                    seleccionada.conversacion.tipo_conversacion,
+                  )}
                 </p>
               </header>
 

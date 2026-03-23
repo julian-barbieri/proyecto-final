@@ -101,6 +101,21 @@ function isAlumnoInMateria(alumnoId, materiaId) {
   return Boolean(row?.ok);
 }
 
+function hasDocenteAsignacionActiva(docenteId, materiaId) {
+  const row = db
+    .prepare(
+      `
+      SELECT id
+      FROM docente_materia
+      WHERE docente_id = ? AND materia_id = ? AND activo = 1
+      LIMIT 1
+    `,
+    )
+    .get(docenteId, materiaId);
+
+  return Boolean(row?.id);
+}
+
 router.get("/materias", authorize("alumno"), (req, res) => {
   const materias = db
     .prepare(
@@ -177,6 +192,138 @@ router.get("/tutor/materias", authorize("docente", "admin"), (req, res) => {
   return res.status(200).json(materias);
 });
 
+router.get("/docente/mis-materias", authorize("docente"), (req, res) => {
+  const materias = db
+    .prepare(
+      `
+      SELECT m.id, m.nombre, m.codigo, m.descripcion
+      FROM materias m
+      JOIN docente_materia dm ON dm.materia_id = m.id
+      WHERE dm.docente_id = ? AND dm.activo = 1
+      ORDER BY m.nombre ASC
+    `,
+    )
+    .all(req.user.id);
+
+  return res.status(200).json(materias);
+});
+
+router.get("/docente/materia/:materiaId", authorize("docente"), (req, res) => {
+  const materiaId = Number(req.params.materiaId);
+
+  if (!Number.isInteger(materiaId) || materiaId <= 0) {
+    return res.status(400).json({ message: "Materia inválida." });
+  }
+
+  if (!hasDocenteAsignacionActiva(req.user.id, materiaId)) {
+    return res
+      .status(403)
+      .json({ message: "No tenés una asignación activa en esta materia." });
+  }
+
+  const materia = db
+    .prepare("SELECT id, nombre, codigo FROM materias WHERE id = ? LIMIT 1")
+    .get(materiaId);
+
+  const items = db
+    .prepare(
+      `
+      SELECT
+        c.*,
+        u_subio.nombre_completo AS subido_por_nombre,
+        u_subio.username AS subido_por_username,
+        u_subio.role AS subido_por_rol,
+        u_alumno.nombre_completo AS alumno_destinatario_nombre,
+        u_alumno.username AS alumno_destinatario_username
+      FROM contenido c
+      JOIN users u_subio ON c.tutor_id = u_subio.id
+      LEFT JOIN users u_alumno ON c.alumno_id = u_alumno.id
+      WHERE c.materia_id = ?
+      ORDER BY c.created_at DESC
+    `,
+    )
+    .all(materiaId)
+    .map((item) => ({
+      id: item.id,
+      titulo: item.titulo,
+      descripcion: item.descripcion,
+      tipo: item.tipo,
+      archivo_url: toArchivoUrl(item.archivo_path),
+      video_url: item.video_url,
+      alumno_id: item.alumno_id,
+      alumno_destinatario_nombre:
+        item.alumno_destinatario_nombre ||
+        item.alumno_destinatario_username ||
+        null,
+      subido_por_nombre:
+        item.subido_por_nombre || item.subido_por_username || "Usuario",
+      subido_por_rol: item.subido_por_rol,
+      es_propio: Number(item.tutor_id) === Number(req.user.id),
+      created_at: item.created_at,
+    }));
+
+  return res.status(200).json({ materia, items });
+});
+
+router.get("/docente/:contenidoId", authorize("docente"), (req, res) => {
+  const contenidoId = Number(req.params.contenidoId);
+
+  if (!Number.isInteger(contenidoId) || contenidoId <= 0) {
+    return res.status(400).json({ message: "Contenido inválido." });
+  }
+
+  const row = db
+    .prepare(
+      `
+      SELECT
+        c.*,
+        m.id AS materia_id,
+        m.nombre AS materia_nombre,
+        m.codigo AS materia_codigo,
+        u_subio.nombre_completo AS subido_por_nombre,
+        u_subio.username AS subido_por_username,
+        u_subio.role AS subido_por_rol,
+        u_alumno.nombre_completo AS alumno_destinatario_nombre,
+        u_alumno.username AS alumno_destinatario_username
+      FROM contenido c
+      JOIN materias m ON m.id = c.materia_id
+      JOIN users u_subio ON u_subio.id = c.tutor_id
+      LEFT JOIN users u_alumno ON u_alumno.id = c.alumno_id
+      WHERE c.id = ?
+      LIMIT 1
+    `,
+    )
+    .get(contenidoId);
+
+  if (!row) {
+    return res.status(404).json({ message: "Contenido no encontrado." });
+  }
+
+  if (!hasDocenteAsignacionActiva(req.user.id, row.materia_id)) {
+    return res
+      .status(403)
+      .json({ message: "No tenés una asignación activa en esta materia." });
+  }
+
+  return res.status(200).json({
+    ...row,
+    archivo_url: toArchivoUrl(row.archivo_path),
+    subido_por_nombre:
+      row.subido_por_nombre || row.subido_por_username || "Usuario",
+    subido_por_rol: row.subido_por_rol,
+    alumno_destinatario_nombre:
+      row.alumno_destinatario_nombre ||
+      row.alumno_destinatario_username ||
+      null,
+    es_propio: Number(row.tutor_id) === Number(req.user.id),
+    materia: {
+      id: row.materia_id,
+      nombre: row.materia_nombre,
+      codigo: row.materia_codigo,
+    },
+  });
+});
+
 router.get("/tutor/alumnos", authorize("docente", "admin"), (req, res) => {
   const alumnos = db
     .prepare(
@@ -237,7 +384,7 @@ router.get(
 
 router.post(
   "/",
-  authorize("docente", "admin"),
+  authorize("coordinador", "docente", "admin"),
   (req, res, next) => {
     upload.single("archivo")(req, res, (error) => {
       if (error) {
@@ -322,6 +469,15 @@ router.post(
         .json({ message: "La materia indicada no existe." });
     }
 
+    if (
+      req.user.role === "docente" &&
+      !hasDocenteAsignacionActiva(req.user.id, materiaId)
+    ) {
+      return res
+        .status(403)
+        .json({ message: "No tenés una asignación activa en esta materia." });
+    }
+
     if (destinatario === "individual") {
       const alumno = db
         .prepare("SELECT id, role FROM users WHERE id = ?")
@@ -393,7 +549,9 @@ router.delete("/:contenidoId", authorize("docente", "admin"), (req, res) => {
   if (req.user.role !== "admin" && existing.tutor_id !== req.user.id) {
     return res
       .status(403)
-      .json({ message: "No tenés permisos para eliminar este contenido." });
+      .json({
+        message: "Solo podés eliminar contenido que vos mismo subiste.",
+      });
   }
 
   const normalizedPath = normalizeArchivoPath(existing.archivo_path);

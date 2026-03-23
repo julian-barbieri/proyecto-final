@@ -14,7 +14,7 @@ export default function Navbar() {
   }, [location.pathname]);
 
   useEffect(() => {
-    if (!["alumno", "docente"].includes(user?.role)) {
+    if (!["alumno", "docente", "coordinador"].includes(user?.role)) {
       setUnreadMessages(0);
       return;
     }
@@ -50,6 +50,9 @@ export default function Navbar() {
       return [
         { to: "/", label: "Dashboard" },
         { to: "/gestion-materias", label: "Gestión de materias" },
+        ...(role === "coordinador"
+          ? [{ to: "/mensajes", label: "Mensajes" }]
+          : []),
         { to: "/predicciones", label: "Predicciones" },
         ...(role === "admin" ? [{ to: "/alumnos", label: "Alumnos" }] : []),
       ];
@@ -60,6 +63,7 @@ export default function Navbar() {
         { to: "/", label: "Dashboard" },
         { to: "/mis-materias", label: "Mis materias" },
         { to: "/mensajes", label: "Mensajes" },
+        { to: "/contenido-docente", label: "Contenido" },
       ];
     }
 

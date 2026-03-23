@@ -348,6 +348,95 @@ function seedMensajeriaCDU003() {
   createSampleConversation();
 }
 
+function seedMensajeriaCDU007() {
+  const am1 = db.prepare("SELECT id FROM materias WHERE codigo = ?").get("AM1");
+
+  if (!am1) {
+    return;
+  }
+
+  const totalConversacionesDc = db
+    .prepare(
+      "SELECT COUNT(*) AS count FROM conversaciones WHERE tipo_conversacion = 'docente_coordinador'",
+    )
+    .get();
+
+  if (totalConversacionesDc.count > 0) {
+    return;
+  }
+
+  const docente =
+    db.prepare("SELECT id FROM users WHERE username = ?").get("docente1") ||
+    db.prepare("SELECT id FROM users WHERE username = ?").get("docente");
+
+  const coordinador =
+    db.prepare("SELECT id FROM users WHERE username = ?").get("coordinador") ||
+    db.prepare("SELECT id FROM users WHERE role = 'coordinador' LIMIT 1").get();
+
+  if (!docente || !coordinador) {
+    return;
+  }
+
+  const unidadAm1 = db
+    .prepare(
+      "SELECT id FROM unidades WHERE materia_id = ? ORDER BY orden ASC LIMIT 1",
+    )
+    .get(am1.id);
+
+  const createSampleConversation = db.transaction(() => {
+    const conversacionResult = db
+      .prepare(
+        `
+        INSERT INTO conversaciones (
+          asunto,
+          alumno_id,
+          tutor_id,
+          materia_id,
+          unidad_id,
+          participante_a_id,
+          participante_b_id,
+          tipo_conversacion,
+          ultimo_mensaje_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, 'docente_coordinador', CURRENT_TIMESTAMP)
+      `,
+      )
+      .run(
+        "Coordinación de contenidos para Unidad 1",
+        docente.id,
+        coordinador.id,
+        am1.id,
+        unidadAm1?.id || null,
+        docente.id,
+        coordinador.id,
+      );
+
+    const conversacionId = Number(conversacionResult.lastInsertRowid);
+
+    const insertMensaje = db.prepare(
+      `
+      INSERT INTO mensajes (conversacion_id, remitente_id, cuerpo, leido)
+      VALUES (?, ?, ?, ?)
+    `,
+    );
+
+    insertMensaje.run(
+      conversacionId,
+      docente.id,
+      "Hola, ¿te parece bien publicar la guía de límites esta semana?",
+      0,
+    );
+
+    insertMensaje.run(
+      conversacionId,
+      coordinador.id,
+      "Sí, adelante. Sumá también una actividad práctica para reforzar.",
+      0,
+    );
+  });
+
+  createSampleConversation();
+}
+
 function seedMisCursosCDU004() {
   const totalCursadas = db
     .prepare("SELECT COUNT(*) AS count FROM cursadas")
@@ -432,6 +521,7 @@ async function seedUsers() {
 
   seedMateriasInscripcionesYContenido();
   seedMensajeriaCDU003();
+  seedMensajeriaCDU007();
   seedMisCursosCDU004();
   seedGestionMateriasCDU005();
 }
