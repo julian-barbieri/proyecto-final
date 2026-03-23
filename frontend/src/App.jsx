@@ -7,6 +7,7 @@ import AuthCallback from "./pages/AuthCallback";
 import Contenido from "./pages/Contenido";
 import ContenidoDocente from "./pages/ContenidoDocente";
 import Dashboard from "./pages/Dashboard";
+import GestionContenido from "./pages/GestionContenido";
 import GestionMaterias from "./pages/GestionMaterias";
 import Inscripcion from "./pages/Inscripcion";
 import Login from "./pages/Login";
@@ -102,6 +103,20 @@ export default function App() {
               subtitle="Administrá asignaciones docentes y períodos de inscripción"
             >
               <GestionMaterias />
+            </PageLayout>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/gestion-contenido"
+        element={
+          <ProtectedRoute allowedRoles={["admin", "coordinador"]}>
+            <PageLayout
+              title="Gestión de contenido"
+              subtitle="Organizá archivos académicos por materia y carpetas"
+            >
+              <GestionContenido />
             </PageLayout>
           </ProtectedRoute>
         }

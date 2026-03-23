@@ -262,6 +262,28 @@ db.exec(`
 `);
 
 db.exec(`
+  CREATE TABLE IF NOT EXISTS carpetas (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    materia_id INTEGER NOT NULL REFERENCES materias(id),
+    nombre TEXT NOT NULL,
+    creado_por INTEGER NOT NULL REFERENCES users(id),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(materia_id, nombre)
+  );
+`);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS carpeta_archivos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    carpeta_id INTEGER NOT NULL REFERENCES carpetas(id) ON DELETE CASCADE,
+    contenido_id INTEGER NOT NULL REFERENCES contenido(id) ON DELETE CASCADE,
+    nombre_archivo TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(carpeta_id, contenido_id)
+  );
+`);
+
+db.exec(`
   CREATE TABLE IF NOT EXISTS visualizaciones (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     alumno_id INTEGER NOT NULL REFERENCES users(id),

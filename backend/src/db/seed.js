@@ -481,6 +481,77 @@ function seedMisCursosCDU004() {
   insertExamen.run(alumno.id, am2.id, 2026, "Final", 1, 0, null);
 }
 
+function seedGestionContenidoCDU008() {
+  const totalCarpetas = db
+    .prepare("SELECT COUNT(*) AS count FROM carpetas")
+    .get()?.count;
+
+  if (Number(totalCarpetas) > 0) {
+    return;
+  }
+
+  const coordinador =
+    db.prepare("SELECT id FROM users WHERE username = ?").get("coordinador") ||
+    db.prepare("SELECT id FROM users WHERE role = 'coordinador' LIMIT 1").get();
+
+  const am1 = db.prepare("SELECT id FROM materias WHERE codigo = ?").get("AM1");
+
+  if (!coordinador || !am1) {
+    return;
+  }
+
+  const createSeed = db.transaction(() => {
+    const insertCarpeta = db.prepare(
+      "INSERT INTO carpetas (materia_id, nombre, creado_por) VALUES (?, ?, ?)",
+    );
+
+    const parcial1 = insertCarpeta.run(am1.id, "Parcial 1", coordinador.id);
+    insertCarpeta.run(am1.id, "Parcial 2", coordinador.id);
+    insertCarpeta.run(am1.id, "Material de apoyo", coordinador.id);
+
+    const contenidoResult = db
+      .prepare(
+        `
+        INSERT INTO contenido (
+          tutor_id,
+          materia_id,
+          titulo,
+          descripcion,
+          tipo,
+          archivo_path,
+          video_url,
+          texto_contenido,
+          alumno_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+      )
+      .run(
+        coordinador.id,
+        am1.id,
+        "Guía parcial 1",
+        "Guía de práctica para el primer parcial.",
+        "pdf",
+        "/parcial1_guia.pdf",
+        null,
+        null,
+        null,
+      );
+
+    db.prepare(
+      `
+      INSERT INTO carpeta_archivos (carpeta_id, contenido_id, nombre_archivo)
+      VALUES (?, ?, ?)
+    `,
+    ).run(
+      Number(parcial1.lastInsertRowid),
+      Number(contenidoResult.lastInsertRowid),
+      "Guía parcial 1.pdf",
+    );
+  });
+
+  createSeed();
+}
+
 async function seedUsers() {
   const users = [
     { username: "director", password: "director123", role: "admin" },
@@ -524,6 +595,7 @@ async function seedUsers() {
   seedMensajeriaCDU007();
   seedMisCursosCDU004();
   seedGestionMateriasCDU005();
+  seedGestionContenidoCDU008();
 }
 
 if (require.main === module) {

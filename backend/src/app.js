@@ -18,6 +18,7 @@ const contenidoRoutes = require("./routes/contenido.routes");
 const mensajesRoutes = require("./routes/mensajes.routes");
 const misCursosRoutes = require("./routes/miscursos.routes");
 const gestionMateriasRoutes = require("./routes/gestion-materias.routes");
+const gestionContenidoRoutes = require("./routes/gestion-contenido.routes");
 const { authenticate, authorize } = require("./middleware/auth.middleware");
 
 const app = express();
@@ -67,6 +68,12 @@ app.use("/api/contenido", authenticate, contenidoRoutes);
 app.use("/api/mensajes", authenticate, mensajesRoutes);
 app.use("/api/mis-cursos", authenticate, authorize("alumno"), misCursosRoutes);
 app.use("/api/gestion", authenticate, gestionMateriasRoutes);
+app.use(
+  "/api/gestion-contenido",
+  authenticate,
+  authorize("admin", "coordinador"),
+  gestionContenidoRoutes,
+);
 
 seedUsers()
   .then(() => {

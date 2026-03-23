@@ -50,10 +50,11 @@ export default function Navbar() {
       return [
         { to: "/", label: "Dashboard" },
         { to: "/gestion-materias", label: "Gestión de materias" },
+        { to: "/gestion-contenido", label: "Gestión de contenido" },
+        { to: "/predicciones", label: "Predicciones" },
         ...(role === "coordinador"
           ? [{ to: "/mensajes", label: "Mensajes" }]
           : []),
-        { to: "/predicciones", label: "Predicciones" },
         ...(role === "admin" ? [{ to: "/alumnos", label: "Alumnos" }] : []),
       ];
     }
