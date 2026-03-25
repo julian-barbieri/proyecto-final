@@ -6,7 +6,7 @@ import Contenido from "./pages/Contenido";
 import ContenidoDocente from "./pages/ContenidoDocente";
 import Dashboard from "./pages/Dashboard";
 import GestionContenido from "./pages/GestionContenido";
-import GestionAlumnos from "./pages/GestionAlumnos";
+import PanelPredicciones from "./pages/PanelPredicciones";
 import GestionMaterias from "./pages/GestionMaterias";
 import GestionNotas from "./pages/GestionNotas";
 import Inscripcion from "./pages/Inscripcion";
@@ -17,7 +17,6 @@ import MisMateriasDocente from "./pages/MisMateriasDocente";
 import MisNotas from "./pages/MisNotas";
 import MisCursos from "./pages/MisCursos";
 import NotFound from "./pages/NotFound";
-import PrediccionesAuto from "./pages/PrediccionesAuto";
 import Predicciones from "./pages/Predicciones";
 
 export default function App() {
@@ -49,20 +48,6 @@ export default function App() {
               subtitle="Ejecutá predicciones de abandono, recursado y nota de examen."
             >
               <Predicciones />
-            </PageLayout>
-          </ProtectedRoute>
-        }
-      />
-
-      <Route
-        path="/predicciones-auto"
-        element={
-          <ProtectedRoute allowedRoles={["admin", "coordinador"]}>
-            <PageLayout
-              title="Predicciones"
-              subtitle="Predicciones automáticas por alumno y en modo masivo."
-            >
-              <PrediccionesAuto />
             </PageLayout>
           </ProtectedRoute>
         }
@@ -139,14 +124,14 @@ export default function App() {
       />
 
       <Route
-        path="/gestion-alumnos"
+        path="/panel-predicciones"
         element={
           <ProtectedRoute allowedRoles={["admin", "coordinador"]}>
             <PageLayout
-              title="Gestión de alumnos"
-              subtitle="Listado por materia con detalle académico y seguimiento"
+              title="Panel de Predicciones"
+              subtitle="Monitorea riesgo de abandono y accede a predicciones detalladas"
             >
-              <GestionAlumnos />
+              <PanelPredicciones />
             </PageLayout>
           </ProtectedRoute>
         }

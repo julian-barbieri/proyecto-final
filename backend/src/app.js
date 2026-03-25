@@ -18,8 +18,8 @@ const mensajesRoutes = require("./routes/mensajes.routes");
 const misCursosRoutes = require("./routes/miscursos.routes");
 const gestionMateriasRoutes = require("./routes/gestion-materias.routes");
 const gestionContenidoRoutes = require("./routes/gestion-contenido.routes");
-const gestionAlumnosRouter = require("./routes/gestion-alumnos.routes");
-const prediccionesAutoRoutes = require("./routes/predicciones-auto.routes");
+const panelPrediccionesRoutes = require("./routes/panel-predicciones.routes");
+const dashboardRoutes = require("./routes/dashboard.routes");
 const notasRoutes = require("./routes/notas.routes");
 const { authenticate, authorize } = require("./middleware/auth.middleware");
 
@@ -75,8 +75,18 @@ app.use(
   authorize("admin", "coordinador"),
   gestionContenidoRoutes,
 );
-app.use("/api/gestion-alumnos", authenticate, gestionAlumnosRouter);
-app.use("/api/predicciones-auto", authenticate, prediccionesAutoRoutes);
+app.use(
+  "/api/panel-predicciones",
+  authenticate,
+  authorize("admin", "coordinador"),
+  panelPrediccionesRoutes,
+);
+app.use(
+  "/api/dashboard",
+  authenticate,
+  authorize("admin", "coordinador"),
+  dashboardRoutes,
+);
 app.use("/api/notas", authenticate, notasRoutes);
 
 seedUsers()

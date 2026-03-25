@@ -1,454 +1,587 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 import api from "../api/axios";
-import MetricCard from "../components/MetricCard";
+import KpiCard from "../components/dashboard/KpiCard";
 
-function normalizeHistoryResponse(payload) {
-  if (Array.isArray(payload)) {
-    return payload;
-  }
-
-  if (Array.isArray(payload?.data)) {
-    return payload.data;
-  }
-
-  return [];
-}
-
-function formatDate(value) {
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return "Fecha inválida";
-  }
-
-  return new Intl.DateTimeFormat("es-AR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
-}
-
-function getPrimaryPayload(payload) {
-  if (Array.isArray(payload)) {
-    return payload[0] ?? null;
-  }
-
-  return payload ?? null;
-}
-
-function summarizeResult(record) {
-  const result = getPrimaryPayload(record?.result_data);
-
-  if (record.tipo === "alumno") {
-    return result?.Abandona ? "Abandona" : "No abandona";
-  }
-
-  if (record.tipo === "materia") {
-    return result?.Recursa ? "Recursa" : "No recursa";
-  }
-
-  if (record.tipo === "examen") {
-    const nota = Number(result?.Nota ?? 0);
-    return `Nota: ${nota.toFixed(2)}`;
-  }
-
-  return "Sin resultado";
-}
-
-function getTypeBadgeClass(tipo) {
-  if (tipo === "alumno") {
-    return "bg-blue-100 text-blue-700";
-  }
-
-  if (tipo === "materia") {
-    return "bg-orange-100 text-orange-700";
-  }
-
-  return "bg-emerald-100 text-emerald-700";
-}
-
-function DashboardSkeleton() {
+function SkeletonLoader() {
   return (
     <div className="space-y-6">
-      <div className="h-16 animate-pulse rounded-2xl bg-slate-200" />
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {Array.from({ length: 4 }).map((_, index) => (
+      {/* KPI Skeleton */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {[1, 2, 3, 4].map((i) => (
           <div
-            key={index}
-            className="h-40 animate-pulse rounded-2xl bg-slate-200"
+            key={i}
+            className="animate-pulse bg-gray-200 rounded-lg h-24 w-full"
           />
         ))}
       </div>
-      <div className="h-96 animate-pulse rounded-2xl bg-slate-200" />
+
+      {/* Alertas y Distribución Skeleton */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="animate-pulse bg-gray-200 rounded-lg h-64 w-full" />
+        <div className="animate-pulse bg-gray-200 rounded-lg h-64 w-full" />
+      </div>
+
+      {/* Tabla Skeleton */}
+      <div className="animate-pulse space-y-2">
+        {[1, 2, 3, 4, 5].map((i) => (
+          <div key={i} className="bg-gray-200 rounded-lg h-12 w-full" />
+        ))}
+      </div>
     </div>
   );
 }
 
 export default function Dashboard() {
-  const [history, setHistory] = useState([]);
-  const [historyError, setHistoryError] = useState("");
-  const [healthStatus, setHealthStatus] = useState({
-    available: false,
-    message: "Verificando servicio de IA...",
-  });
-  const [isLoading, setIsLoading] = useState(true);
-  const [selectedRecord, setSelectedRecord] = useState(null);
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
-    let isMounted = true;
-
-    async function loadDashboard() {
-      setIsLoading(true);
-      setHistoryError("");
-
-      const [historyResponse, healthResponse] = await Promise.all([
-        api.get("/api/history").then(
-          (response) => ({ ok: true, data: response.data }),
-          (error) => ({ ok: false, error }),
-        ),
-        api.get("/api/predict/health").then(
-          (response) => ({ ok: true, data: response.data }),
-          (error) => ({ ok: false, error }),
-        ),
-      ]);
-
-      if (!isMounted) {
-        return;
+    const cargarDashboard = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const response = await api.get("/api/dashboard");
+        setData(response.data);
+      } catch (err) {
+        console.error("Error cargando dashboard:", err);
+        setError(err.message || "Error al cargar el dashboard");
+      } finally {
+        setLoading(false);
       }
-
-      if (historyResponse.ok) {
-        setHistory(normalizeHistoryResponse(historyResponse.data));
-      } else {
-        setHistory([]);
-        setHistoryError(
-          historyResponse.error?.message ||
-            "No se pudo cargar el historial de predicciones.",
-        );
-      }
-
-      if (healthResponse.ok) {
-        setHealthStatus({
-          available: true,
-          message: "Servicio de IA activo",
-        });
-      } else {
-        setHealthStatus({
-          available: false,
-          message:
-            "Servicio de IA no disponible — verificá que la FastAPI esté corriendo",
-        });
-      }
-
-      setIsLoading(false);
-    }
-
-    loadDashboard();
-
-    return () => {
-      isMounted = false;
     };
+
+    cargarDashboard();
   }, []);
 
-  const metrics = useMemo(() => {
-    const alumnoRecords = history.filter((record) => record.tipo === "alumno");
-    const materiaRecords = history.filter(
-      (record) => record.tipo === "materia",
+  if (!user || !["admin", "coordinador"].includes(user.role)) {
+    return (
+      <div className="p-6 text-center">
+        <p className="text-red-600">
+          No autorizado. Este dashboard es solo para admin y coordinadores.
+        </p>
+      </div>
     );
-    const examenRecords = history.filter((record) => record.tipo === "examen");
-
-    const alumnosEnRiesgo = alumnoRecords.filter((record) => {
-      const result = getPrimaryPayload(record.result_data);
-      return Boolean(result?.Abandona);
-    }).length;
-    const materiasRecursa = materiaRecords.filter((record) => {
-      const result = getPrimaryPayload(record.result_data);
-      return Boolean(result?.Recursa);
-    }).length;
-    const notaPromedio = examenRecords.length
-      ? examenRecords.reduce((sum, record) => {
-          const result = getPrimaryPayload(record.result_data);
-          return sum + Number(result?.Nota ?? 0);
-        }, 0) / examenRecords.length
-      : 0;
-
-    return {
-      totalPredicciones: history.length,
-      alumnosEnRiesgo,
-      alumnosEvaluados: alumnoRecords.length,
-      tasaRecursado: materiaRecords.length
-        ? (materiasRecursa / materiaRecords.length) * 100
-        : 0,
-      materiasEvaluadas: materiaRecords.length,
-      notaPromedio,
-      examenesEvaluados: examenRecords.length,
-    };
-  }, [history]);
-
-  const latestPredictions = history.slice(0, 10);
-
-  if (isLoading) {
-    return <DashboardSkeleton />;
   }
+
+  if (loading) {
+    return (
+      <div className="p-6 bg-white rounded-lg">
+        <SkeletonLoader />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-6 bg-red-50 border border-red-200 rounded-lg text-red-700">
+        <p className="font-medium">Error al cargar el dashboard</p>
+        <p className="text-sm mt-1">{error}</p>
+      </div>
+    );
+  }
+
+  if (!data) {
+    return <div className="p-6">Sin datos disponibles</div>;
+  }
+
+  // Extraer datos
+  const {
+    kpis,
+    abandono,
+    por_materia,
+    distribucion_cursadas,
+    alertas,
+    actividad_reciente,
+    ai_disponible,
+  } = data;
+
+  const formatearFecha = (isoString) => {
+    const date = new Date(isoString);
+    const ahora = new Date();
+    const diff = Math.floor((ahora - date) / 1000);
+
+    if (diff < 60) return "hace unos segundos";
+    if (diff < 3600) return `hace ${Math.floor(diff / 60)} minutos`;
+    if (diff < 86400) return `hace ${Math.floor(diff / 3600)} horas`;
+    return `hace ${Math.floor(diff / 86400)} días`;
+  };
+
+  const getTipoIcono = (tipo) => {
+    switch (tipo) {
+      case "abandono":
+        return "🎓";
+      case "recursado":
+        return "📚";
+      case "nota":
+        return "📝";
+      default:
+        return "📊";
+    }
+  };
 
   return (
     <div className="space-y-6">
-      <section
-        className={`rounded-2xl border px-4 py-3 shadow-sm ${
-          healthStatus.available
-            ? "border-emerald-200 bg-emerald-50"
-            : "border-red-200 bg-red-50"
-        }`}
-      >
-        <div className="flex items-center gap-3">
-          <span
-            className={`h-3 w-3 rounded-full ${
-              healthStatus.available ? "bg-emerald-500" : "bg-red-500"
-            }`}
-            aria-hidden="true"
-          />
-          <p className="text-sm font-medium text-slate-800">
-            {healthStatus.message}
-          </p>
-        </div>
-      </section>
+      {/* Header personalizado */}
+      <div>
+        <h1 className="text-2xl font-medium text-gray-900">
+          Buenos días, {user.nombre_completo.split(" ")[0]}
+        </h1>
+        <p className="text-sm text-gray-500 mt-1">
+          {new Date().toLocaleDateString("es-AR", {
+            weekday: "long",
+            year: "numeric",
+            month: "long",
+            day: "numeric",
+          })}
+          {" · "}Sistema de Predicciones Académicas
+        </p>
 
-      {historyError && (
-        <section className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 shadow-sm">
-          {historyError}
-        </section>
+        {!ai_disponible && (
+          <div className="mt-3 px-4 py-2 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+            ⚠ El servicio de predicciones ML no está disponible. Se muestran
+            solo datos académicos.
+          </div>
+        )}
+      </div>
+
+      {/* SECCIÓN 1: KPI Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <KpiCard
+          titulo="Total alumnos"
+          valor={kpis.total_alumnos}
+          subtitulo="matriculados en AM1 · 2026"
+          color="blue"
+          icono="👥"
+        />
+        <KpiCard
+          titulo="Cursando"
+          valor={kpis.cursando_ahora}
+          subtitulo="en cursada activa"
+          color="green"
+          icono="📖"
+        />
+        <KpiCard
+          titulo="Tasa de recursado"
+          valor={`${kpis.tasa_recursado_global}%`}
+          subtitulo="promedio histórico AM1"
+          color="amber"
+          icono="🔄"
+        />
+        <KpiCard
+          titulo="Promedio de notas"
+          valor={kpis.promedio_notas_global}
+          subtitulo="en exámenes rendidos"
+          color="blue"
+          icono="⭐"
+        />
+      </div>
+
+      {/* Alerta de asistencia baja */}
+      {kpis.alumnos_asistencia_baja > 0 && (
+        <div className="flex items-center gap-2 text-sm text-amber-700 bg-amber-50 px-4 py-3 rounded-lg border border-amber-200">
+          <span>⚠</span>
+          <span>
+            <strong>{kpis.alumnos_asistencia_baja}</strong> alumno/s con
+            asistencia por debajo del 75% — no podrán rendir finales si no
+            mejoran.
+          </span>
+        </div>
       )}
 
-      <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard
-          title="Total de predicciones realizadas"
-          value={String(metrics.totalPredicciones)}
-          subtitle="Cantidad total registrada en el historial"
-          color="blue"
-          icon={
-            <svg
-              viewBox="0 0 24 24"
-              className="h-5 w-5"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
-              />
-            </svg>
-          }
-        />
-        <MetricCard
-          title="Alumnos en riesgo de abandono"
-          value={String(metrics.alumnosEnRiesgo)}
-          subtitle={`${metrics.alumnosEnRiesgo} de ${metrics.alumnosEvaluados} alumnos evaluados`}
-          color="red"
-          icon={
-            <svg
-              viewBox="0 0 24 24"
-              className="h-5 w-5"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M12 9v4m0 4h.01M10.29 3.86l-7.5 13A1 1 0 003.67 18h16.66a1 1 0 00.88-1.48l-7.5-13a1 1 0 00-1.76 0z"
-              />
-            </svg>
-          }
-        />
-        <MetricCard
-          title="Tasa de recursado estimada"
-          value={`${metrics.tasaRecursado.toFixed(1)}%`}
-          subtitle={`${metrics.materiasEvaluadas} materias evaluadas`}
-          color="orange"
-          icon={
-            <svg
-              viewBox="0 0 24 24"
-              className="h-5 w-5"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-              />
-            </svg>
-          }
-        />
-        <MetricCard
-          title="Nota promedio predicha"
-          value={metrics.notaPromedio.toFixed(2)}
-          subtitle={`${metrics.examenesEvaluados} exámenes evaluados`}
-          color="green"
-          icon={
-            <svg
-              viewBox="0 0 24 24"
-              className="h-5 w-5"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M11 5h6M11 9h6M5 5h.01M5 9h.01M7 16h10M7 20h10M5 16h.01M5 20h.01"
-              />
-            </svg>
-          }
-        />
-      </section>
-
-      {history.length === 0 ? (
-        <section className="rounded-2xl border border-slate-200 bg-white p-10 text-center shadow-sm">
-          <div
-            className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 text-3xl"
-            aria-hidden="true"
-          >
-            📊
+      {/* SECCIÓN 2: Alertas + Distribución de riesgo */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Alertas de abandono */}
+        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+          <div className="bg-gradient-to-r from-red-50 to-red-50 px-6 py-4 border-b border-red-200">
+            <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+              🚨 Alumnos en riesgo de abandono
+              <span className="ml-auto inline-block bg-red-500 text-white text-xs font-bold px-3 py-1 rounded-full">
+                {abandono.en_riesgo_alto}
+              </span>
+            </h2>
           </div>
-          <h2 className="mt-4 text-xl font-semibold text-slate-900">
-            Aún no hay predicciones registradas
-          </h2>
-          <p className="mt-2 text-sm text-slate-600">
-            Comenzá desde la sección Predicciones.
-          </p>
-        </section>
-      ) : (
-        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <h2 className="text-xl font-semibold text-slate-900">
-                Últimas predicciones realizadas
-              </h2>
-              <p className="mt-1 text-sm text-slate-600">
-                Resumen de las 10 predicciones más recientes.
+          <div className="p-6 space-y-1">
+            {alertas.length > 0 ? (
+              alertas.map((alumno) => (
+                <div
+                  key={alumno.id}
+                  className="flex items-center justify-between py-3 border-b last:border-0"
+                >
+                  <div className="flex items-center gap-3">
+                    <span
+                      className={`text-lg ${
+                        alumno.nivel_riesgo === "alto"
+                          ? "text-red-500"
+                          : "text-amber-500"
+                      }`}
+                    >
+                      {alumno.nivel_riesgo === "alto" ? "🔴" : "🟡"}
+                    </span>
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">
+                        {alumno.nombre}
+                      </p>
+                      <p className="text-xs text-gray-500">Prob. abandono</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="w-24 bg-gray-100 rounded-full h-2">
+                      <div
+                        className={`h-2 rounded-full ${
+                          alumno.nivel_riesgo === "alto"
+                            ? "bg-red-500"
+                            : "bg-amber-400"
+                        }`}
+                        style={{
+                          width: `${(alumno.probabilidad * 100).toFixed(0)}%`,
+                        }}
+                      />
+                    </div>
+                    <span className="text-sm font-medium w-10 text-right text-gray-900">
+                      {(alumno.probabilidad * 100).toFixed(0)}%
+                    </span>
+                    <button
+                      onClick={() => navigate(`/alumnos/${alumno.id}`)}
+                      className="text-xs text-blue-600 hover:underline"
+                    >
+                      Ver →
+                    </button>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <p className="text-sm text-gray-500 py-3">
+                Sin alumnos en riesgo alto
               </p>
-            </div>
+            )}
           </div>
+        </div>
 
-          <div className="mt-6 hidden overflow-x-auto md:block">
-            <table className="min-w-full divide-y divide-slate-200 text-sm">
-              <thead className="hidden md:table-header-group">
-                <tr className="text-left text-slate-500">
-                  <th className="pb-3 pr-4 font-medium">Fecha</th>
-                  <th className="pb-3 pr-4 font-medium">Tipo</th>
-                  <th className="pb-3 pr-4 font-medium">Resultado</th>
-                  <th className="pb-3 font-medium">Acción</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {latestPredictions.map((record) => (
-                  <tr key={record.id} className="text-slate-700">
-                    <td className="py-4 pr-4">
-                      {formatDate(record.created_at)}
+        {/* Distribución de riesgo */}
+        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+          <div className="bg-gradient-to-r from-blue-50 to-blue-50 px-6 py-4 border-b border-blue-200">
+            <h2 className="text-lg font-semibold text-gray-900">
+              Distribución de riesgo 🔵🟡🔴
+            </h2>
+          </div>
+          <div className="p-6 space-y-6">
+            {[
+              {
+                label: "Alto",
+                count: abandono.en_riesgo_alto,
+                color: "bg-red-500",
+                textColor: "text-red-700",
+              },
+              {
+                label: "Medio",
+                count: abandono.en_riesgo_medio,
+                color: "bg-amber-400",
+                textColor: "text-amber-700",
+              },
+              {
+                label: "Bajo",
+                count: abandono.sin_riesgo,
+                color: "bg-green-500",
+                textColor: "text-green-700",
+              },
+            ].map((barra) => {
+              const total =
+                abandono.en_riesgo_alto +
+                abandono.en_riesgo_medio +
+                abandono.sin_riesgo;
+              const pct =
+                total > 0 ? ((barra.count / total) * 100).toFixed(0) : 0;
+              return (
+                <div key={barra.label}>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-gray-700">
+                      {barra.label}
+                    </span>
+                    <span
+                      className={`text-sm font-semibold ${barra.textColor}`}
+                    >
+                      {barra.count} ({pct}%)
+                    </span>
+                  </div>
+                  <div className="w-full bg-gray-100 rounded-full h-3">
+                    <div
+                      className={`${barra.color} h-3 rounded-full`}
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+
+            <p className="text-sm text-gray-600 mt-6 pt-4 border-t border-gray-200">
+              <strong className="text-red-600">
+                {abandono.tasa_riesgo_alto_pct}%
+              </strong>{" "}
+              de los alumnos tiene riesgo alto de abandonar. Se recomienda
+              intervención inmediata en{" "}
+              <strong>{abandono.en_riesgo_alto}</strong> caso/s.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* SECCIÓN 3: Métricas por materia + Distribución cursadas */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Tasa de recursado por materia */}
+        <div className="bg-white rounded-lg border border-gray-200 p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-6">
+            Tasa de Recursado por Materia
+          </h2>
+          <div className="space-y-6">
+            {por_materia && por_materia.length > 0 ? (
+              por_materia.map((materia) => (
+                <div key={materia.id}>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-gray-700">
+                      {materia.codigo} {materia.nombre}
+                    </span>
+                    <span className="text-sm font-semibold text-gray-900">
+                      {materia.tasa_pct ?? "—"}%
+                    </span>
+                  </div>
+                  {materia.total_cursadas > 0 ? (
+                    <>
+                      <div className="w-full bg-gray-100 rounded-full h-2">
+                        <div
+                          className="bg-amber-400 h-2 rounded-full"
+                          style={{
+                            width: `${materia.tasa_pct || 0}%`,
+                          }}
+                        />
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {materia.recursadas} de {materia.total_cursadas}{" "}
+                        cursadas terminaron en recursado
+                      </p>
+                    </>
+                  ) : (
+                    <p className="text-xs text-gray-400 italic">
+                      Sin datos suficientes
+                    </p>
+                  )}
+                </div>
+              ))
+            ) : (
+              <p className="text-sm text-gray-500">Sin datos de materias</p>
+            )}
+          </div>
+        </div>
+
+        {/* Distribución de cursadas AM1 */}
+        <div className="bg-white rounded-lg border border-gray-200 p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-6">
+            Distribución de Cursadas AM1
+          </h2>
+          <div className="space-y-6">
+            {[
+              {
+                label: "1ra vez",
+                count: distribucion_cursadas.primera_vez,
+                icon: "📚",
+              },
+              {
+                label: "2da vez",
+                count: distribucion_cursadas.segunda_vez,
+                icon: "🔁",
+              },
+              {
+                label: "3ra vez o más",
+                count: distribucion_cursadas.tercera_vez_o_mas,
+                icon: "⏳",
+              },
+            ].map((item) => {
+              const total =
+                distribucion_cursadas.primera_vez +
+                distribucion_cursadas.segunda_vez +
+                distribucion_cursadas.tercera_vez_o_mas;
+              const pct =
+                total > 0 ? ((item.count / total) * 100).toFixed(0) : 0;
+              return (
+                <div key={item.label}>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-gray-700">
+                      {item.icon} {item.label}
+                    </span>
+                    <span className="text-sm font-semibold text-gray-900">
+                      {item.count} ({pct}%)
+                    </span>
+                  </div>
+                  <div className="w-full bg-gray-100 rounded-full h-3">
+                    <div
+                      className="bg-blue-500 h-3 rounded-full"
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+
+            <p className="text-sm text-gray-600 mt-6 pt-4 border-t border-gray-200">
+              El{" "}
+              <strong>
+                {distribucion_cursadas.total > 0
+                  ? (
+                      (distribucion_cursadas.primera_vez /
+                        (distribucion_cursadas.primera_vez +
+                          distribucion_cursadas.segunda_vez +
+                          distribucion_cursadas.tercera_vez_o_mas)) *
+                      100
+                    ).toFixed(0)
+                  : 0}
+                %
+              </strong>{" "}
+              de los alumnos está cursando AM1 por primera vez.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* SECCIÓN 4: Tabla de alumnos */}
+      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+        <div className="bg-gradient-to-r from-gray-50 to-gray-50 px-6 py-4 border-b border-gray-200">
+          <h2 className="text-lg font-semibold text-gray-900">
+            📋 Estado de todos los alumnos
+          </h2>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                  Nombre
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                  Veces
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                  Asistencia
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                  Riesgo
+                </th>
+                <th className="px-6 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                  Acción
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              {abandono.distribucion.map((alumno) => {
+                const asistPct = ((alumno.asistencia || 0) * 100).toFixed(0);
+                const asistColor =
+                  asistPct < 75
+                    ? "text-red-600 bg-red-50"
+                    : asistPct < 80
+                      ? "text-amber-600 bg-amber-50"
+                      : "text-green-600 bg-green-50";
+
+                return (
+                  <tr key={alumno.id} className="hover:bg-gray-50 transition">
+                    <td className="px-6 py-4 text-sm text-gray-900 font-medium">
+                      {alumno.nombre}
                     </td>
-                    <td className="py-4 pr-4">
-                      <span
-                        className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold capitalize ${getTypeBadgeClass(record.tipo)}`}
-                      >
-                        {record.tipo}
+                    <td className="px-6 py-4 text-sm text-gray-600">
+                      <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-semibold rounded">
+                        {alumno.veces_cursada}ra
                       </span>
                     </td>
-                    <td className="py-4 pr-4">{summarizeResult(record)}</td>
-                    <td className="py-4">
-                      <button
-                        type="button"
-                        onClick={() => setSelectedRecord(record)}
-                        className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                    <td className="px-6 py-4 text-sm">
+                      <span
+                        className={`px-2 py-1 rounded text-xs font-semibold ${asistColor}`}
                       >
-                        Ver detalle
+                        {asistPct}%
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-sm">
+                      {ai_disponible ? (
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`text-lg ${
+                              alumno.nivel_riesgo === "alto"
+                                ? "text-red-500"
+                                : alumno.nivel_riesgo === "medio"
+                                  ? "text-amber-500"
+                                  : "text-green-500"
+                            }`}
+                          >
+                            {alumno.nivel_riesgo === "alto"
+                              ? "🔴"
+                              : alumno.nivel_riesgo === "medio"
+                                ? "🟡"
+                                : "🟢"}
+                          </span>
+                          <span
+                            className={`text-xs font-semibold ${
+                              alumno.nivel_riesgo === "alto"
+                                ? "text-red-600"
+                                : alumno.nivel_riesgo === "medio"
+                                  ? "text-amber-600"
+                                  : "text-green-600"
+                            }`}
+                          >
+                            {alumno.nivel_riesgo === "alto"
+                              ? "Alto"
+                              : alumno.nivel_riesgo === "medio"
+                                ? "Medio"
+                                : "Bajo"}
+                            {alumno.probabilidad && (
+                              <span className="ml-1">
+                                {(alumno.probabilidad * 100).toFixed(0)}%
+                              </span>
+                            )}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-gray-400">—</span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <button
+                        onClick={() => navigate(`/alumnos/${alumno.id}`)}
+                        className="text-xs text-blue-600 hover:text-blue-800 font-semibold transition"
+                      >
+                        Ver perfil →
                       </button>
                     </td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
 
-          <div className="mt-4 space-y-3 md:hidden">
-            {latestPredictions.map((record) => (
-              <article
-                key={record.id}
-                className="rounded-lg border border-slate-200 bg-white p-4"
+      {/* SECCIÓN 5: Actividad reciente */}
+      {actividad_reciente && actividad_reciente.length > 0 && (
+        <div className="bg-white rounded-lg border border-gray-200 p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">
+            📊 Actividad reciente
+          </h2>
+          <div className="space-y-3">
+            {actividad_reciente.map((pred, idx) => (
+              <div
+                key={idx}
+                className="flex items-center gap-3 text-sm text-gray-700 py-2 px-3 bg-gray-50 rounded border border-gray-200"
               >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-xs text-slate-500">
-                      {formatDate(record.created_at)}
-                    </p>
-                    <p className="mt-1 text-sm font-semibold text-slate-800">
-                      {summarizeResult(record)}
-                    </p>
-                  </div>
-                  <span
-                    className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold capitalize ${getTypeBadgeClass(record.tipo)}`}
-                  >
-                    {record.tipo}
-                  </span>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => setSelectedRecord(record)}
-                  className="mt-4 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-                >
-                  Ver detalle
-                </button>
-              </article>
+                <span className="text-lg">{getTipoIcono(pred.tipo)}</span>
+                <span>
+                  Predicción de <strong>{pred.tipo}</strong> para{" "}
+                  <strong>{pred.alumno_nombre}</strong>
+                </span>
+                <span className="ml-auto text-xs text-gray-500">
+                  {formatearFecha(pred.created_at)}
+                </span>
+              </div>
             ))}
-          </div>
-        </section>
-      )}
-
-      {selectedRecord && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
-          <div className="max-h-[90vh] w-full max-w-3xl overflow-hidden rounded-2xl bg-white shadow-xl">
-            <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
-              <div>
-                <h3 className="text-lg font-semibold text-slate-900">
-                  Detalle de predicción #{selectedRecord.id}
-                </h3>
-                <p className="mt-1 text-sm text-slate-500">
-                  {formatDate(selectedRecord.created_at)}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setSelectedRecord(null)}
-                className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
-                aria-label="Cerrar detalle"
-              >
-                ×
-              </button>
-            </div>
-
-            <div className="grid gap-6 overflow-y-auto p-6 md:grid-cols-2">
-              <div>
-                <h4 className="mb-2 text-sm font-semibold text-slate-900">
-                  Input
-                </h4>
-                <pre className="max-h-[50vh] overflow-auto rounded-xl bg-slate-950 p-4 text-xs text-slate-100">
-                  {JSON.stringify(selectedRecord.input_data, null, 2)}
-                </pre>
-              </div>
-              <div>
-                <h4 className="mb-2 text-sm font-semibold text-slate-900">
-                  Output
-                </h4>
-                <pre className="max-h-[50vh] overflow-auto rounded-xl bg-slate-950 p-4 text-xs text-slate-100">
-                  {JSON.stringify(selectedRecord.result_data, null, 2)}
-                </pre>
-              </div>
-            </div>
           </div>
         </div>
       )}
