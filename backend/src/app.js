@@ -13,12 +13,14 @@ const { passport, configurePassport } = require("./config/passport");
 const authRoutes = require("./routes/auth.routes");
 const predictRoutes = require("./routes/predict.routes");
 const historyRoutes = require("./routes/history.routes");
-const studentsRoutes = require("./routes/students.routes");
 const contenidoRoutes = require("./routes/contenido.routes");
 const mensajesRoutes = require("./routes/mensajes.routes");
 const misCursosRoutes = require("./routes/miscursos.routes");
 const gestionMateriasRoutes = require("./routes/gestion-materias.routes");
 const gestionContenidoRoutes = require("./routes/gestion-contenido.routes");
+const gestionAlumnosRouter = require("./routes/gestion-alumnos.routes");
+const prediccionesAutoRoutes = require("./routes/predicciones-auto.routes");
+const notasRoutes = require("./routes/notas.routes");
 const { authenticate, authorize } = require("./middleware/auth.middleware");
 
 const app = express();
@@ -63,7 +65,6 @@ app.get("/health", (req, res) => {
 app.use("/api/auth", authRoutes);
 app.use("/api/predict", predictRoutes);
 app.use("/api/history", historyRoutes);
-app.use("/api/students", studentsRoutes);
 app.use("/api/contenido", authenticate, contenidoRoutes);
 app.use("/api/mensajes", authenticate, mensajesRoutes);
 app.use("/api/mis-cursos", authenticate, authorize("alumno"), misCursosRoutes);
@@ -74,6 +75,9 @@ app.use(
   authorize("admin", "coordinador"),
   gestionContenidoRoutes,
 );
+app.use("/api/gestion-alumnos", authenticate, gestionAlumnosRouter);
+app.use("/api/predicciones-auto", authenticate, prediccionesAutoRoutes);
+app.use("/api/notas", authenticate, notasRoutes);
 
 seedUsers()
   .then(() => {

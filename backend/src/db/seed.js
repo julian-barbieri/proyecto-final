@@ -552,6 +552,1103 @@ function seedGestionContenidoCDU008() {
   createSeed();
 }
 
+function seedPrediccionesAutomaticasCDU009() {
+  const am1 = db.prepare("SELECT id FROM materias WHERE codigo = ?").get("AM1");
+  const am2 = db.prepare("SELECT id FROM materias WHERE codigo = ?").get("AM2");
+
+  const alumno1 = db
+    .prepare("SELECT id FROM users WHERE username = ?")
+    .get("alumno");
+
+  if (!am1 || !am2 || !alumno1) {
+    return;
+  }
+
+  const currentYear = new Date().getFullYear();
+
+  db.prepare(
+    `
+      UPDATE users
+      SET
+        promedio_colegio = COALESCE(promedio_colegio, ?),
+        anio_ingreso = COALESCE(anio_ingreso, ?),
+        genero = COALESCE(genero, ?),
+        fecha_nac = COALESCE(fecha_nac, ?),
+        ayuda_financiera = COALESCE(ayuda_financiera, ?),
+        colegio_tecnico = COALESCE(colegio_tecnico, ?),
+        nombre_completo = COALESCE(nombre_completo, ?),
+        email = COALESCE(email, ?)
+      WHERE id = ?
+    `,
+  ).run(
+    6.9,
+    2022,
+    "Masculino",
+    "24-01-2000",
+    1,
+    0,
+    "García, Ana",
+    "alumno@usal.edu.ar",
+    alumno1.id,
+  );
+
+  const alumnosExtra = [
+    {
+      username: "alumno",
+      promedio: 7.4,
+      anio_ingreso: 2021,
+      genero: "Femenino",
+      fecha_nac: "15-03-2001",
+      ayuda_financiera: 0,
+      colegio_tecnico: 1,
+      nombre: "García, Ana",
+      email: "alumno@usal.edu.ar",
+    },
+  ];
+
+  const updateByUsername = db.prepare(
+    `
+      UPDATE users
+      SET
+        promedio_colegio = COALESCE(promedio_colegio, ?),
+        anio_ingreso = COALESCE(anio_ingreso, ?),
+        genero = COALESCE(genero, ?),
+        fecha_nac = COALESCE(fecha_nac, ?),
+        ayuda_financiera = COALESCE(ayuda_financiera, ?),
+        colegio_tecnico = COALESCE(colegio_tecnico, ?),
+        nombre_completo = COALESCE(nombre_completo, ?),
+        email = COALESCE(email, ?)
+      WHERE username = ?
+    `,
+  );
+
+  for (const extra of alumnosExtra) {
+    updateByUsername.run(
+      extra.promedio,
+      extra.anio_ingreso,
+      extra.genero,
+      extra.fecha_nac,
+      extra.ayuda_financiera,
+      extra.colegio_tecnico,
+      extra.nombre,
+      extra.email,
+      extra.username,
+    );
+  }
+
+  const seedTransaccional = db.transaction(() => {
+    db.prepare("DELETE FROM examenes WHERE alumno_id = ?").run(alumno1.id);
+    db.prepare("DELETE FROM cursadas WHERE alumno_id = ?").run(alumno1.id);
+
+    const upsertInscripcion = db.prepare(
+      `
+      INSERT OR IGNORE INTO inscripciones (alumno_id, materia_id, anio, periodo_id, estado)
+      VALUES (?, ?, ?, NULL, 'activa')
+    `,
+    );
+
+    upsertInscripcion.run(alumno1.id, am1.id, currentYear);
+    upsertInscripcion.run(alumno1.id, am2.id, currentYear);
+
+    const insertCursada = db.prepare(
+      "INSERT INTO cursadas (alumno_id, materia_id, anio, asistencia, estado) VALUES (?, ?, ?, ?, ?)",
+    );
+
+    insertCursada.run(alumno1.id, am1.id, 2022, 0.9, "aprobada");
+    insertCursada.run(alumno1.id, am1.id, 2021, 0.65, "recursada");
+    insertCursada.run(alumno1.id, am2.id, 2023, 0.8, "aprobada");
+
+    const insertExamen = db.prepare(
+      `
+      INSERT INTO examenes (
+        alumno_id,
+        materia_id,
+        anio,
+        tipo,
+        instancia,
+        rendido,
+        nota,
+        ausente,
+        veces_recursada,
+        fecha_examen,
+        asistencia
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `,
+    );
+
+    insertExamen.run(
+      alumno1.id,
+      am1.id,
+      2022,
+      "Parcial",
+      1,
+      1,
+      8.6,
+      0,
+      0,
+      "14-06-2022",
+      0.85,
+    );
+    insertExamen.run(
+      alumno1.id,
+      am1.id,
+      2022,
+      "Parcial",
+      2,
+      1,
+      7.89,
+      0,
+      0,
+      "04-11-2022",
+      0.87,
+    );
+    insertExamen.run(
+      alumno1.id,
+      am1.id,
+      2022,
+      "Recuperatorio",
+      1,
+      0,
+      null,
+      1,
+      0,
+      "21-06-2022",
+      0.85,
+    );
+    insertExamen.run(
+      alumno1.id,
+      am1.id,
+      2022,
+      "Final",
+      1,
+      1,
+      6.59,
+      0,
+      0,
+      "12-12-2022",
+      0.9,
+    );
+
+    insertExamen.run(
+      alumno1.id,
+      am2.id,
+      2023,
+      "Parcial",
+      1,
+      1,
+      5.5,
+      0,
+      1,
+      "15-06-2023",
+      0.78,
+    );
+    insertExamen.run(
+      alumno1.id,
+      am2.id,
+      2023,
+      "Parcial",
+      2,
+      1,
+      6.2,
+      0,
+      1,
+      "10-11-2023",
+      0.8,
+    );
+    insertExamen.run(
+      alumno1.id,
+      am2.id,
+      2023,
+      "Final",
+      1,
+      1,
+      5.8,
+      0,
+      1,
+      "14-12-2023",
+      0.8,
+    );
+  });
+
+  seedTransaccional();
+}
+
+function seedDemoAlumnosCDU010() {
+  // ─────────────────────────────────────────────────────────────
+  // SEED DEMO V2 — 12 alumnos AM1 2026
+  // ─────────────────────────────────────────────────────────────
+  try {
+    const usernamesAEliminar = [
+      "alu0476",
+      "alu0303",
+      "alu0097",
+      "alu0030",
+      "alu0047",
+      "alu0276",
+      "alu0014",
+      "alu0074",
+      "alu0135",
+      "alu0391",
+    ];
+
+    for (const username of usernamesAEliminar) {
+      const user = db
+        .prepare("SELECT id FROM users WHERE username = ?")
+        .get(username);
+
+      if (!user) {
+        continue;
+      }
+
+      db.prepare("DELETE FROM examenes WHERE alumno_id = ?").run(user.id);
+      db.prepare("DELETE FROM cursadas WHERE alumno_id = ?").run(user.id);
+      db.prepare("DELETE FROM inscripciones WHERE alumno_id = ?").run(user.id);
+      db.prepare("DELETE FROM users WHERE id = ?").run(user.id);
+    }
+
+    const insertUser = db.prepare(`
+      INSERT OR IGNORE INTO users
+        (username, password, role, nombre_completo, email,
+         oauth_provider, google_id,
+         genero, fecha_nac, ayuda_financiera, colegio_tecnico, promedio_colegio, anio_ingreso)
+      VALUES (?, NULL, 'alumno', ?, ?, 'google', ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    const nuevosAlumnos = [
+      [
+        "lucas.martinez",
+        "Lucas Martínez",
+        "lucas.martinez@usal.edu.ar",
+        "demo_lucas.martinez",
+        "Masculino",
+        "15-03-2007",
+        0,
+        0,
+        7.2,
+        2026,
+      ],
+      [
+        "valentina.gomez",
+        "Valentina Gómez",
+        "valentina.gomez@usal.edu.ar",
+        "demo_valentina.gomez",
+        "Femenino",
+        "22-08-2006",
+        0,
+        0,
+        7.8,
+        2026,
+      ],
+      [
+        "mateo.fernandez",
+        "Mateo Fernández",
+        "mateo.fernandez@usal.edu.ar",
+        "demo_mateo.fernandez",
+        "Masculino",
+        "05-11-2007",
+        0,
+        1,
+        8.1,
+        2026,
+      ],
+      [
+        "sofia.rodriguez",
+        "Sofía Rodríguez",
+        "sofia.rodriguez@usal.edu.ar",
+        "demo_sofia.rodriguez",
+        "Femenino",
+        "18-04-2006",
+        0,
+        0,
+        6.9,
+        2026,
+      ],
+      [
+        "nicolas.lopez",
+        "Nicolás López",
+        "nicolas.lopez@usal.edu.ar",
+        "demo_nicolas.lopez",
+        "Masculino",
+        "30-07-2006",
+        0,
+        0,
+        6.5,
+        2026,
+      ],
+      [
+        "joaquin.perez",
+        "Joaquín Pérez",
+        "joaquin.perez@usal.edu.ar",
+        "demo_joaquin.perez",
+        "Masculino",
+        "12-01-2006",
+        0,
+        0,
+        7.3,
+        2025,
+      ],
+      [
+        "camila.torres",
+        "Camila Torres",
+        "camila.torres@usal.edu.ar",
+        "demo_camila.torres",
+        "Femenino",
+        "03-06-2005",
+        0,
+        0,
+        6.8,
+        2025,
+      ],
+      [
+        "sebastian.diaz",
+        "Sebastián Díaz",
+        "sebastian.diaz@usal.edu.ar",
+        "demo_sebastian.diaz",
+        "Masculino",
+        "28-09-2005",
+        0,
+        0,
+        7.5,
+        2025,
+      ],
+      [
+        "agustina.romero",
+        "Agustina Romero",
+        "agustina.romero@usal.edu.ar",
+        "demo_agustina.romero",
+        "Femenino",
+        "14-02-2004",
+        1,
+        0,
+        7,
+        2025,
+      ],
+      [
+        "ignacio.sanchez",
+        "Ignacio Sánchez",
+        "ignacio.sanchez@usal.edu.ar",
+        "demo_ignacio.sanchez",
+        "Masculino",
+        "07-05-2004",
+        0,
+        0,
+        6.2,
+        2024,
+      ],
+      [
+        "martina.villareal",
+        "Martina Villareal",
+        "martina.villareal@usal.edu.ar",
+        "demo_martina.villareal",
+        "Femenino",
+        "19-10-2004",
+        0,
+        0,
+        6.7,
+        2024,
+      ],
+      [
+        "tomas.acosta",
+        "Tomás Acosta",
+        "tomas.acosta@usal.edu.ar",
+        "demo_tomas.acosta",
+        "Masculino",
+        "25-03-2003",
+        0,
+        0,
+        6.4,
+        2024,
+      ],
+    ];
+
+    for (const alumno of nuevosAlumnos) {
+      insertUser.run(...alumno);
+    }
+
+    const nuevosUsernames = nuevosAlumnos.map((alumno) => alumno[0]);
+    const usernamePlaceholders = nuevosUsernames.map(() => "?").join(",");
+    const nuevosUserIds = db
+      .prepare(
+        `SELECT id FROM users WHERE username IN (${usernamePlaceholders})`,
+      )
+      .all(...nuevosUsernames)
+      .map((row) => row.id);
+
+    if (nuevosUserIds.length > 0) {
+      const idPlaceholders = nuevosUserIds.map(() => "?").join(",");
+      db.prepare(
+        `DELETE FROM examenes WHERE alumno_id IN (${idPlaceholders})`,
+      ).run(...nuevosUserIds);
+      db.prepare(
+        `DELETE FROM cursadas WHERE alumno_id IN (${idPlaceholders})`,
+      ).run(...nuevosUserIds);
+      db.prepare(
+        `DELETE FROM inscripciones WHERE alumno_id IN (${idPlaceholders})`,
+      ).run(...nuevosUserIds);
+    }
+
+    function getId(username) {
+      return db.prepare("SELECT id FROM users WHERE username = ?").get(username)
+        ?.id;
+    }
+    function getMateriaId(codigo) {
+      return db.prepare("SELECT id FROM materias WHERE codigo = ?").get(codigo)
+        ?.id;
+    }
+
+    const insertCursada = db.prepare(`
+      INSERT OR IGNORE INTO cursadas (alumno_id, materia_id, anio, asistencia, estado)
+      VALUES (?, ?, ?, ?, ?)
+    `);
+    function seedC(username, data) {
+      const alumnoId = getId(username);
+      if (!alumnoId) {
+        return;
+      }
+      for (const cursada of data) {
+        insertCursada.run(
+          alumnoId,
+          getMateriaId(cursada.m),
+          cursada.anio,
+          cursada.asist,
+          cursada.estado,
+        );
+      }
+    }
+
+    const insertExamen = db.prepare(`
+      INSERT OR IGNORE INTO examenes
+        (alumno_id, materia_id, anio, tipo, instancia,
+         rendido, nota, ausente, veces_recursada, asistencia, fecha_examen)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    function seedE(username, data) {
+      const alumnoId = getId(username);
+      if (!alumnoId) {
+        return;
+      }
+      for (const examen of data) {
+        insertExamen.run(
+          alumnoId,
+          getMateriaId(examen.m),
+          examen.anio,
+          examen.tipo,
+          examen.inst,
+          examen.rend,
+          examen.nota ?? null,
+          examen.aus ?? 0,
+          examen.vrec ?? 0,
+          examen.asist,
+          examen.fecha,
+        );
+      }
+    }
+
+    seedC("lucas.martinez", [
+      { m: "AM1", anio: 2026, asist: 0.88, estado: "cursando" },
+    ]);
+
+    seedC("valentina.gomez", [
+      { m: "AM1", anio: 2026, asist: 0.72, estado: "cursando" },
+    ]);
+
+    seedC("mateo.fernandez", [
+      { m: "AM1", anio: 2026, asist: 0.91, estado: "cursando" },
+    ]);
+    seedE("mateo.fernandez", [
+      {
+        m: "AM1",
+        anio: 2026,
+        tipo: "Parcial",
+        inst: 1,
+        rend: 1,
+        nota: 7.8,
+        asist: 0.88,
+        vrec: 0,
+        fecha: "15-06-2026",
+      },
+    ]);
+
+    seedC("sofia.rodriguez", [
+      { m: "AM1", anio: 2026, asist: 0.84, estado: "cursando" },
+    ]);
+    seedE("sofia.rodriguez", [
+      {
+        m: "AM1",
+        anio: 2026,
+        tipo: "Parcial",
+        inst: 1,
+        rend: 1,
+        nota: 2.4,
+        asist: 0.81,
+        vrec: 0,
+        fecha: "15-06-2026",
+      },
+      {
+        m: "AM1",
+        anio: 2026,
+        tipo: "Recuperatorio",
+        inst: 1,
+        rend: 1,
+        nota: 5.2,
+        asist: 0.78,
+        vrec: 0,
+        fecha: "23-06-2026",
+      },
+    ]);
+
+    seedC("nicolas.lopez", [
+      { m: "AM1", anio: 2026, asist: 0.79, estado: "cursando" },
+    ]);
+    seedE("nicolas.lopez", [
+      {
+        m: "AM1",
+        anio: 2026,
+        tipo: "Parcial",
+        inst: 1,
+        rend: 1,
+        nota: 1.8,
+        asist: 0.75,
+        vrec: 0,
+        fecha: "15-06-2026",
+      },
+      {
+        m: "AM1",
+        anio: 2026,
+        tipo: "Recuperatorio",
+        inst: 1,
+        rend: 1,
+        nota: 2.1,
+        asist: 0.72,
+        vrec: 0,
+        fecha: "23-06-2026",
+      },
+    ]);
+
+    seedC("joaquin.perez", [
+      { m: "AM1", anio: 2025, asist: 0.62, estado: "recursada" },
+      { m: "AM1", anio: 2026, asist: 0.85, estado: "cursando" },
+    ]);
+    seedE("joaquin.perez", [
+      {
+        m: "AM1",
+        anio: 2025,
+        tipo: "Parcial",
+        inst: 1,
+        rend: 1,
+        nota: 5.6,
+        asist: 0.68,
+        vrec: 0,
+        fecha: "16-06-2025",
+      },
+      {
+        m: "AM1",
+        anio: 2025,
+        tipo: "Parcial",
+        inst: 2,
+        rend: 1,
+        nota: 4.8,
+        asist: 0.65,
+        vrec: 0,
+        fecha: "07-11-2025",
+      },
+      {
+        m: "AM1",
+        anio: 2025,
+        tipo: "Final",
+        inst: 1,
+        rend: 0,
+        aus: 1,
+        asist: 0.62,
+        vrec: 0,
+        fecha: "12-12-2025",
+      },
+    ]);
+
+    seedC("camila.torres", [
+      { m: "AM1", anio: 2025, asist: 0.88, estado: "recursada" },
+      { m: "AM1", anio: 2026, asist: 0.9, estado: "cursando" },
+    ]);
+    seedE("camila.torres", [
+      {
+        m: "AM1",
+        anio: 2025,
+        tipo: "Parcial",
+        inst: 1,
+        rend: 1,
+        nota: 2.7,
+        asist: 0.85,
+        vrec: 0,
+        fecha: "13-06-2025",
+      },
+      {
+        m: "AM1",
+        anio: 2025,
+        tipo: "Recuperatorio",
+        inst: 1,
+        rend: 1,
+        nota: 3.1,
+        asist: 0.82,
+        vrec: 0,
+        fecha: "24-06-2025",
+      },
+      {
+        m: "AM1",
+        anio: 2026,
+        tipo: "Parcial",
+        inst: 1,
+        rend: 1,
+        nota: 5.4,
+        asist: 0.87,
+        vrec: 1,
+        fecha: "15-06-2026",
+      },
+    ]);
+
+    seedC("sebastian.diaz", [
+      { m: "AM1", anio: 2025, asist: 0.93, estado: "recursada" },
+      { m: "AM1", anio: 2026, asist: 0.95, estado: "cursando" },
+    ]);
+    seedE("sebastian.diaz", [
+      {
+        m: "AM1",
+        anio: 2025,
+        tipo: "Parcial",
+        inst: 1,
+        rend: 1,
+        nota: 5.2,
+        asist: 0.9,
+        vrec: 0,
+        fecha: "13-06-2025",
+      },
+      {
+        m: "AM1",
+        anio: 2025,
+        tipo: "Parcial",
+        inst: 2,
+        rend: 1,
+        nota: 6.1,
+        asist: 0.96,
+        vrec: 0,
+        fecha: "07-11-2025",
+      },
+      {
+        m: "AM1",
+        anio: 2025,
+        tipo: "Final",
+        inst: 1,
+        rend: 1,
+        nota: 3.4,
+        asist: 0.93,
+        vrec: 0,
+        fecha: "12-12-2025",
+      },
+      {
+        m: "AM1",
+        anio: 2025,
+        tipo: "Final",
+        inst: 2,
+        rend: 1,
+        nota: 2.8,
+        asist: 0.93,
+        vrec: 0,
+        fecha: "06-02-2026",
+      },
+      {
+        m: "AM1",
+        anio: 2025,
+        tipo: "Final",
+        inst: 3,
+        rend: 1,
+        nota: 1.9,
+        asist: 0.93,
+        vrec: 0,
+        fecha: "10-07-2026",
+      },
+      {
+        m: "AM1",
+        anio: 2026,
+        tipo: "Parcial",
+        inst: 1,
+        rend: 1,
+        nota: 7.1,
+        asist: 0.93,
+        vrec: 1,
+        fecha: "15-06-2026",
+      },
+    ]);
+
+    seedC("agustina.romero", [
+      { m: "AM1", anio: 2025, asist: 0.87, estado: "recursada" },
+      { m: "AM1", anio: 2026, asist: 0.83, estado: "cursando" },
+    ]);
+    seedE("agustina.romero", [
+      {
+        m: "AM1",
+        anio: 2025,
+        tipo: "Parcial",
+        inst: 1,
+        rend: 1,
+        nota: 4.3,
+        asist: 0.82,
+        vrec: 0,
+        fecha: "13-06-2025",
+      },
+      {
+        m: "AM1",
+        anio: 2025,
+        tipo: "Parcial",
+        inst: 2,
+        rend: 1,
+        nota: 2.5,
+        asist: 0.9,
+        vrec: 0,
+        fecha: "07-11-2025",
+      },
+      {
+        m: "AM1",
+        anio: 2025,
+        tipo: "Recuperatorio",
+        inst: 2,
+        rend: 1,
+        nota: 3.2,
+        asist: 0.87,
+        vrec: 0,
+        fecha: "21-11-2025",
+      },
+    ]);
+
+    seedC("ignacio.sanchez", [
+      { m: "AM1", anio: 2024, asist: 0.78, estado: "recursada" },
+      { m: "AM1", anio: 2025, asist: 0.82, estado: "recursada" },
+      { m: "AM1", anio: 2026, asist: 0.76, estado: "cursando" },
+    ]);
+    seedE("ignacio.sanchez", [
+      {
+        m: "AM1",
+        anio: 2024,
+        tipo: "Parcial",
+        inst: 1,
+        rend: 1,
+        nota: 1.9,
+        asist: 0.75,
+        vrec: 0,
+        fecha: "14-06-2024",
+      },
+      {
+        m: "AM1",
+        anio: 2024,
+        tipo: "Recuperatorio",
+        inst: 1,
+        rend: 1,
+        nota: 3.2,
+        asist: 0.73,
+        vrec: 0,
+        fecha: "25-06-2024",
+      },
+      {
+        m: "AM1",
+        anio: 2025,
+        tipo: "Parcial",
+        inst: 1,
+        rend: 1,
+        nota: 4.1,
+        asist: 0.79,
+        vrec: 1,
+        fecha: "13-06-2025",
+      },
+      {
+        m: "AM1",
+        anio: 2025,
+        tipo: "Parcial",
+        inst: 2,
+        rend: 1,
+        nota: 2.2,
+        asist: 0.85,
+        vrec: 1,
+        fecha: "07-11-2025",
+      },
+      {
+        m: "AM1",
+        anio: 2025,
+        tipo: "Recuperatorio",
+        inst: 2,
+        rend: 1,
+        nota: 3.7,
+        asist: 0.82,
+        vrec: 1,
+        fecha: "21-11-2025",
+      },
+      {
+        m: "AM1",
+        anio: 2026,
+        tipo: "Parcial",
+        inst: 1,
+        rend: 1,
+        nota: 1.5,
+        asist: 0.73,
+        vrec: 2,
+        fecha: "15-06-2026",
+      },
+      {
+        m: "AM1",
+        anio: 2026,
+        tipo: "Recuperatorio",
+        inst: 1,
+        rend: 1,
+        nota: 2.3,
+        asist: 0.71,
+        vrec: 2,
+        fecha: "23-06-2026",
+      },
+    ]);
+
+    seedC("martina.villareal", [
+      { m: "AM1", anio: 2024, asist: 0.58, estado: "recursada" },
+      { m: "AM1", anio: 2025, asist: 0.81, estado: "recursada" },
+      { m: "AM1", anio: 2026, asist: 0.88, estado: "cursando" },
+    ]);
+    seedE("martina.villareal", [
+      {
+        m: "AM1",
+        anio: 2024,
+        tipo: "Parcial",
+        inst: 1,
+        rend: 1,
+        nota: 3.8,
+        asist: 0.55,
+        vrec: 0,
+        fecha: "14-06-2024",
+      },
+      {
+        m: "AM1",
+        anio: 2024,
+        tipo: "Recuperatorio",
+        inst: 1,
+        rend: 1,
+        nota: 4.2,
+        asist: 0.53,
+        vrec: 0,
+        fecha: "25-06-2024",
+      },
+      {
+        m: "AM1",
+        anio: 2024,
+        tipo: "Parcial",
+        inst: 2,
+        rend: 1,
+        nota: 4.5,
+        asist: 0.61,
+        vrec: 0,
+        fecha: "08-11-2024",
+      },
+      {
+        m: "AM1",
+        anio: 2024,
+        tipo: "Final",
+        inst: 1,
+        rend: 0,
+        aus: 1,
+        asist: 0.58,
+        vrec: 0,
+        fecha: "13-12-2024",
+      },
+      {
+        m: "AM1",
+        anio: 2025,
+        tipo: "Parcial",
+        inst: 1,
+        rend: 1,
+        nota: 5.1,
+        asist: 0.78,
+        vrec: 1,
+        fecha: "13-06-2025",
+      },
+      {
+        m: "AM1",
+        anio: 2025,
+        tipo: "Parcial",
+        inst: 2,
+        rend: 1,
+        nota: 3.4,
+        asist: 0.82,
+        vrec: 1,
+        fecha: "07-11-2025",
+      },
+      {
+        m: "AM1",
+        anio: 2025,
+        tipo: "Recuperatorio",
+        inst: 2,
+        rend: 1,
+        nota: 3.8,
+        asist: 0.81,
+        vrec: 1,
+        fecha: "21-11-2025",
+      },
+      {
+        m: "AM1",
+        anio: 2026,
+        tipo: "Parcial",
+        inst: 1,
+        rend: 1,
+        nota: 4.3,
+        asist: 0.85,
+        vrec: 2,
+        fecha: "15-06-2026",
+      },
+    ]);
+
+    seedC("tomas.acosta", [
+      { m: "AM1", anio: 2024, asist: 0.86, estado: "recursada" },
+      { m: "AM1", anio: 2025, asist: 0.91, estado: "recursada" },
+      { m: "AM1", anio: 2026, asist: 0.82, estado: "cursando" },
+    ]);
+    seedE("tomas.acosta", [
+      {
+        m: "AM1",
+        anio: 2024,
+        tipo: "Parcial",
+        inst: 1,
+        rend: 1,
+        nota: 5.7,
+        asist: 0.83,
+        vrec: 0,
+        fecha: "14-06-2024",
+      },
+      {
+        m: "AM1",
+        anio: 2024,
+        tipo: "Parcial",
+        inst: 2,
+        rend: 1,
+        nota: 4.9,
+        asist: 0.88,
+        vrec: 0,
+        fecha: "08-11-2024",
+      },
+      {
+        m: "AM1",
+        anio: 2024,
+        tipo: "Final",
+        inst: 1,
+        rend: 1,
+        nota: 2.9,
+        asist: 0.86,
+        vrec: 0,
+        fecha: "13-12-2024",
+      },
+      {
+        m: "AM1",
+        anio: 2024,
+        tipo: "Final",
+        inst: 2,
+        rend: 1,
+        nota: 3.1,
+        asist: 0.86,
+        vrec: 0,
+        fecha: "07-02-2025",
+      },
+      {
+        m: "AM1",
+        anio: 2024,
+        tipo: "Final",
+        inst: 3,
+        rend: 1,
+        nota: 2.5,
+        asist: 0.86,
+        vrec: 0,
+        fecha: "11-07-2025",
+      },
+      {
+        m: "AM1",
+        anio: 2025,
+        tipo: "Parcial",
+        inst: 1,
+        rend: 1,
+        nota: 6.2,
+        asist: 0.89,
+        vrec: 1,
+        fecha: "13-06-2025",
+      },
+      {
+        m: "AM1",
+        anio: 2025,
+        tipo: "Parcial",
+        inst: 2,
+        rend: 1,
+        nota: 5.8,
+        asist: 0.93,
+        vrec: 1,
+        fecha: "07-11-2025",
+      },
+      {
+        m: "AM1",
+        anio: 2025,
+        tipo: "Final",
+        inst: 1,
+        rend: 1,
+        nota: 3.5,
+        asist: 0.91,
+        vrec: 1,
+        fecha: "12-12-2025",
+      },
+      {
+        m: "AM1",
+        anio: 2025,
+        tipo: "Final",
+        inst: 2,
+        rend: 1,
+        nota: 3.2,
+        asist: 0.91,
+        vrec: 1,
+        fecha: "06-02-2026",
+      },
+      {
+        m: "AM1",
+        anio: 2025,
+        tipo: "Final",
+        inst: 3,
+        rend: 1,
+        nota: 2.8,
+        asist: 0.91,
+        vrec: 1,
+        fecha: "10-07-2026",
+      },
+    ]);
+
+    const insertInscripcion = db.prepare(`
+      INSERT OR IGNORE INTO inscripciones (alumno_id, materia_id, anio, estado)
+      VALUES (?, ?, ?, 'activa')
+    `);
+    const todos2026 = [
+      "lucas.martinez",
+      "valentina.gomez",
+      "mateo.fernandez",
+      "sofia.rodriguez",
+      "nicolas.lopez",
+      "joaquin.perez",
+      "camila.torres",
+      "sebastian.diaz",
+      "agustina.romero",
+      "ignacio.sanchez",
+      "martina.villareal",
+      "tomas.acosta",
+    ];
+
+    for (const username of todos2026) {
+      const alumnoId = getId(username);
+      if (alumnoId) {
+        insertInscripcion.run(alumnoId, getMateriaId("AM1"), 2026);
+      }
+    }
+
+    console.log("✅ Seed demo v2: 12 alumnos AM1 2026 insertados.");
+  } catch (error) {
+    console.error("❌ Error en seed demo v2 CDU011:", error.message);
+  }
+}
+
 async function seedUsers() {
   const users = [
     { username: "director", password: "director123", role: "admin" },
@@ -559,7 +1656,6 @@ async function seedUsers() {
     { username: "docente1", password: "docente123", role: "docente" },
     { username: "coordinador", password: "coord123", role: "coordinador" },
     { username: "alumno", password: "alumno123", role: "alumno" },
-    { username: "alumno1", password: "alumno123", role: "alumno" },
   ];
 
   const insertUser = db.prepare(
@@ -596,6 +1692,8 @@ async function seedUsers() {
   seedMisCursosCDU004();
   seedGestionMateriasCDU005();
   seedGestionContenidoCDU008();
+  seedPrediccionesAutomaticasCDU009();
+  seedDemoAlumnosCDU010();
 }
 
 if (require.main === module) {

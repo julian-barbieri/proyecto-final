@@ -228,6 +228,7 @@ router.get("/:materiaId", (req, res) => {
     .prepare(
       `
       SELECT anio, tipo, instancia, nota, rendido
+      , fecha_examen, ausente
       FROM examenes
       WHERE alumno_id = ? AND materia_id = ?
       ORDER BY
@@ -252,6 +253,8 @@ router.get("/:materiaId", (req, res) => {
         instancia: examen.instancia,
         nota: examen.nota,
         rendido: examen.rendido,
+        fecha_examen: examen.fecha_examen,
+        ausente: examen.ausente,
       });
       return acc;
     }, {});

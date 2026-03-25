@@ -50,12 +50,12 @@ export default function Navbar() {
       return [
         { to: "/", label: "Dashboard" },
         { to: "/gestion-materias", label: "Gestión de materias" },
-        { to: "/gestion-contenido", label: "Gestión de contenido" },
-        { to: "/predicciones", label: "Predicciones" },
+        { to: "/gestion-alumnos", label: "Alumnos" },
+        { to: "/gestion-contenido", label: "Contenido" },
+        { to: "/predicciones-auto", label: "Predicciones" },
         ...(role === "coordinador"
           ? [{ to: "/mensajes", label: "Mensajes" }]
           : []),
-        ...(role === "admin" ? [{ to: "/alumnos", label: "Alumnos" }] : []),
       ];
     }
 
@@ -63,17 +63,19 @@ export default function Navbar() {
       return [
         { to: "/", label: "Dashboard" },
         { to: "/mis-materias", label: "Mis materias" },
-        { to: "/mensajes", label: "Mensajes" },
+        { to: "/gestion-notas", label: "Notas" },
         { to: "/contenido-docente", label: "Contenido" },
+        { to: "/mensajes", label: "Mensajes" },
       ];
     }
 
     if (role === "alumno") {
       return [
         { to: "/", label: "Dashboard" },
+        { to: "/mis-cursos", label: "Mis cursos" },
+        { to: "/mis-notas", label: "Mis notas" },
         { to: "/contenido", label: "Contenido" },
         { to: "/mensajes", label: "Mensajes" },
-        { to: "/mis-cursos", label: "Mis cursos" },
         { to: "/inscripcion", label: "Inscripción" },
       ];
     }

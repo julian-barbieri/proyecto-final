@@ -121,6 +121,31 @@ function migrateUsersSchemaIfNeeded() {
 
 migrateUsersSchemaIfNeeded();
 
+function safeAlterTable(sql) {
+  try {
+    db.exec(sql);
+  } catch (error) {
+    if (
+      !String(error?.message || "")
+        .toLowerCase()
+        .includes("duplicate column name")
+    ) {
+      throw error;
+    }
+  }
+}
+
+safeAlterTable("ALTER TABLE users ADD COLUMN promedio_colegio REAL");
+safeAlterTable("ALTER TABLE users ADD COLUMN anio_ingreso INTEGER");
+safeAlterTable("ALTER TABLE users ADD COLUMN genero TEXT");
+safeAlterTable("ALTER TABLE users ADD COLUMN fecha_nac TEXT");
+safeAlterTable(
+  "ALTER TABLE users ADD COLUMN ayuda_financiera INTEGER NOT NULL DEFAULT 0",
+);
+safeAlterTable(
+  "ALTER TABLE users ADD COLUMN colegio_tecnico INTEGER NOT NULL DEFAULT 0",
+);
+
 db.exec(`
   CREATE TABLE IF NOT EXISTS predictions_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -396,6 +421,28 @@ db.exec(`
     instancia INTEGER NOT NULL,
     rendido INTEGER NOT NULL DEFAULT 1,
     nota REAL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+`);
+
+safeAlterTable(
+  "ALTER TABLE examenes ADD COLUMN ausente INTEGER NOT NULL DEFAULT 0",
+);
+safeAlterTable(
+  "ALTER TABLE examenes ADD COLUMN veces_recursada INTEGER NOT NULL DEFAULT 0",
+);
+safeAlterTable("ALTER TABLE examenes ADD COLUMN fecha_examen TEXT");
+safeAlterTable("ALTER TABLE examenes ADD COLUMN asistencia REAL");
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS importaciones_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    docente_id INTEGER NOT NULL REFERENCES users(id),
+    materia_id INTEGER NOT NULL REFERENCES materias(id),
+    anio INTEGER NOT NULL,
+    tipo TEXT NOT NULL CHECK(tipo IN ('manual', 'excel')),
+    filas_ok INTEGER DEFAULT 0,
+    filas_error INTEGER DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 `);

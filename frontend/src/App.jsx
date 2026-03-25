@@ -1,21 +1,23 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import PageLayout from "./components/PageLayout";
 import ProtectedRoute from "./components/ProtectedRoute";
-import AlumnoDetalle from "./pages/AlumnoDetalle";
-import Alumnos from "./pages/Alumnos";
 import AuthCallback from "./pages/AuthCallback";
 import Contenido from "./pages/Contenido";
 import ContenidoDocente from "./pages/ContenidoDocente";
 import Dashboard from "./pages/Dashboard";
 import GestionContenido from "./pages/GestionContenido";
+import GestionAlumnos from "./pages/GestionAlumnos";
 import GestionMaterias from "./pages/GestionMaterias";
+import GestionNotas from "./pages/GestionNotas";
 import Inscripcion from "./pages/Inscripcion";
 import Login from "./pages/Login";
 import MateriaDetalle from "./pages/MateriaDetalle";
 import Mensajes from "./pages/Mensajes";
 import MisMateriasDocente from "./pages/MisMateriasDocente";
+import MisNotas from "./pages/MisNotas";
 import MisCursos from "./pages/MisCursos";
 import NotFound from "./pages/NotFound";
+import PrediccionesAuto from "./pages/PrediccionesAuto";
 import Predicciones from "./pages/Predicciones";
 
 export default function App() {
@@ -47,6 +49,20 @@ export default function App() {
               subtitle="Ejecutá predicciones de abandono, recursado y nota de examen."
             >
               <Predicciones />
+            </PageLayout>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/predicciones-auto"
+        element={
+          <ProtectedRoute allowedRoles={["admin", "coordinador"]}>
+            <PageLayout
+              title="Predicciones"
+              subtitle="Predicciones automáticas por alumno y en modo masivo."
+            >
+              <PrediccionesAuto />
             </PageLayout>
           </ProtectedRoute>
         }
@@ -123,6 +139,20 @@ export default function App() {
       />
 
       <Route
+        path="/gestion-alumnos"
+        element={
+          <ProtectedRoute allowedRoles={["admin", "coordinador"]}>
+            <PageLayout
+              title="Gestión de alumnos"
+              subtitle="Listado por materia con detalle académico y seguimiento"
+            >
+              <GestionAlumnos />
+            </PageLayout>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
         path="/mis-materias"
         element={
           <ProtectedRoute allowedRoles={["docente"]}>
@@ -137,6 +167,20 @@ export default function App() {
       />
 
       <Route
+        path="/gestion-notas"
+        element={
+          <ProtectedRoute allowedRoles={["docente"]}>
+            <PageLayout
+              title="Notas"
+              subtitle="Carga y gestión de calificaciones por materia"
+            >
+              <GestionNotas />
+            </PageLayout>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
         path="/mis-cursos"
         element={
           <ProtectedRoute allowedRoles={["alumno"]}>
@@ -145,6 +189,20 @@ export default function App() {
               subtitle="Seguimiento de cursadas, finales pendientes y materias aprobadas"
             >
               <MisCursos />
+            </PageLayout>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/mis-notas"
+        element={
+          <ProtectedRoute allowedRoles={["alumno"]}>
+            <PageLayout
+              title="Mis notas"
+              subtitle="Detalle de calificaciones en tus exámenes"
+            >
+              <MisNotas />
             </PageLayout>
           </ProtectedRoute>
         }
@@ -170,31 +228,6 @@ export default function App() {
           <ProtectedRoute allowedRoles={["alumno"]}>
             <PageLayout>
               <MateriaDetalle />
-            </PageLayout>
-          </ProtectedRoute>
-        }
-      />
-
-      <Route
-        path="/alumnos"
-        element={
-          <ProtectedRoute allowedRoles={["admin", "coordinador"]}>
-            <PageLayout
-              title="Gestión de Alumnos"
-              subtitle="Buscá alumnos y accedé a sus predicciones académicas."
-            >
-              <Alumnos />
-            </PageLayout>
-          </ProtectedRoute>
-        }
-      />
-
-      <Route
-        path="/alumnos/:id"
-        element={
-          <ProtectedRoute allowedRoles={["admin", "coordinador", "docente"]}>
-            <PageLayout>
-              <AlumnoDetalle />
             </PageLayout>
           </ProtectedRoute>
         }
