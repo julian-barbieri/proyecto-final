@@ -399,6 +399,91 @@ db.exec(`
   );
 `);
 
+// Verificar si cursadas ya existe con el UNIQUE constraint
+function checkAndMigrateCursadas() {
+  try {
+    const tableInfo = db.prepare("PRAGMA table_info(cursadas)").all();
+
+    // Si la tabla no existe, CREATE TABLE IF NOT EXISTS la creará con el constraint
+    if (!tableInfo || tableInfo.length === 0) {
+      return; // Tabla será creada por CREATE TABLE IF NOT EXISTS arriba
+    }
+
+    // Tabla existe. Verificar si ya tiene un UNIQUE constraint
+    const constraints = db
+      .prepare(
+        `SELECT sql FROM sqlite_master WHERE type='table' AND name='cursadas'`,
+      )
+      .get();
+
+    if (constraints && constraints.sql && constraints.sql.includes("UNIQUE")) {
+      return; // Ya tiene el constraint
+    }
+
+    // Tabla existe pero sin UNIQUE constraint, necesita migración
+    console.log("🔄 Migrando tabla cursadas para agregar UNIQUE constraint...");
+
+    db.exec("PRAGMA foreign_keys = OFF");
+    db.exec("BEGIN");
+
+    try {
+      // 1. Eliminar duplicados: mantener el registro más antiguo por grupo (alumno, materia, anio)
+      db.exec(`
+        DELETE FROM cursadas
+        WHERE id NOT IN (
+          SELECT MIN(id)
+          FROM cursadas
+          GROUP BY alumno_id, materia_id, anio
+        )
+      `);
+
+      // 2. Crear tabla nueva con UNIQUE constraint
+      db.exec(`
+        ALTER TABLE cursadas RENAME TO cursadas_old
+      `);
+
+      db.exec(`
+        CREATE TABLE cursadas (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          alumno_id INTEGER NOT NULL REFERENCES users(id),
+          materia_id INTEGER NOT NULL REFERENCES materias(id),
+          anio INTEGER NOT NULL,
+          asistencia REAL,
+          estado TEXT NOT NULL DEFAULT 'cursando' CHECK(estado IN ('cursando', 'aprobada', 'recursada', 'abandonada')),
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE(alumno_id, materia_id, anio)
+        )
+      `);
+
+      // 3. Copiar datos de la tabla antigua
+      db.exec(`
+        INSERT INTO cursadas (id, alumno_id, materia_id, anio, asistencia, estado, created_at)
+        SELECT id, alumno_id, materia_id, anio, asistencia, estado, created_at
+        FROM cursadas_old
+      `);
+
+      // 4. Borrar tabla antigua
+      db.exec("DROP TABLE cursadas_old");
+
+      db.exec("COMMIT");
+      console.log("✅ Migración de cursadas completada exitosamente");
+    } catch (migrationError) {
+      db.exec("ROLLBACK");
+      throw migrationError;
+    }
+  } catch (error) {
+    console.warn(
+      "⚠️ No se pudo completar migración de cursadas (puede estar ya migrada):",
+      error.message,
+    );
+  } finally {
+    db.exec("PRAGMA foreign_keys = ON");
+  }
+}
+
+// Ejecutar verificación y migración después de crear la tabla
+checkAndMigrateCursadas();
+
 db.exec(`
   CREATE TABLE IF NOT EXISTS cursadas (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -407,9 +492,140 @@ db.exec(`
     anio INTEGER NOT NULL,
     asistencia REAL,
     estado TEXT NOT NULL DEFAULT 'cursando' CHECK(estado IN ('cursando', 'aprobada', 'recursada', 'abandonada')),
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(alumno_id, materia_id, anio)
   );
 `);
+
+// Migración: agregar UNIQUE constraint a cursadas si no existe
+function migrateCursadasUniqueConstraint() {
+  try {
+    const indexExists = db
+      .prepare(
+        `SELECT 1 FROM sqlite_master WHERE type='index' AND name='idx_cursadas_unique'`,
+      )
+      .get();
+
+    if (!indexExists) {
+      db.exec("PRAGMA foreign_keys = OFF");
+      db.exec("BEGIN");
+
+      // Eliminar duplicados: mantener el registro más antiguo
+      db.exec(`
+        DELETE FROM cursadas
+        WHERE id NOT IN (
+          SELECT MIN(id)
+          FROM cursadas
+          GROUP BY alumno_id, materia_id, anio
+        )
+      `);
+
+      db.exec("COMMIT");
+      db.exec("PRAGMA foreign_keys = ON");
+    }
+  } catch (error) {
+    if (!String(error?.message || "").includes("UNIQUE constraint failed")) {
+      console.log(
+        "Migración de cursadas UNIQUE ya aplicada o tabla vacía, continuando...",
+      );
+    }
+  }
+}
+
+migrateCursadasUniqueConstraint();
+
+// Verificar y migrar tabla examenes para agregar UNIQUE constraint
+function checkAndMigrateExamenes() {
+  try {
+    const tableInfo = db.prepare("PRAGMA table_info(examenes)").all();
+
+    // Si la tabla no existe, CREATE TABLE IF NOT EXISTS la creará con el constraint
+    if (!tableInfo || tableInfo.length === 0) {
+      return; // Tabla será creada por CREATE TABLE IF NOT EXISTS arriba
+    }
+
+    // Tabla existe. Verificar si ya tiene un UNIQUE constraint
+    const constraints = db
+      .prepare(
+        `SELECT sql FROM sqlite_master WHERE type='table' AND name='examenes'`,
+      )
+      .get();
+
+    if (constraints && constraints.sql && constraints.sql.includes("UNIQUE")) {
+      return; // Ya tiene el constraint
+    }
+
+    // Tabla existe pero sin UNIQUE constraint, necesita migración
+    console.log(
+      "🔄 Migrando tabla examenes para agregar UNIQUE constraint...",
+    );
+
+    db.exec("PRAGMA foreign_keys = OFF");
+    db.exec("BEGIN");
+
+    try {
+      // 1. Eliminar duplicados: mantener el registro más antiguo por grupo (alumno, materia, anio, tipo, instancia)
+      db.exec(`
+        DELETE FROM examenes
+        WHERE id NOT IN (
+          SELECT MIN(id)
+          FROM examenes
+          GROUP BY alumno_id, materia_id, anio, tipo, instancia
+        )
+      `);
+
+      // 2. Crear tabla nueva con UNIQUE constraint
+      db.exec(`
+        ALTER TABLE examenes RENAME TO examenes_old
+      `);
+
+      db.exec(`
+        CREATE TABLE examenes (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          alumno_id INTEGER NOT NULL REFERENCES users(id),
+          materia_id INTEGER NOT NULL REFERENCES materias(id),
+          anio INTEGER NOT NULL,
+          tipo TEXT NOT NULL,
+          instancia INTEGER NOT NULL,
+          rendido INTEGER NOT NULL DEFAULT 1,
+          nota REAL,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          ausente INTEGER NOT NULL DEFAULT 0,
+          veces_recursada INTEGER NOT NULL DEFAULT 0,
+          fecha_examen TEXT,
+          asistencia REAL,
+          UNIQUE(alumno_id, materia_id, anio, tipo, instancia)
+        )
+      `);
+
+      // 3. Copiar datos de la tabla antigua
+      db.exec(`
+        INSERT INTO examenes (id, alumno_id, materia_id, anio, tipo, instancia, rendido, nota, created_at, ausente, veces_recursada, fecha_examen, asistencia)
+        SELECT id, alumno_id, materia_id, anio, tipo, instancia, rendido, nota, created_at, ausente, veces_recursada, fecha_examen, asistencia
+        FROM examenes_old
+      `);
+
+      // 4. Borrar tabla antigua
+      db.exec("DROP TABLE examenes_old");
+
+      db.exec("COMMIT");
+      console.log("✅ Migración de examenes completada exitosamente");
+    } catch (migrationError) {
+      db.exec("ROLLBACK");
+      throw migrationError;
+    }
+  } catch (error) {
+    console.warn(
+      "⚠️ No se pudo completar migración de examenes (puede estar ya migrada):",
+      error.message,
+    );
+  } finally {
+    db.exec("PRAGMA foreign_keys = ON");
+  }
+}
+
+// Ejecutar verificación y migración después de crear la tabla
+checkAndMigrateExamenes();
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS examenes (
@@ -421,7 +637,12 @@ db.exec(`
     instancia INTEGER NOT NULL,
     rendido INTEGER NOT NULL DEFAULT 1,
     nota REAL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    ausente INTEGER NOT NULL DEFAULT 0,
+    veces_recursada INTEGER NOT NULL DEFAULT 0,
+    fecha_examen TEXT,
+    asistencia REAL,
+    UNIQUE(alumno_id, materia_id, anio, tipo, instancia)
   );
 `);
 

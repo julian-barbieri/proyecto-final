@@ -113,6 +113,35 @@ router.get("/", async (req, res) => {
       )
       .get().cnt;
 
+    // Alumnos cursando AM2 que NO tienen final AM1 aprobado → finales bloqueados
+    const am1Id = db
+      .prepare("SELECT id FROM materias WHERE codigo='AM1'")
+      .get()?.id;
+    const am2Id = db
+      .prepare("SELECT id FROM materias WHERE codigo='AM2'")
+      .get()?.id;
+
+    const finalesAM2Bloqueados =
+      am1Id && am2Id
+        ? db
+            .prepare(
+              `
+        SELECT COUNT(DISTINCT c.alumno_id) AS cnt
+        FROM cursadas c
+        WHERE c.materia_id = ? AND c.estado = 'cursando'
+          AND NOT EXISTS (
+            SELECT 1 FROM examenes e
+            WHERE e.alumno_id = c.alumno_id
+              AND e.materia_id = ?
+              AND e.tipo = 'Final'
+              AND e.nota >= 4
+              AND e.rendido = 1
+          )
+        `,
+            )
+            .get(am2Id, am1Id)?.cnt || 0
+        : 0;
+
     // Tasa de recursado por materia
     const tasaRecursadoPorMateria = db
       .prepare(
@@ -128,26 +157,25 @@ router.get("/", async (req, res) => {
       )
       .all();
 
-    // Distribución de veces cursada (para materia 1 que es AM1)
-    const distribucionCursadas = db
-      .prepare(
-        `
-        SELECT
+    // Distribución de veces cursada por materia
+    const distribucionPorMateria =
+      db
+        .prepare(
+          `
+        SELECT m.codigo, m.nombre,
           COUNT(CASE WHEN veces = 1 THEN 1 END) AS primera_vez,
           COUNT(CASE WHEN veces = 2 THEN 1 END) AS segunda_vez,
           COUNT(CASE WHEN veces >= 3 THEN 1 END) AS tercera_vez_o_mas
         FROM (
-          SELECT alumno_id, COUNT(*) AS veces
-          FROM cursadas WHERE materia_id = 1
-          GROUP BY alumno_id
-        )
+          SELECT c.materia_id, c.alumno_id, COUNT(*) AS veces
+          FROM cursadas c
+          GROUP BY c.materia_id, c.alumno_id
+        ) sub
+        JOIN materias m ON sub.materia_id = m.id
+        GROUP BY sub.materia_id
       `,
-      )
-      .get() || {
-      primera_vez: 0,
-      segunda_vez: 0,
-      tercera_vez_o_mas: 0,
-    };
+        )
+        .all() || [];
 
     // Últimas predicciones guardadas en log
     const ultimasPredicciones = db
@@ -229,6 +257,7 @@ router.get("/", async (req, res) => {
         tasa_recursado_global: parseFloat(tasaRecursadoGlobal),
         promedio_notas_global: parseFloat(promedioNotasGlobal),
         alumnos_asistencia_baja: asistenciaBaja,
+        finales_am2_bloqueados: finalesAM2Bloqueados,
       },
       abandono: {
         en_riesgo_alto: enRiesgoAlto,
@@ -238,7 +267,7 @@ router.get("/", async (req, res) => {
         distribucion: prediccionesAbandono,
       },
       por_materia: tasaRecursadoPorMateria,
-      distribucion_cursadas: distribucionCursadas,
+      distribucion_por_materia: distribucionPorMateria,
       alertas: alertasAbandono,
       actividad_reciente: ultimasPredicciones,
       ai_disponible: aiDisponible,

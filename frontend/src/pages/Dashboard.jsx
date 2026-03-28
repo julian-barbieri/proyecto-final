@@ -94,7 +94,7 @@ export default function Dashboard() {
     kpis,
     abandono,
     por_materia,
-    distribucion_cursadas,
+    distribucion_por_materia,
     alertas,
     actividad_reciente,
     ai_disponible,
@@ -189,6 +189,18 @@ export default function Dashboard() {
             <strong>{kpis.alumnos_asistencia_baja}</strong> alumno/s con
             asistencia por debajo del 75% — no podrán rendir finales si no
             mejoran.
+          </span>
+        </div>
+      )}
+
+      {/* Alerta de finales AM2 bloqueados */}
+      {kpis.finales_am2_bloqueados > 0 && (
+        <div className="flex items-center gap-2 text-sm text-blue-700 bg-blue-50 px-4 py-3 rounded-lg border border-blue-200">
+          <span>ℹ</span>
+          <span>
+            <strong>{kpis.finales_am2_bloqueados}</strong> alumno/s cursando AM2
+            tiene/n el final de AM1 pendiente — no podrá/n rendir finales de AM2
+            hasta aprobarlo.
           </span>
         </div>
       )}
@@ -377,71 +389,71 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Distribución de cursadas AM1 */}
+        {/* Distribución de cursadas por materia */}
         <div className="bg-white rounded-lg border border-gray-200 p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-6">
-            Distribución de Cursadas AM1
+            Distribución de Cursadas por Materia
           </h2>
-          <div className="space-y-6">
-            {[
-              {
-                label: "1ra vez",
-                count: distribucion_cursadas.primera_vez,
-                icon: "📚",
-              },
-              {
-                label: "2da vez",
-                count: distribucion_cursadas.segunda_vez,
-                icon: "🔁",
-              },
-              {
-                label: "3ra vez o más",
-                count: distribucion_cursadas.tercera_vez_o_mas,
-                icon: "⏳",
-              },
-            ].map((item) => {
-              const total =
-                distribucion_cursadas.primera_vez +
-                distribucion_cursadas.segunda_vez +
-                distribucion_cursadas.tercera_vez_o_mas;
-              const pct =
-                total > 0 ? ((item.count / total) * 100).toFixed(0) : 0;
-              return (
-                <div key={item.label}>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-gray-700">
-                      {item.icon} {item.label}
-                    </span>
-                    <span className="text-sm font-semibold text-gray-900">
-                      {item.count} ({pct}%)
-                    </span>
+          <div className="space-y-8">
+            {distribucion_por_materia && distribucion_por_materia.length > 0 ? (
+              distribucion_por_materia.map((materia) => {
+                const total =
+                  materia.primera_vez +
+                  materia.segunda_vez +
+                  materia.tercera_vez_o_mas;
+                return (
+                  <div key={materia.codigo}>
+                    <h3 className="text-sm font-medium text-gray-900 mb-3">
+                      {materia.codigo} — {materia.nombre}
+                    </h3>
+                    <div className="space-y-3">
+                      {[
+                        {
+                          label: "1ra vez",
+                          count: materia.primera_vez,
+                          icon: "📚",
+                        },
+                        {
+                          label: "2da vez",
+                          count: materia.segunda_vez,
+                          icon: "🔁",
+                        },
+                        {
+                          label: "3ra vez o más",
+                          count: materia.tercera_vez_o_mas,
+                          icon: "⏳",
+                        },
+                      ].map((item) => {
+                        const pct =
+                          total > 0
+                            ? ((item.count / total) * 100).toFixed(0)
+                            : 0;
+                        return (
+                          <div key={item.label}>
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-xs font-medium text-gray-600">
+                                {item.icon} {item.label}
+                              </span>
+                              <span className="text-xs font-semibold text-gray-700">
+                                {item.count} ({pct}%)
+                              </span>
+                            </div>
+                            <div className="w-full bg-gray-100 rounded-full h-2">
+                              <div
+                                className="bg-blue-500 h-2 rounded-full"
+                                style={{ width: `${pct}%` }}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
-                  <div className="w-full bg-gray-100 rounded-full h-3">
-                    <div
-                      className="bg-blue-500 h-3 rounded-full"
-                      style={{ width: `${pct}%` }}
-                    />
-                  </div>
-                </div>
-              );
-            })}
-
-            <p className="text-sm text-gray-600 mt-6 pt-4 border-t border-gray-200">
-              El{" "}
-              <strong>
-                {distribucion_cursadas.total > 0
-                  ? (
-                      (distribucion_cursadas.primera_vez /
-                        (distribucion_cursadas.primera_vez +
-                          distribucion_cursadas.segunda_vez +
-                          distribucion_cursadas.tercera_vez_o_mas)) *
-                      100
-                    ).toFixed(0)
-                  : 0}
-                %
-              </strong>{" "}
-              de los alumnos está cursando AM1 por primera vez.
-            </p>
+                );
+              })
+            ) : (
+              <p className="text-sm text-gray-500">Sin datos de distribución</p>
+            )}
           </div>
         </div>
       </div>

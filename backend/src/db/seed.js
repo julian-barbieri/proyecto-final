@@ -1649,6 +1649,1068 @@ function seedDemoAlumnosCDU010() {
   }
 }
 
+// ═════════════════════════════════════════════════════════════════════════════
+// SEED CDU014 — 13 alumnos AM2 2026 + actualización panel + dashboard
+// ═════════════════════════════════════════════════════════════════════════════
+function seedDemoAlumnosAM2CDU014() {
+  try {
+    const insertUser = db.prepare(`
+      INSERT OR IGNORE INTO users
+        (username, password, role, nombre_completo, email,
+         oauth_provider, google_id,
+         genero, fecha_nac, ayuda_financiera, colegio_tecnico, promedio_colegio, anio_ingreso)
+      VALUES (?, NULL, 'alumno', ?, ?, 'google', ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    // ──────────────────────────────────────────────────────────────────────
+    // 13 alumnos AM2 2026 — Perfiles variados
+    // ──────────────────────────────────────────────────────────────────────
+    const alumnosAM2 = [
+      // PERFIL A: 1ra vez AM2, sin exámenes (recién empezaron)
+      [
+        "ana.benitez",
+        "Ana Benítez",
+        "ana.benitez@usal.edu.ar",
+        "demo_ana.benitez",
+        "Femenino",
+        "08-02-2006",
+        0,
+        0,
+        7.6,
+        2025,
+      ],
+      [
+        "rodrigo.molina",
+        "Rodrigo Molina",
+        "rodrigo.molina@usal.edu.ar",
+        "demo_rodrigo.molina",
+        "Masculino",
+        "21-09-2005",
+        0,
+        1,
+        8.2,
+        2025,
+      ],
+      [
+        "luciana.herrera",
+        "Luciana Herrera",
+        "luciana.herrera@usal.edu.ar",
+        "demo_luciana.herrera",
+        "Femenino",
+        "14-05-2006",
+        0,
+        0,
+        7.1,
+        2025,
+      ],
+
+      // PERFIL B: 1ra vez AM2, Parcial 1 ya rendido (junio 2026)
+      [
+        "diego.castro",
+        "Diego Castro",
+        "diego.castro@usal.edu.ar",
+        "demo_diego.castro",
+        "Masculino",
+        "03-11-2005",
+        0,
+        0,
+        7.4,
+        2025,
+      ],
+      [
+        "florencia.ramos",
+        "Florencia Ramos",
+        "florencia.ramos@usal.edu.ar",
+        "demo_florencia.ramos",
+        "Femenino",
+        "17-07-2005",
+        0,
+        0,
+        6.8,
+        2025,
+      ],
+      [
+        "ezequiel.vargas",
+        "Ezequiel Vargas",
+        "ezequiel.vargas@usal.edu.ar",
+        "demo_ezequiel.vargas",
+        "Masculino",
+        "29-03-2005",
+        0,
+        0,
+        7.9,
+        2025,
+      ],
+      [
+        "camila.mendez",
+        "Camila Méndez",
+        "camila.mendez@usal.edu.ar",
+        "demo_camila.mendez",
+        "Femenino",
+        "12-12-2004",
+        1,
+        0,
+        6.5,
+        2025,
+      ],
+
+      // PERFIL C: 2da vez AM2 (recursaron 2025)
+      [
+        "martin.ibarra",
+        "Martín Ibarra",
+        "martin.ibarra@usal.edu.ar",
+        "demo_martin.ibarra",
+        "Masculino",
+        "05-06-2004",
+        0,
+        0,
+        6.9,
+        2024,
+      ],
+      [
+        "natalia.quispe",
+        "Natalia Quispe",
+        "natalia.quispe@usal.edu.ar",
+        "demo_natalia.quispe",
+        "Femenino",
+        "22-08-2004",
+        0,
+        0,
+        7.2,
+        2024,
+      ],
+      [
+        "pablo.luna",
+        "Pablo Luna",
+        "pablo.luna@usal.edu.ar",
+        "demo_pablo.luna",
+        "Masculino",
+        "14-11-2003",
+        0,
+        0,
+        6.5,
+        2023,
+      ],
+
+      // PERFIL D: Final AM1 pendiente (cursan AM2 pero no aprobaron final AM1)
+      [
+        "valeria.mora",
+        "Valeria Mora",
+        "valeria.mora@usal.edu.ar",
+        "demo_valeria.mora",
+        "Femenino",
+        "01-03-2005",
+        0,
+        0,
+        7.3,
+        2024,
+      ],
+      [
+        "gabriel.silva",
+        "Gabriel Silva",
+        "gabriel.silva@usal.edu.ar",
+        "demo_gabriel.silva",
+        "Masculino",
+        "16-07-2005",
+        0,
+        0,
+        7.55,
+        2025,
+      ],
+      [
+        "antonella.reyes",
+        "Antonella Reyes",
+        "antonella.reyes@usal.edu.ar",
+        "demo_antonella.reyes",
+        "Femenino",
+        "28-06-2005",
+        0,
+        0,
+        7.8,
+        2025,
+      ],
+    ];
+
+    for (const alumno of alumnosAM2) {
+      insertUser.run(...alumno);
+    }
+
+    function getId(username) {
+      return db.prepare("SELECT id FROM users WHERE username = ?").get(username)
+        ?.id;
+    }
+    function getMateriaId(codigo) {
+      return db.prepare("SELECT id FROM materias WHERE codigo = ?").get(codigo)
+        ?.id;
+    }
+
+    const insertCursada = db.prepare(`
+      INSERT OR IGNORE INTO cursadas (alumno_id, materia_id, anio, asistencia, estado)
+      VALUES (?, ?, ?, ?, ?)
+    `);
+    function seedC(username, data) {
+      const alumnoId = getId(username);
+      if (!alumnoId) return;
+      for (const cursada of data) {
+        insertCursada.run(
+          alumnoId,
+          getMateriaId(cursada.m),
+          cursada.anio,
+          cursada.asist,
+          cursada.estado,
+        );
+      }
+    }
+
+    const insertExamen = db.prepare(`
+      INSERT OR IGNORE INTO examenes
+        (alumno_id, materia_id, anio, tipo, instancia,
+         rendido, nota, ausente, veces_recursada, asistencia, fecha_examen)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    function seedE(username, data) {
+      const alumnoId = getId(username);
+      if (!alumnoId) return;
+      for (const examen of data) {
+        insertExamen.run(
+          alumnoId,
+          getMateriaId(examen.m),
+          examen.anio,
+          examen.tipo,
+          examen.inst,
+          examen.rend,
+          examen.nota ?? null,
+          examen.aus ?? 0,
+          examen.vrec ?? 0,
+          examen.asist,
+          examen.fecha,
+        );
+      }
+    }
+
+    const insertInscripcion = db.prepare(`
+      INSERT OR IGNORE INTO inscripciones (alumno_id, materia_id, anio, estado)
+      VALUES (?, ?, ?, 'activa')
+    `);
+
+    // ══════════════════════════════════════════════════════════════════════
+    // PERFIL A — 1ra vez AM2 2026, sin exámenes todavía
+    // (aprobaron AM1 el año anterior, empezaron AM2 en marzo 2026)
+    // ══════════════════════════════════════════════════════════════════════
+
+    // Ana Benítez — buena estudiante, aprobó AM1 2025 con buen promedio
+    seedC("ana.benitez", [
+      { m: "AM1", anio: 2025, asist: 0.92, estado: "aprobada" },
+      { m: "AM2", anio: 2026, asist: 0.89, estado: "cursando" },
+    ]);
+    seedE("ana.benitez", [
+      {
+        m: "AM1",
+        anio: 2025,
+        tipo: "Parcial",
+        inst: 1,
+        rend: 1,
+        nota: 7.4,
+        asist: 0.91,
+        vrec: 0,
+        fecha: "16-06-2025",
+      },
+      {
+        m: "AM1",
+        anio: 2025,
+        tipo: "Parcial",
+        inst: 2,
+        rend: 1,
+        nota: 7.5,
+        asist: 0.93,
+        vrec: 0,
+        fecha: "07-11-2025",
+      },
+      {
+        m: "AM1",
+        anio: 2025,
+        tipo: "Final",
+        inst: 1,
+        rend: 1,
+        nota: 8.4,
+        asist: 0.92,
+        vrec: 0,
+        fecha: "12-12-2025",
+      },
+    ]);
+
+    // Rodrigo Molina — perfil técnico (ColegioTecnico=1), alto rendimiento en AM1
+    seedC("rodrigo.molina", [
+      { m: "AM1", anio: 2025, asist: 0.95, estado: "aprobada" },
+      { m: "AM2", anio: 2026, asist: 0.93, estado: "cursando" },
+    ]);
+    seedE("rodrigo.molina", [
+      {
+        m: "AM1",
+        anio: 2025,
+        tipo: "Parcial",
+        inst: 1,
+        rend: 1,
+        nota: 8.9,
+        asist: 0.93,
+        vrec: 0,
+        fecha: "16-06-2025",
+      },
+      {
+        m: "AM1",
+        anio: 2025,
+        tipo: "Parcial",
+        inst: 2,
+        rend: 1,
+        nota: 8.5,
+        asist: 0.97,
+        vrec: 0,
+        fecha: "07-11-2025",
+      },
+      {
+        m: "AM1",
+        anio: 2025,
+        tipo: "Final",
+        inst: 1,
+        rend: 1,
+        nota: 9.1,
+        asist: 0.95,
+        vrec: 0,
+        fecha: "12-12-2025",
+      },
+    ]);
+
+    // Luciana Herrera — asistencia levemente baja (0.73), en riesgo de no rendir finales AM2
+    seedC("luciana.herrera", [
+      { m: "AM1", anio: 2025, asist: 0.81, estado: "aprobada" },
+      { m: "AM2", anio: 2026, asist: 0.73, estado: "cursando" },
+    ]);
+    seedE("luciana.herrera", [
+      {
+        m: "AM1",
+        anio: 2025,
+        tipo: "Parcial",
+        inst: 1,
+        rend: 1,
+        nota: 5.4,
+        asist: 0.78,
+        vrec: 0,
+        fecha: "16-06-2025",
+      },
+      {
+        m: "AM1",
+        anio: 2025,
+        tipo: "Parcial",
+        inst: 2,
+        rend: 1,
+        nota: 6.2,
+        asist: 0.84,
+        vrec: 0,
+        fecha: "07-11-2025",
+      },
+      {
+        m: "AM1",
+        anio: 2025,
+        tipo: "Final",
+        inst: 1,
+        rend: 1,
+        nota: 5.8,
+        asist: 0.81,
+        vrec: 0,
+        fecha: "12-12-2025",
+      },
+    ]);
+
+    // ══════════════════════════════════════════════════════════════════════
+    // PERFIL B — 1ra vez AM2, Parcial 1 ya rendido (junio 2026)
+    // ══════════════════════════════════════════════════════════════════════
+
+    // Diego Castro — aprobó Parcial 1 de AM2 con buena nota
+    seedC("diego.castro", [
+      { m: "AM1", anio: 2025, asist: 0.87, estado: "aprobada" },
+      { m: "AM2", anio: 2026, asist: 0.88, estado: "cursando" },
+    ]);
+    seedE("diego.castro", [
+      {
+        m: "AM1",
+        anio: 2025,
+        tipo: "Parcial",
+        inst: 1,
+        rend: 1,
+        nota: 6.1,
+        asist: 0.84,
+        vrec: 0,
+        fecha: "16-06-2025",
+      },
+      {
+        m: "AM1",
+        anio: 2025,
+        tipo: "Parcial",
+        inst: 2,
+        rend: 1,
+        nota: 6.4,
+        asist: 0.9,
+        vrec: 0,
+        fecha: "07-11-2025",
+      },
+      {
+        m: "AM1",
+        anio: 2025,
+        tipo: "Final",
+        inst: 1,
+        rend: 1,
+        nota: 6.7,
+        asist: 0.87,
+        vrec: 0,
+        fecha: "12-12-2025",
+      },
+      {
+        m: "AM2",
+        anio: 2026,
+        tipo: "Parcial",
+        inst: 1,
+        rend: 1,
+        nota: 6.7,
+        asist: 0.86,
+        vrec: 0,
+        fecha: "17-06-2026",
+      },
+    ]);
+
+    // Florencia Ramos — desaprobó Parcial 1 de AM2, fue al Recuperatorio 1 y aprobó
+    seedC("florencia.ramos", [
+      { m: "AM1", anio: 2025, asist: 0.83, estado: "aprobada" },
+      { m: "AM2", anio: 2026, asist: 0.85, estado: "cursando" },
+    ]);
+    seedE("florencia.ramos", [
+      {
+        m: "AM1",
+        anio: 2025,
+        tipo: "Parcial",
+        inst: 1,
+        rend: 1,
+        nota: 5.3,
+        asist: 0.8,
+        vrec: 0,
+        fecha: "16-06-2025",
+      },
+      {
+        m: "AM1",
+        anio: 2025,
+        tipo: "Parcial",
+        inst: 2,
+        rend: 1,
+        nota: 5.8,
+        asist: 0.86,
+        vrec: 0,
+        fecha: "07-11-2025",
+      },
+      {
+        m: "AM1",
+        anio: 2025,
+        tipo: "Final",
+        inst: 1,
+        rend: 1,
+        nota: 5.4,
+        asist: 0.83,
+        vrec: 0,
+        fecha: "12-12-2025",
+      },
+      {
+        m: "AM2",
+        anio: 2026,
+        tipo: "Parcial",
+        inst: 1,
+        rend: 0,
+        nota: null,
+        asist: 0.82,
+        vrec: 0,
+        fecha: "17-06-2026",
+      },
+      {
+        m: "AM2",
+        anio: 2026,
+        tipo: "Recuperatorio",
+        inst: 1,
+        rend: 1,
+        nota: 5.1,
+        asist: 0.8,
+        vrec: 0,
+        fecha: "24-06-2026",
+      },
+    ]);
+
+    // Ezequiel Vargas — aprobó Parcial 1 de AM2 con nota alta
+    seedC("ezequiel.vargas", [
+      { m: "AM1", anio: 2025, asist: 0.94, estado: "aprobada" },
+      { m: "AM2", anio: 2026, asist: 0.91, estado: "cursando" },
+    ]);
+    seedE("ezequiel.vargas", [
+      {
+        m: "AM1",
+        anio: 2025,
+        tipo: "Parcial",
+        inst: 1,
+        rend: 1,
+        nota: 8.3,
+        asist: 0.92,
+        vrec: 0,
+        fecha: "16-06-2025",
+      },
+      {
+        m: "AM1",
+        anio: 2025,
+        tipo: "Parcial",
+        inst: 2,
+        rend: 1,
+        nota: 8.1,
+        asist: 0.96,
+        vrec: 0,
+        fecha: "07-11-2025",
+      },
+      {
+        m: "AM1",
+        anio: 2025,
+        tipo: "Final",
+        inst: 1,
+        rend: 1,
+        nota: 8.5,
+        asist: 0.94,
+        vrec: 0,
+        fecha: "12-12-2025",
+      },
+      {
+        m: "AM2",
+        anio: 2026,
+        tipo: "Parcial",
+        inst: 1,
+        rend: 1,
+        nota: 8.1,
+        asist: 0.89,
+        vrec: 0,
+        fecha: "17-06-2026",
+      },
+    ]);
+
+    // Camila Méndez — ayuda financiera (1), desaprobó P1 AM2 y Rec1 AM2 → año perdido
+    seedC("camila.mendez", [
+      { m: "AM1", anio: 2025, asist: 0.8, estado: "aprobada" },
+      { m: "AM2", anio: 2026, asist: 0.78, estado: "cursando" },
+    ]);
+    seedE("camila.mendez", [
+      {
+        m: "AM1",
+        anio: 2025,
+        tipo: "Parcial",
+        inst: 1,
+        rend: 1,
+        nota: 4.5,
+        asist: 0.77,
+        vrec: 0,
+        fecha: "16-06-2025",
+      },
+      {
+        m: "AM1",
+        anio: 2025,
+        tipo: "Recuperatorio",
+        inst: 1,
+        rend: 1,
+        nota: 5.2,
+        asist: 0.79,
+        vrec: 0,
+        fecha: "24-06-2025",
+      },
+      {
+        m: "AM1",
+        anio: 2025,
+        tipo: "Parcial",
+        inst: 2,
+        rend: 1,
+        nota: 5.1,
+        asist: 0.81,
+        vrec: 0,
+        fecha: "07-11-2025",
+      },
+      {
+        m: "AM1",
+        anio: 2025,
+        tipo: "Final",
+        inst: 1,
+        rend: 1,
+        nota: 4.8,
+        asist: 0.8,
+        vrec: 0,
+        fecha: "12-12-2025",
+      },
+      {
+        m: "AM2",
+        anio: 2026,
+        tipo: "Parcial",
+        inst: 1,
+        rend: 0,
+        nota: null,
+        asist: 0.75,
+        vrec: 0,
+        fecha: "17-06-2026",
+      },
+      {
+        m: "AM2",
+        anio: 2026,
+        tipo: "Recuperatorio",
+        inst: 1,
+        rend: 1,
+        nota: 2.4,
+        asist: 0.73,
+        vrec: 0,
+        fecha: "24-06-2026",
+      },
+    ]);
+
+    // ══════════════════════════════════════════════════════════════════════
+    // PERFIL C — 2da vez cursando AM2 (recursaron en 2025)
+    // ══════════════════════════════════════════════════════════════════════
+
+    // Martín Ibarra — recursó AM2 2025 por baja asistencia (no pudo rendir finales)
+    // En 2026: mejoró asistencia, ya tiene P1 rendido
+    seedC("martin.ibarra", [
+      { m: "AM1", anio: 2024, asist: 0.88, estado: "aprobada" },
+      { m: "AM2", anio: 2025, asist: 0.72, estado: "recursada" },
+      { m: "AM2", anio: 2026, asist: 0.86, estado: "cursando" },
+    ]);
+    seedE("martin.ibarra", [
+      {
+        m: "AM1",
+        anio: 2024,
+        tipo: "Parcial",
+        inst: 1,
+        rend: 1,
+        nota: 6.8,
+        asist: 0.86,
+        vrec: 0,
+        fecha: "15-06-2024",
+      },
+      {
+        m: "AM1",
+        anio: 2024,
+        tipo: "Parcial",
+        inst: 2,
+        rend: 1,
+        nota: 6.5,
+        asist: 0.9,
+        vrec: 0,
+        fecha: "08-11-2024",
+      },
+      {
+        m: "AM1",
+        anio: 2024,
+        tipo: "Final",
+        inst: 1,
+        rend: 1,
+        nota: 6.9,
+        asist: 0.88,
+        vrec: 0,
+        fecha: "11-12-2024",
+      },
+      {
+        m: "AM2",
+        anio: 2025,
+        tipo: "Parcial",
+        inst: 1,
+        rend: 1,
+        nota: 4.2,
+        asist: 0.68,
+        vrec: 0,
+        fecha: "18-06-2025",
+      },
+      {
+        m: "AM2",
+        anio: 2025,
+        tipo: "Parcial",
+        inst: 2,
+        rend: 0,
+        aus: 1,
+        asist: 0.65,
+        vrec: 0,
+        fecha: "12-11-2025",
+      },
+      {
+        m: "AM2",
+        anio: 2026,
+        tipo: "Parcial",
+        inst: 1,
+        rend: 1,
+        nota: 5.8,
+        asist: 0.84,
+        vrec: 1,
+        fecha: "17-06-2026",
+      },
+    ]);
+
+    // Natalia Quispe — recursó AM2 2025 por desaprobar P2 y Rec2
+    // En 2026: sin exámenes todavía
+    seedC("natalia.quispe", [
+      { m: "AM1", anio: 2024, asist: 0.91, estado: "aprobada" },
+      { m: "AM2", anio: 2025, asist: 0.79, estado: "recursada" },
+      { m: "AM2", anio: 2026, asist: 0.84, estado: "cursando" },
+    ]);
+    seedE("natalia.quispe", [
+      {
+        m: "AM1",
+        anio: 2024,
+        tipo: "Parcial",
+        inst: 1,
+        rend: 1,
+        nota: 7.6,
+        asist: 0.89,
+        vrec: 0,
+        fecha: "15-06-2024",
+      },
+      {
+        m: "AM1",
+        anio: 2024,
+        tipo: "Parcial",
+        inst: 2,
+        rend: 1,
+        nota: 7.4,
+        asist: 0.93,
+        vrec: 0,
+        fecha: "08-11-2024",
+      },
+      {
+        m: "AM1",
+        anio: 2024,
+        tipo: "Final",
+        inst: 1,
+        rend: 1,
+        nota: 7.8,
+        asist: 0.91,
+        vrec: 0,
+        fecha: "11-12-2024",
+      },
+      {
+        m: "AM2",
+        anio: 2025,
+        tipo: "Parcial",
+        inst: 1,
+        rend: 1,
+        nota: 6.1,
+        asist: 0.76,
+        vrec: 0,
+        fecha: "18-06-2025",
+      },
+      {
+        m: "AM2",
+        anio: 2025,
+        tipo: "Parcial",
+        inst: 2,
+        rend: 0,
+        nota: null,
+        asist: 0.73,
+        vrec: 0,
+        fecha: "12-11-2025",
+      },
+    ]);
+
+    // Pablo Luna — recursó AM2 2025 por agotar los 3 finales
+    // En 2026: aprobó P1 con buena nota (determinado a aprobar)
+    seedC("pablo.luna", [
+      { m: "AM1", anio: 2023, asist: 0.84, estado: "aprobada" },
+      { m: "AM2", anio: 2025, asist: 0.75, estado: "recursada" },
+      { m: "AM2", anio: 2026, asist: 0.88, estado: "cursando" },
+    ]);
+    seedE("pablo.luna", [
+      {
+        m: "AM1",
+        anio: 2023,
+        tipo: "Parcial",
+        inst: 1,
+        rend: 1,
+        nota: 6.5,
+        asist: 0.82,
+        vrec: 0,
+        fecha: "14-06-2023",
+      },
+      {
+        m: "AM1",
+        anio: 2023,
+        tipo: "Parcial",
+        inst: 2,
+        rend: 1,
+        nota: 6.7,
+        asist: 0.86,
+        vrec: 0,
+        fecha: "07-11-2023",
+      },
+      {
+        m: "AM1",
+        anio: 2023,
+        tipo: "Final",
+        inst: 1,
+        rend: 1,
+        nota: 6.8,
+        asist: 0.84,
+        vrec: 0,
+        fecha: "13-12-2023",
+      },
+      {
+        m: "AM2",
+        anio: 2025,
+        tipo: "Parcial",
+        inst: 1,
+        rend: 1,
+        nota: 5.3,
+        asist: 0.71,
+        vrec: 0,
+        fecha: "18-06-2025",
+      },
+      {
+        m: "AM2",
+        anio: 2025,
+        tipo: "Parcial",
+        inst: 2,
+        rend: 1,
+        nota: 4.8,
+        asist: 0.73,
+        vrec: 0,
+        fecha: "12-11-2025",
+      },
+      {
+        m: "AM2",
+        anio: 2025,
+        tipo: "Final",
+        inst: 1,
+        rend: 0,
+        aus: 1,
+        asist: 0.75,
+        vrec: 0,
+        fecha: "17-12-2025",
+      },
+      {
+        m: "AM2",
+        anio: 2025,
+        tipo: "Final",
+        inst: 2,
+        rend: 0,
+        aus: 1,
+        asist: 0.75,
+        vrec: 0,
+        fecha: "12-02-2026",
+      },
+      {
+        m: "AM2",
+        anio: 2025,
+        tipo: "Final",
+        inst: 3,
+        rend: 0,
+        aus: 1,
+        asist: 0.75,
+        vrec: 0,
+        fecha: "16-07-2026",
+      },
+      {
+        m: "AM2",
+        anio: 2026,
+        tipo: "Parcial",
+        inst: 1,
+        rend: 1,
+        nota: 6.3,
+        asist: 0.86,
+        vrec: 1,
+        fecha: "17-06-2026",
+      },
+    ]);
+
+    // ══════════════════════════════════════════════════════════════════════
+    // PERFIL D — Final AM1 pendiente (cursan AM2 pero no aprobaron final AM1)
+    // ══════════════════════════════════════════════════════════════════════
+
+    // Valeria Mora — aprobó parciales AM1, tiene 2 finales AM1 fallidos
+    // Está cursando AM2 2026 y rindiendo parciales; los finales de AM2 están bloqueados
+    seedC("valeria.mora", [
+      { m: "AM1", anio: 2024, asist: 0.85, estado: "aprobada" },
+      { m: "AM2", anio: 2026, asist: 0.87, estado: "cursando" },
+    ]);
+    seedE("valeria.mora", [
+      {
+        m: "AM1",
+        anio: 2024,
+        tipo: "Parcial",
+        inst: 1,
+        rend: 1,
+        nota: 6.3,
+        asist: 0.83,
+        vrec: 0,
+        fecha: "15-06-2024",
+      },
+      {
+        m: "AM1",
+        anio: 2024,
+        tipo: "Parcial",
+        inst: 2,
+        rend: 1,
+        nota: 6.1,
+        asist: 0.87,
+        vrec: 0,
+        fecha: "08-11-2024",
+      },
+      {
+        m: "AM1",
+        anio: 2024,
+        tipo: "Final",
+        inst: 1,
+        rend: 1,
+        nota: 3.8,
+        asist: 0.85,
+        vrec: 0,
+        fecha: "11-12-2024",
+      },
+      {
+        m: "AM1",
+        anio: 2024,
+        tipo: "Final",
+        inst: 2,
+        rend: 1,
+        nota: 3.6,
+        asist: 0.85,
+        vrec: 0,
+        fecha: "06-02-2025",
+      },
+    ]);
+
+    // Gabriel Silva — aprobó parciales AM1 2025, tiene Final AM1 inst 1 desaprobado
+    // Está cursando AM2 2026 sin exámenes todavía; tiene el Final AM1 inst 2 pendiente
+    seedC("gabriel.silva", [
+      { m: "AM1", anio: 2025, asist: 0.89, estado: "aprobada" },
+      { m: "AM2", anio: 2026, asist: 0.82, estado: "cursando" },
+    ]);
+    seedE("gabriel.silva", [
+      {
+        m: "AM1",
+        anio: 2025,
+        tipo: "Parcial",
+        inst: 1,
+        rend: 1,
+        nota: 7.2,
+        asist: 0.87,
+        vrec: 0,
+        fecha: "16-06-2025",
+      },
+      {
+        m: "AM1",
+        anio: 2025,
+        tipo: "Parcial",
+        inst: 2,
+        rend: 1,
+        nota: 6.9,
+        asist: 0.91,
+        vrec: 0,
+        fecha: "07-11-2025",
+      },
+      {
+        m: "AM1",
+        anio: 2025,
+        tipo: "Final",
+        inst: 1,
+        rend: 1,
+        nota: 3.4,
+        asist: 0.89,
+        vrec: 0,
+        fecha: "12-12-2025",
+      },
+    ]);
+
+    // Antonella Reyes — aprobó parciales AM1 y tiene Final AM1 aprobado → SÍ puede rendir finales AM2
+    // Desaprobó P1 de AM2 pero aprobó Recuperatorio 1 de AM2
+    seedC("antonella.reyes", [
+      { m: "AM1", anio: 2025, asist: 0.91, estado: "aprobada" },
+      { m: "AM2", anio: 2026, asist: 0.9, estado: "cursando" },
+    ]);
+    seedE("antonella.reyes", [
+      {
+        m: "AM1",
+        anio: 2025,
+        tipo: "Parcial",
+        inst: 1,
+        rend: 1,
+        nota: 7.6,
+        asist: 0.89,
+        vrec: 0,
+        fecha: "16-06-2025",
+      },
+      {
+        m: "AM1",
+        anio: 2025,
+        tipo: "Parcial",
+        inst: 2,
+        rend: 1,
+        nota: 7.8,
+        asist: 0.93,
+        vrec: 0,
+        fecha: "07-11-2025",
+      },
+      {
+        m: "AM1",
+        anio: 2025,
+        tipo: "Final",
+        inst: 1,
+        rend: 1,
+        nota: 7.9,
+        asist: 0.91,
+        vrec: 0,
+        fecha: "12-12-2025",
+      },
+      {
+        m: "AM2",
+        anio: 2026,
+        tipo: "Parcial",
+        inst: 1,
+        rend: 0,
+        nota: null,
+        asist: 0.88,
+        vrec: 0,
+        fecha: "17-06-2026",
+      },
+      {
+        m: "AM2",
+        anio: 2026,
+        tipo: "Recuperatorio",
+        inst: 1,
+        rend: 1,
+        nota: 5.3,
+        asist: 0.89,
+        vrec: 0,
+        fecha: "24-06-2026",
+      },
+    ]);
+
+    // ── Inscripciones activas AM2 2026 ────────────────────────────────────
+    const todosAM2 = [
+      "ana.benitez",
+      "rodrigo.molina",
+      "luciana.herrera",
+      "diego.castro",
+      "florencia.ramos",
+      "ezequiel.vargas",
+      "camila.mendez",
+      "martin.ibarra",
+      "natalia.quispe",
+      "pablo.luna",
+      "valeria.mora",
+      "gabriel.silva",
+      "antonella.reyes",
+    ];
+
+    for (const u of todosAM2) {
+      const aid = getId(u);
+      if (aid) insertInscripcion.run(aid, getMateriaId("AM2"), 2026);
+    }
+
+    console.log("✅ Seed AM2 2026: 13 alumnos insertados correctamente.");
+  } catch (error) {
+    console.error("❌ Error en seed AM2 CDU014:", error.message);
+  }
+}
+
 async function seedUsers() {
   const users = [
     { username: "director", password: "director123", role: "admin" },
@@ -1694,6 +2756,7 @@ async function seedUsers() {
   seedGestionContenidoCDU008();
   seedPrediccionesAutomaticasCDU009();
   seedDemoAlumnosCDU010();
+  seedDemoAlumnosAM2CDU014();
 }
 
 if (require.main === module) {
