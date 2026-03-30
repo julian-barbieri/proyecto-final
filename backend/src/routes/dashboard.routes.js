@@ -282,4 +282,114 @@ router.get("/", async (req, res) => {
   }
 });
 
+// ═════════════════════════════════════════════════════════════════════════════
+// ENDPOINT CDU015 - Rendimiento por examen
+// ═════════════════════════════════════════════════════════════════════════════
+router.get("/rendimiento", (req, res) => {
+  try {
+    const anio = parseInt(req.query.anio);
+    if (!anio || isNaN(anio)) {
+      return res
+        .status(422)
+        .json({ error: "El parámetro anio es requerido." });
+    }
+
+    // ── Años disponibles (para el selector) ───────────────────────────────
+    const aniosDisponibles = db
+      .prepare("SELECT DISTINCT anio FROM examenes ORDER BY anio DESC")
+      .all()
+      .map((r) => r.anio);
+
+    // ── Estadísticas por materia → tipo → instancia ───────────────────────
+    const stats = db
+      .prepare(
+        `
+      SELECT
+        m.id            AS materia_id,
+        m.codigo        AS materia_codigo,
+        m.nombre        AS materia_nombre,
+        e.tipo,
+        e.instancia,
+        COUNT(*)                                                      AS total_intentos,
+        SUM(CASE WHEN e.rendido = 1 THEN 1 ELSE 0 END)               AS total_rendidos,
+        SUM(CASE WHEN e.ausente  = 1 THEN 1 ELSE 0 END)              AS total_ausentes,
+        SUM(CASE WHEN e.rendido = 1 AND e.nota >= 4 THEN 1 ELSE 0 END) AS total_aprobados,
+        SUM(CASE WHEN e.rendido = 1 AND e.nota <  4 THEN 1 ELSE 0 END) AS total_desaprobados,
+        ROUND(AVG(CASE WHEN e.rendido = 1 AND e.nota IS NOT NULL THEN e.nota END), 2) AS promedio_nota
+      FROM examenes e
+      JOIN materias m ON e.materia_id = m.id
+      JOIN users    u ON e.alumno_id  = u.id
+      WHERE e.anio = ? AND u.role = 'alumno'
+      GROUP BY m.id, e.tipo, e.instancia
+      ORDER BY m.codigo ASC,
+        CASE e.tipo
+          WHEN 'Parcial'       THEN 1
+          WHEN 'Recuperatorio' THEN 2
+          WHEN 'Final'         THEN 3
+        END,
+        e.instancia ASC
+    `,
+      )
+      .all(anio);
+
+    // ── Calcular porcentajes y armar estructura por materia ───────────────
+    const porMateria = {};
+
+    for (const row of stats) {
+      if (!porMateria[row.materia_id]) {
+        porMateria[row.materia_id] = {
+          materia_id: row.materia_id,
+          materia_codigo: row.materia_codigo,
+          materia_nombre: row.materia_nombre,
+          examenes: [],
+        };
+      }
+
+      const totalBase = row.total_intentos; // base para calcular % (incluye ausentes)
+      const totalRendidos = row.total_rendidos;
+
+      porMateria[row.materia_id].examenes.push({
+        // Identificador legible del examen
+        label: `${row.tipo} ${row.instancia}`,
+        tipo: row.tipo,
+        instancia: row.instancia,
+        // Cantidades absolutas
+        total_intentos: row.total_intentos,
+        total_rendidos: totalRendidos,
+        total_ausentes: row.total_ausentes,
+        total_aprobados: row.total_aprobados,
+        total_desaprobados: row.total_desaprobados,
+        promedio_nota: row.promedio_nota ?? 0,
+        // Porcentajes sobre total de intentos
+        pct_aprobados:
+          totalBase > 0
+            ? parseFloat(((row.total_aprobados / totalBase) * 100).toFixed(1))
+            : 0,
+        pct_desaprobados:
+          totalBase > 0
+            ? parseFloat(
+                ((row.total_desaprobados / totalBase) * 100).toFixed(1),
+              )
+            : 0,
+        pct_ausentes:
+          totalBase > 0
+            ? parseFloat(((row.total_ausentes / totalBase) * 100).toFixed(1))
+            : 0,
+      });
+    }
+
+    res.json({
+      anio,
+      anios_disponibles: aniosDisponibles,
+      por_materia: Object.values(porMateria),
+    });
+  } catch (error) {
+    console.error("Error en /api/dashboard/rendimiento:", error);
+    res.status(500).json({
+      error: "Error al cargar el rendimiento",
+      details: error.message,
+    });
+  }
+});
+
 module.exports = router;
