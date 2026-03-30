@@ -18,6 +18,7 @@ import MisNotas from "./pages/MisNotas";
 import MisCursos from "./pages/MisCursos";
 import NotFound from "./pages/NotFound";
 import Predicciones from "./pages/Predicciones";
+import AlumnoPerfil from "./pages/AlumnoPerfil";
 
 export default function App() {
   return (
@@ -213,6 +214,20 @@ export default function App() {
           <ProtectedRoute allowedRoles={["alumno"]}>
             <PageLayout>
               <MateriaDetalle />
+            </PageLayout>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/alumnos/:alumnoId"
+        element={
+          <ProtectedRoute allowedRoles={["admin", "coordinador"]}>
+            <PageLayout
+              title="Perfil del Alumno"
+              subtitle="Información completa del estudiante y su desempeño académico"
+            >
+              <AlumnoPerfil />
             </PageLayout>
           </ProtectedRoute>
         }

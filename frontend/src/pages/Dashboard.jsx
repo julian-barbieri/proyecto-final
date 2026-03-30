@@ -599,9 +599,7 @@ function SeccionResumen({
                 <select
                   value={materiaSeleccionadaDistribucion || ""}
                   onChange={(e) =>
-                    setMateriaSeleccionadaDistribucion(
-                      e.target.value || null,
-                    )
+                    setMateriaSeleccionadaDistribucion(e.target.value || null)
                   }
                   className="border border-gray-200 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >

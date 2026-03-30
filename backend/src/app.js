@@ -17,6 +17,7 @@ const contenidoRoutes = require("./routes/contenido.routes");
 const mensajesRoutes = require("./routes/mensajes.routes");
 const misCursosRoutes = require("./routes/miscursos.routes");
 const gestionMateriasRoutes = require("./routes/gestion-materias.routes");
+const gestionAlumnosRoutes = require("./routes/gestion-alumnos.routes");
 const gestionContenidoRoutes = require("./routes/gestion-contenido.routes");
 const panelPrediccionesRoutes = require("./routes/panel-predicciones.routes");
 const dashboardRoutes = require("./routes/dashboard.routes");
@@ -74,6 +75,12 @@ app.use(
   authenticate,
   authorize("admin", "coordinador"),
   gestionContenidoRoutes,
+);
+app.use(
+  "/api/gestion-alumnos",
+  authenticate,
+  authorize("admin", "coordinador"),
+  gestionAlumnosRoutes,
 );
 app.use(
   "/api/panel-predicciones",
