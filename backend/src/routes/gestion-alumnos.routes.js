@@ -387,4 +387,63 @@ router.get(
   },
 );
 
+// ═══════════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════
+// PATCH /api/gestion-alumnos/alumnos/:alumnoId
+// Actualiza el campo ayuda_financiera del alumno
+// ═══════════════════════════════════════════════════════════════════════════
+
+router.patch(
+  "/alumnos/:alumnoId",
+  authenticate,
+  authorize("admin", "coordinador"),
+  (req, res) => {
+    try {
+      const { alumnoId } = req.params;
+      const id = parseInt(alumnoId);
+      const { ayuda_financiera } = req.body;
+
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "ID de alumno inválido." });
+      }
+
+      // ── Validaciones ────────────────────────────────────────────────────
+      if (ayuda_financiera === undefined) {
+        return res.status(422).json({
+          error: "Se requiere enviar el campo ayuda_financiera.",
+        });
+      }
+
+      if (![0, 1].includes(parseInt(ayuda_financiera))) {
+        return res
+          .status(422)
+          .json({ error: "Ayuda financiera debe ser 0 o 1." });
+      }
+
+      // ── Verificar que el alumno existe ──────────────────────────────────
+      const alumno = db
+        .prepare("SELECT id FROM users WHERE id = ? AND role = 'alumno'")
+        .get(id);
+
+      if (!alumno) {
+        return res.status(404).json({ error: "Alumno no encontrado." });
+      }
+
+      // ── Ejecutar UPDATE ─────────────────────────────────────────────────
+      db.prepare("UPDATE users SET ayuda_financiera = ? WHERE id = ?").run(
+        parseInt(ayuda_financiera),
+        id,
+      );
+
+      res.json({ message: "Datos actualizados correctamente." });
+    } catch (error) {
+      console.error("Error en PATCH /alumnos/:alumnoId:", error);
+      res.status(500).json({
+        error: "Error al actualizar los datos del alumno",
+        details: error.message,
+      });
+    }
+  },
+);
+
 module.exports = router;

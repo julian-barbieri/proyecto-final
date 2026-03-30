@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import api from "../api/axios";
+import GraficoEvolucionNotas from "../components/GraficoEvolucionNotas";
 
 function SkeletonLoader() {
   return (
@@ -181,28 +182,41 @@ export default function AlumnoPerfil() {
   const [notasPredecidas, setNotasPredecidas] = useState([]);
   const [loadingNotas, setLoadingNotas] = useState(false);
 
-  // Cargar perfil del alumno
-  useEffect(() => {
-    const cargarPerfil = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const response = await api.get(
-          `/api/gestion-alumnos/alumnos/${alumnoId}`,
-        );
-        setData(response.data);
-      } catch (err) {
-        console.error("Error cargando perfil:", err);
-        setError(
-          err.response?.data?.error ||
-            err.message ||
-            "Error al cargar el perfil del alumno",
-        );
-      } finally {
-        setLoading(false);
-      }
-    };
+  // Estados para edición de campos
+  const [editando, setEditando] = useState(false);
+  const [guardando, setGuardando] = useState(false);
+  const [editError, setEditError] = useState(null);
+  const [formEdit, setFormEdit] = useState({
+    ayuda_financiera: 0,
+  });
 
+  // Cargar perfil del alumno
+  const cargarPerfil = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await api.get(
+        `/api/gestion-alumnos/alumnos/${alumnoId}`,
+      );
+      setData(response.data);
+      // Inicializar formulario de edición con datos del alumno
+      setFormEdit({
+        ayuda_financiera: response.data.alumno.ayuda_financiera ?? 0,
+      });
+    } catch (err) {
+      console.error("Error cargando perfil:", err);
+      setError(
+        err.response?.data?.error ||
+          err.message ||
+          "Error al cargar el perfil del alumno",
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Cargar perfil al montar el componente
+  useEffect(() => {
     cargarPerfil();
   }, [alumnoId]);
 
@@ -276,7 +290,7 @@ export default function AlumnoPerfil() {
 
     const generarPrediccionesNotas = async () => {
       console.log(`[DEBUG] generarPrediccionesNotas iniciada con data:`, data);
-      
+
       if (!data?.cursadas) {
         console.log(`[DEBUG] No hay cursadas en data`);
         return;
@@ -288,7 +302,7 @@ export default function AlumnoPerfil() {
           codigo: c.materia_codigo,
           estado: c.estado,
           examenes_count: (c.examenes || []).length,
-        }))
+        })),
       );
 
       // Mostrar tabla de cursadas para debugging
@@ -298,8 +312,8 @@ export default function AlumnoPerfil() {
           estado: c.estado,
           anio: c.anio,
           asistencia: c.asistencia,
-          "exámenes": (c.examenes || []).length,
-        }))
+          exámenes: (c.examenes || []).length,
+        })),
       );
 
       // Incluir cursadas en "cursando" y cursadas "aprobada" que tengan finales pendientes
@@ -390,49 +404,46 @@ export default function AlumnoPerfil() {
 
               // Construir payload con datos correctos
               const payload = {
-                Materia: String(cursada.materia_id),
+                Materia: parseInt(cursada.materia_id),
                 TipoExamen: proximoExamen.tipo,
-                Instancia: String(proximoExamen.inst),
-                Anio: String(cursada.anio),
-                Asistencia: String(cursada.asistencia || 0.75),
-                VecesRecursada: String(cursada.veces_recursada || 0),
-                Genero: data.alumno.genero === "M" ? "1" : "0",
-                Edad: String(data.alumno.edad || 20),
-                AyudaFinanciera: String(data.alumno.ayuda_financiera || 0),
-                ColegioTecnico: String(data.alumno.colegio_tecnico || 0),
-                PromedioColegio: String(data.alumno.promedio_colegio || 7),
-                AniosDesdeIngreso: String(
-                  new Date().getFullYear() - (data.alumno.anio_ingreso || 2020),
-                ),
-                VecesCursadaMateria: String(
-                  data.cursadas.filter(
-                    (c) => c.materia_id === cursada.materia_id,
-                  ).length,
-                ),
-                TasaRecursaMateria: String(vars.tasaRecursaMateria),
-                PromedioAsistenciaHistMateria: String(
+                Instancia: parseInt(proximoExamen.inst),
+                Anio: parseInt(cursada.anio),
+                Asistencia: parseFloat(cursada.asistencia || 0.75),
+                VecesRecursada: parseInt(cursada.veces_recursada || 0),
+                Genero: data.alumno.genero === "M" ? 1 : 0,
+                Edad: parseInt(data.alumno.edad || 20),
+                AyudaFinanciera: parseInt(data.alumno.ayuda_financiera || 0),
+                ColegioTecnico: parseInt(data.alumno.colegio_tecnico || 0),
+                PromedioColegio: parseFloat(data.alumno.promedio_colegio || 7),
+                AniosDesdeIngreso:
+                  new Date().getFullYear() -
+                  parseInt(data.alumno.anio_ingreso || 2020),
+                VecesCursadaMateria: data.cursadas.filter(
+                  (c) => c.materia_id === cursada.materia_id,
+                ).length,
+                TasaRecursaMateria: parseFloat(vars.tasaRecursaMateria),
+                PromedioAsistenciaHistMateria: parseFloat(
                   vars.promedioAsistenciaHistMateria,
                 ),
-                TotalCursadasGeneral: String(data.cursadas.length),
-                TasaRecursaGeneral: String(vars.tasaRecursaGeneral),
-                PromedioAsistenciaGeneral: String(
+                TotalCursadasGeneral: data.cursadas.length,
+                TasaRecursaGeneral: parseFloat(vars.tasaRecursaGeneral),
+                PromedioAsistenciaGeneral: parseFloat(
                   vars.promedioAsistenciaGeneral,
                 ),
-                PosicionFlujo: String(
+                PosicionFlujo:
                   proximoExamen.tipo === "Parcial"
                     ? proximoExamen.inst
                     : proximoExamen.tipo === "Recuperatorio"
                       ? proximoExamen.inst + 2
                       : proximoExamen.inst + 4,
-                ),
                 AsistenciaBajaRiesgo:
-                  (cursada.asistencia || 0.75) < 0.75 ? "1" : "0",
-                NotaPromedioParcialCursada: String(
+                  (cursada.asistencia || 0.75) < 0.75 ? 1 : 0,
+                NotaPromedioParcialCursada: parseFloat(
                   vars.notaPromedioParcialCursada,
                 ),
-                CantParcialesAprobados: String(vars.cantParcialesAprobados),
-                EsUltimaInstancia: "0",
-                TieneFinalAM1: cursada.materia_codigo === "AM1" ? "1" : "0",
+                CantParcialesAprobados: parseInt(vars.cantParcialesAprobados),
+                EsUltimaInstancia: 0,
+                TieneFinalAM1: cursada.materia_codigo === "AM1" ? 1 : 0,
               };
 
               console.log(`[DEBUG] Payload para predicción:`, payload);
@@ -486,22 +497,24 @@ export default function AlumnoPerfil() {
       };
 
       // CASO 1: Materias en estado "cursando" - generar predicción de recursado
-      const materiasEnCurso = data.cursadas.filter((c) => c.estado === "cursando");
+      const materiasEnCurso = data.cursadas.filter(
+        (c) => c.estado === "cursando",
+      );
       console.log(
         `[DEBUG] Materias en cursando: ${materiasEnCurso.length}`,
-        materiasEnCurso.map((c) => c.materia_codigo)
+        materiasEnCurso.map((c) => c.materia_codigo),
       );
 
       for (const cursada of materiasEnCurso) {
         console.log(
-          `[DEBUG] Generando recursado para ${cursada.materia_codigo} (estado: cursando)`
+          `[DEBUG] Generando recursado para ${cursada.materia_codigo} (estado: cursando)`,
         );
 
         try {
           // Calcular estadísticas de la materia
           const todasCursadas = data.cursadas || [];
           const materiasIndividuo = todasCursadas.filter(
-            (c) => c.materia_id === cursada.materia_id
+            (c) => c.materia_id === cursada.materia_id,
           );
           const notasMateria =
             cursada.examenes
@@ -529,7 +542,7 @@ export default function AlumnoPerfil() {
               : 0;
 
           const examenesGeneralAprobados = notasGeneral.filter(
-            (n) => n >= 4
+            (n) => n >= 4,
           ).length;
           const tasaAprobacionGeneral =
             notasGeneral.length > 0
@@ -538,30 +551,29 @@ export default function AlumnoPerfil() {
 
           // Construir payload
           const payloadRecursado = {
-            Materia: String(cursada.materia_id),
-            AnioCursada: String(cursada.anio),
-            Asistencia: String(cursada.asistencia || 0.75),
-            Genero: data.alumno.genero === "M" ? "1" : "0",
-            Edad: String(data.alumno.edad || 20),
-            AyudaFinanciera: String(data.alumno.ayuda_financiera || 0),
-            ColegioTecnico: String(data.alumno.colegio_tecnico || 0),
-            PromedioColegio: String(data.alumno.promedio_colegio || 7),
-            AnioIngreso: String(data.alumno.anio_ingreso || 2020),
-            AniosDesdeIngreso: String(
-              new Date().getFullYear() - (data.alumno.anio_ingreso || 2020)
-            ),
-            VecesRendidaExamenMateria: String(examenesRendidos),
-            VecesAusenteMateria: "0",
-            CantAprobadosMateria: String(examenesAprobados),
-            PromedioNotaMateria: String(promedioNotaMateria),
-            TasaAprobacionMateria: String(tasaAprobacionMateria),
-            PromedioNotaGeneral: String(promedioNotaGeneral),
-            TasaAprobacionGeneral: String(tasaAprobacionGeneral),
+            Materia: parseInt(cursada.materia_id),
+            AnioCursada: parseInt(cursada.anio),
+            Asistencia: parseFloat(cursada.asistencia || 0.75),
+            Genero: data.alumno.genero === "M" ? 1 : 0,
+            Edad: parseInt(data.alumno.edad || 20),
+            AyudaFinanciera: parseInt(data.alumno.ayuda_financiera || 0),
+            ColegioTecnico: parseInt(data.alumno.colegio_tecnico || 0),
+            PromedioColegio: parseFloat(data.alumno.promedio_colegio || 7),
+            AnioCursada: parseInt(cursada.anio),
+            AniosDesdeIngreso:
+              new Date().getFullYear() -
+              parseInt(data.alumno.anio_ingreso || 2020),
+            VecesRendidaExamenMateria: parseInt(examenesRendidos),
+            VecesAusenteMateria: 0,
+            PromedioNotaMateria: parseFloat(promedioNotaMateria),
+            TasaAprobacionMateria: parseFloat(tasaAprobacionMateria),
+            PromedioNotaGeneral: parseFloat(promedioNotaGeneral),
+            TasaAprobacionGeneral: parseFloat(tasaAprobacionGeneral),
           };
 
           console.log(
             `[DEBUG] Payload recursado ${cursada.materia_codigo}:`,
-            payloadRecursado
+            payloadRecursado,
           );
 
           const responseRecursado = await api.post("/api/predict/materia", [
@@ -570,7 +582,7 @@ export default function AlumnoPerfil() {
 
           console.log(
             `[DEBUG] Respuesta recursado ${cursada.materia_codigo}:`,
-            responseRecursado.data
+            responseRecursado.data,
           );
 
           if (
@@ -598,7 +610,7 @@ export default function AlumnoPerfil() {
         } catch (errRecursado) {
           console.error(
             `[ERROR] Prediciendo recursado para ${cursada.materia_codigo}:`,
-            errRecursado
+            errRecursado,
           );
         }
       }
@@ -623,7 +635,7 @@ export default function AlumnoPerfil() {
 
       console.log(
         `[DEBUG] Materias con final pendiente: ${materiasConFinalPendiente.length}`,
-        materiasConFinalPendiente.map((c) => c.materia_codigo)
+        materiasConFinalPendiente.map((c) => c.materia_codigo),
       );
 
       // Para cada materia con final pendiente, verificar si está cursando correlativa
@@ -633,12 +645,12 @@ export default function AlumnoPerfil() {
         if (correlativaId) {
           // Verificar si está cursando la correlativa
           const estaCursandoCorrelativa = data.cursadas.some(
-            (c) => c.materia_id === correlativaId && c.estado === "cursando"
+            (c) => c.materia_id === correlativaId && c.estado === "cursando",
           );
 
           if (estaCursandoCorrelativa) {
             console.log(
-              `[DEBUG] Generando recursado para ${materiaConFinal.materia_codigo} (aprobada con final pendiente, cursando correlativa)`
+              `[DEBUG] Generando recursado para ${materiaConFinal.materia_codigo} (aprobada con final pendiente, cursando correlativa)`,
             );
 
             try {
@@ -687,25 +699,23 @@ export default function AlumnoPerfil() {
 
               // Construir payload de predicción de recursado
               const payloadRecursado = {
-                Materia: String(materiaConFinal.materia_id),
-                AnioCursada: String(materiaConFinal.anio),
-                Asistencia: String(materiaConFinal.asistencia || 0.75),
-                Genero: data.alumno.genero === "M" ? "1" : "0",
-                Edad: String(data.alumno.edad || 20),
-                AyudaFinanciera: String(data.alumno.ayuda_financiera || 0),
-                ColegioTecnico: String(data.alumno.colegio_tecnico || 0),
-                PromedioColegio: String(data.alumno.promedio_colegio || 7),
-                AnioIngreso: String(data.alumno.anio_ingreso || 2020),
-                AniosDesdeIngreso: String(
-                  new Date().getFullYear() - (data.alumno.anio_ingreso || 2020),
-                ),
-                VecesRendidaExamenMateria: String(examenesRendidos),
-                VecesAusenteMateria: "0",
-                CantAprobadosMateria: String(examenesAprobados),
-                PromedioNotaMateria: String(promedioNotaMateria),
-                TasaAprobacionMateria: String(tasaAprobacionMateria),
-                PromedioNotaGeneral: String(promedioNotaGeneral),
-                TasaAprobacionGeneral: String(tasaAprobacionGeneral),
+                Materia: parseInt(materiaConFinal.materia_id),
+                AnioCursada: parseInt(materiaConFinal.anio),
+                Asistencia: parseFloat(materiaConFinal.asistencia || 0.75),
+                Genero: data.alumno.genero === "M" ? 1 : 0,
+                Edad: parseInt(data.alumno.edad || 20),
+                AyudaFinanciera: parseInt(data.alumno.ayuda_financiera || 0),
+                ColegioTecnico: parseInt(data.alumno.colegio_tecnico || 0),
+                PromedioColegio: parseFloat(data.alumno.promedio_colegio || 7),
+                AniosDesdeIngreso:
+                  new Date().getFullYear() -
+                  parseInt(data.alumno.anio_ingreso || 2020),
+                VecesRendidaExamenMateria: parseInt(examenesRendidos),
+                VecesAusenteMateria: 0,
+                PromedioNotaMateria: parseFloat(promedioNotaMateria),
+                TasaAprobacionMateria: parseFloat(tasaAprobacionMateria),
+                PromedioNotaGeneral: parseFloat(promedioNotaGeneral),
+                TasaAprobacionGeneral: parseFloat(tasaAprobacionGeneral),
               };
 
               console.log(
@@ -739,7 +749,7 @@ export default function AlumnoPerfil() {
                   `[DEBUG] Probabilidad extraída para ${materiaConFinal.materia_codigo}:`,
                   probValue,
                   "from object:",
-                  probabilidadRecursado
+                  probabilidadRecursado,
                 );
 
                 notas.push({
@@ -773,6 +783,27 @@ export default function AlumnoPerfil() {
       generarPrediccionesNotas();
     }
   }, [tabActiva, data, alumnoId]);
+
+  // Función para guardar ediciones
+  async function guardarEdicion() {
+    setGuardando(true);
+    setEditError(null);
+    try {
+      const id = parseInt(alumnoId);
+      await api.patch(`/api/gestion-alumnos/alumnos/${id}`, formEdit);
+
+      // Recargar el perfil para obtener las predicciones actualizadas
+      await cargarPerfil();
+
+      setEditando(false);
+    } catch (err) {
+      setEditError(
+        err.response?.data?.error || "Error al guardar los cambios.",
+      );
+    } finally {
+      setGuardando(false);
+    }
+  }
 
   if (!user || !["admin", "coordinador"].includes(user.role)) {
     return (
@@ -982,32 +1013,93 @@ export default function AlumnoPerfil() {
 
           {/* Datos académicos de ingreso */}
           <div className="bg-white border border-gray-100 rounded-xl p-5">
-            <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-4">
-              Perfil académico
-            </h2>
-            <dl className="space-y-3">
-              {[
-                { label: "Año de ingreso", valor: alumno.anio_ingreso || "—" },
-                {
-                  label: "Colegio técnico",
-                  valor: alumno.colegio_tecnico === 1 ? "✅ Sí" : "❌ No",
-                },
-                {
-                  label: "Promedio en colegio",
-                  valor: alumno.promedio_colegio
-                    ? `${alumno.promedio_colegio} / 10`
-                    : "—",
-                },
-                {
-                  label: "Ayuda financiera",
-                  valor: alumno.ayuda_financiera === 1 ? "✅ Sí" : "❌ No",
-                },
-              ].map(({ label, valor }) => (
-                <div key={label} className="flex justify-between items-start">
-                  <dt className="text-sm text-gray-500">{label}</dt>
-                  <dd className="text-sm font-medium text-gray-900">{valor}</dd>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wide">
+                Perfil académico
+              </h2>
+              {!editando ? (
+                <button
+                  onClick={() => setEditando(true)}
+                  className="text-xs text-blue-600 hover:underline"
+                >
+                  ✏ Editar
+                </button>
+              ) : (
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => {
+                      setEditando(false);
+                      setEditError(null);
+                    }}
+                    className="text-xs text-gray-500 hover:underline"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={guardarEdicion}
+                    disabled={guardando}
+                    className="text-xs bg-blue-600 text-white px-3 py-1 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    {guardando ? "Guardando..." : "Guardar"}
+                  </button>
                 </div>
-              ))}
+              )}
+            </div>
+
+            {editError && (
+              <p className="text-xs text-red-600 mb-3 bg-red-50 px-3 py-2 rounded">
+                {editError}
+              </p>
+            )}
+
+            <dl className="space-y-3">
+              {/* Campos de solo lectura */}
+              <div className="flex justify-between">
+                <dt className="text-sm text-gray-500">Año de ingreso</dt>
+                <dd className="text-sm font-medium text-gray-900">
+                  {data.alumno.anio_ingreso || "—"}
+                </dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-sm text-gray-500">Promedio en colegio</dt>
+                <dd className="text-sm font-medium text-gray-900">
+                  {data.alumno.promedio_colegio
+                    ? `${data.alumno.promedio_colegio} / 10`
+                    : "—"}
+                </dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-sm text-gray-500">Colegio técnico</dt>
+                <dd className="text-sm font-medium">
+                  {data.alumno.colegio_tecnico === 1 ? "✅ Sí" : "❌ No"}
+                </dd>
+              </div>
+
+              {/* Campos editables */}
+              <div className="flex justify-between items-center">
+                <dt className="text-sm text-gray-500">Ayuda financiera</dt>
+                <dd>
+                  {editando ? (
+                    <select
+                      value={formEdit.ayuda_financiera}
+                      onChange={(e) =>
+                        setFormEdit((f) => ({
+                          ...f,
+                          ayuda_financiera: parseInt(e.target.value),
+                        }))
+                      }
+                      className="text-sm border border-gray-300 rounded px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                    >
+                      <option value={0}>No</option>
+                      <option value={1}>Sí</option>
+                    </select>
+                  ) : (
+                    <span className="text-sm font-medium">
+                      {data.alumno.ayuda_financiera === 1 ? "✅ Sí" : "❌ No"}
+                    </span>
+                  )}
+                </dd>
+              </div>
             </dl>
           </div>
 
@@ -1017,62 +1109,91 @@ export default function AlumnoPerfil() {
               {
                 label: "Materias cursadas",
                 valor: indicadores.cant_materias_cursadas,
+                sub: `${indicadores.cant_recursadas} recursadas`,
                 color: "blue",
+                pct: null,
               },
               {
-                label: "Veces que recursó",
-                valor: indicadores.cant_recursadas,
-                color: indicadores.cant_recursadas > 1 ? "red" : "amber",
+                label: "Tasa de recursado",
+                valor: `${(indicadores.tasa_recursado * 100).toFixed(0)}%`,
+                sub:
+                  indicadores.cant_recursadas > 0
+                    ? `${indicadores.cant_recursadas} vez/veces`
+                    : "Nunca recursó",
+                color:
+                  indicadores.tasa_recursado > 0.5
+                    ? "red"
+                    : indicadores.tasa_recursado > 0
+                      ? "amber"
+                      : "green",
+                pct: indicadores.tasa_recursado * 100,
               },
               {
-                label: "Asistencia prom.",
+                label: "Asistencia promedio",
                 valor: `${(indicadores.promedio_asistencia * 100).toFixed(0)}%`,
+                sub:
+                  indicadores.promedio_asistencia < 0.75
+                    ? "⚠ Por debajo del mínimo"
+                    : "Por encima del mínimo",
                 color:
                   indicadores.promedio_asistencia >= 0.8
                     ? "green"
                     : indicadores.promedio_asistencia >= 0.75
                       ? "amber"
                       : "red",
+                pct: indicadores.promedio_asistencia * 100,
               },
               {
-                label: "Tasa aprobación",
+                label: "Tasa de aprobación",
                 valor: `${(indicadores.tasa_aprobacion * 100).toFixed(0)}%`,
+                sub: `${indicadores.cant_aprobados} de ${indicadores.cant_examenes_rendidos} exámenes`,
                 color:
                   indicadores.tasa_aprobacion >= 0.6
                     ? "green"
                     : indicadores.tasa_aprobacion >= 0.4
                       ? "amber"
                       : "red",
+                pct: indicadores.tasa_aprobacion * 100,
               },
-            ].map(({ label, valor, color }) => (
-              <div
-                key={label}
-                className={`rounded-xl p-4 text-center ${
-                  color === "green"
-                    ? "bg-green-50"
-                    : color === "red"
-                      ? "bg-red-50"
-                      : color === "amber"
-                        ? "bg-amber-50"
-                        : "bg-blue-50"
-                }`}
-              >
-                <p
-                  className={`text-2xl font-medium ${
-                    color === "green"
-                      ? "text-green-700"
-                      : color === "red"
-                        ? "text-red-700"
-                        : color === "amber"
-                          ? "text-amber-700"
-                          : "text-blue-700"
-                  }`}
-                >
-                  {valor}
-                </p>
-                <p className="text-xs text-gray-500 mt-1">{label}</p>
-              </div>
-            ))}
+            ].map(({ label, valor, sub, color, pct }) => {
+              const bg = {
+                red: "bg-red-50",
+                amber: "bg-amber-50",
+                green: "bg-green-50",
+                blue: "bg-blue-50",
+              };
+              const text = {
+                red: "text-red-700",
+                amber: "text-amber-700",
+                green: "text-green-700",
+                blue: "text-blue-700",
+              };
+              const bar = {
+                red: "bg-red-400",
+                amber: "bg-amber-400",
+                green: "bg-green-500",
+                blue: "bg-blue-500",
+              };
+              return (
+                <div key={label} className={`${bg[color]} rounded-xl p-4`}>
+                  <p className={`text-2xl font-medium ${text[color]}`}>
+                    {valor}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1">{label}</p>
+                  {pct !== null && (
+                    <div className="w-full bg-white/60 rounded-full h-1.5 mt-2">
+                      <div
+                        className={`${bar[color]} h-1.5 rounded-full transition-all`}
+                        style={{
+                          width: `${Math.min(pct, 100).toFixed(0)}%`,
+                        }}
+                      />
+                    </div>
+                  )}
+                  <p className="text-xs text-gray-400 mt-1">{sub}</p>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
@@ -1101,6 +1222,7 @@ export default function AlumnoPerfil() {
               </div>
             );
           })}
+          <GraficoEvolucionNotas cursadas={data.cursadas} />
         </div>
       )}
 
@@ -1120,9 +1242,7 @@ export default function AlumnoPerfil() {
                   <div className="space-y-3">
                     <div>
                       <p className="text-3xl font-bold text-slate-900">
-                        {Math.round(
-                          predicciones.abandono.probabilidad * 100
-                        )}%
+                        {Math.round(predicciones.abandono.probabilidad * 100)}%
                       </p>
                       <p className="text-base font-semibold text-slate-700">
                         Riesgo de Abandono
@@ -1209,7 +1329,7 @@ export default function AlumnoPerfil() {
                                   <div>
                                     <p className="text-2xl font-bold text-slate-900">
                                       {Math.round(
-                                        datos.recursado.nota_predicha * 100
+                                        datos.recursado.nota_predicha * 100,
                                       )}
                                       %
                                     </p>
@@ -1316,7 +1436,7 @@ export default function AlumnoPerfil() {
                           </div>
                         </div>
                       </div>
-                    )
+                    ),
                   )}
                 </div>
               );
