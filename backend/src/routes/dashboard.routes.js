@@ -289,9 +289,7 @@ router.get("/rendimiento", (req, res) => {
   try {
     const anio = parseInt(req.query.anio);
     if (!anio || isNaN(anio)) {
-      return res
-        .status(422)
-        .json({ error: "El parámetro anio es requerido." });
+      return res.status(422).json({ error: "El parámetro anio es requerido." });
     }
 
     // ── Años disponibles (para el selector) ───────────────────────────────

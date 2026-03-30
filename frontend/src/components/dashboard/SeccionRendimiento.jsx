@@ -1,4 +1,4 @@
-import GraficoRendimientoMateria from './GraficoRendimientoMateria';
+import GraficoRendimientoMateria from "./GraficoRendimientoMateria";
 
 function SkeletonLoader() {
   return (
@@ -107,13 +107,18 @@ export default function SeccionRendimiento({
       {!dataFiltrada || dataFiltrada.length === 0 ? (
         <div className="text-center py-16 text-gray-400">
           <p className="text-lg">Sin datos disponibles</p>
-          <p className="text-sm mt-1">No hay exámenes registrados para esa combinación de año y materia.</p>
+          <p className="text-sm mt-1">
+            No hay exámenes registrados para esa combinación de año y materia.
+          </p>
         </div>
       ) : (
         /* Un gráfico por materia filtrada */
         <div className="space-y-8">
           {dataFiltrada.map((materia) => (
-            <GraficoRendimientoMateria key={materia.materia_id} materia={materia} />
+            <GraficoRendimientoMateria
+              key={materia.materia_id}
+              materia={materia}
+            />
           ))}
         </div>
       )}

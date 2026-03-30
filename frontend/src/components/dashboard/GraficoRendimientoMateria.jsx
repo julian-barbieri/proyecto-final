@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef } from "react";
 
 export default function GraficoRendimientoMateria({ materia }) {
   const canvasRef = useRef(null);
@@ -14,7 +14,7 @@ export default function GraficoRendimientoMateria({ materia }) {
 
     // Verificar que Chart.js esté disponible
     if (!window.Chart) {
-      console.error('Chart.js no está cargado.');
+      console.error("Chart.js no está cargado.");
       return;
     }
 
@@ -24,34 +24,34 @@ export default function GraficoRendimientoMateria({ materia }) {
     const ausentes = materia.examenes.map((e) => e.pct_ausentes);
 
     chartRef.current = new window.Chart(canvasRef.current, {
-      type: 'bar',
+      type: "bar",
       data: {
         labels,
         datasets: [
           {
-            label: 'Aprobados (%)',
+            label: "Aprobados (%)",
             data: aprobados,
-            backgroundColor: '#22c55e', // verde
-            stack: 'stack',
+            backgroundColor: "#22c55e", // verde
+            stack: "stack",
           },
           {
-            label: 'Desaprobados (%)',
+            label: "Desaprobados (%)",
             data: desaprobados,
-            backgroundColor: '#ef4444', // rojo
-            stack: 'stack',
+            backgroundColor: "#ef4444", // rojo
+            stack: "stack",
           },
           {
-            label: 'Ausentes (%)',
+            label: "Ausentes (%)",
             data: ausentes,
-            backgroundColor: '#d1d5db', // gris
-            stack: 'stack',
+            backgroundColor: "#d1d5db", // gris
+            stack: "stack",
           },
         ],
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        interaction: { mode: 'index', intersect: false },
+        interaction: { mode: "index", intersect: false },
         scales: {
           x: {
             stacked: true,
@@ -63,10 +63,10 @@ export default function GraficoRendimientoMateria({ materia }) {
             min: 0,
             max: 100,
             ticks: {
-              callback: (v) => v + '%',
+              callback: (v) => v + "%",
               font: { size: 11 },
             },
-            grid: { color: '#f3f4f6' },
+            grid: { color: "#f3f4f6" },
           },
         },
         plugins: {
@@ -78,7 +78,7 @@ export default function GraficoRendimientoMateria({ materia }) {
                 const idx = items[0].dataIndex;
                 const examen = materia.examenes[idx];
                 return [
-                  `Promedio nota: ${examen.promedio_nota ?? '—'}`,
+                  `Promedio nota: ${examen.promedio_nota ?? "—"}`,
                   `Total rindieron: ${examen.total_rendidos} / ${examen.total_intentos}`,
                 ];
               },
@@ -126,7 +126,7 @@ export default function GraficoRendimientoMateria({ materia }) {
       </div>
 
       {/* Gráfico */}
-      <div style={{ position: 'relative', height: '260px' }}>
+      <div style={{ position: "relative", height: "260px" }}>
         <canvas ref={canvasRef} />
       </div>
 
@@ -161,29 +161,33 @@ export default function GraficoRendimientoMateria({ materia }) {
                 key={i}
                 className="border-b border-gray-50 hover:bg-gray-50 transition-colors"
               >
-                <td className="py-2 px-2 font-medium text-gray-700">{e.label}</td>
+                <td className="py-2 px-2 font-medium text-gray-700">
+                  {e.label}
+                </td>
                 <td className="py-2 px-2 text-center text-gray-600">
                   {e.total_rendidos}
-                  <span className="text-gray-400 ml-1">/ {e.total_intentos}</span>
+                  <span className="text-gray-400 ml-1">
+                    / {e.total_intentos}
+                  </span>
                 </td>
                 <td className="py-2 px-2 text-center">
                   <span
                     className={`font-medium ${
                       e.pct_aprobados >= 50
-                        ? 'text-green-600'
-                        : 'text-green-400'
+                        ? "text-green-600"
+                        : "text-green-400"
                     }`}
                   >
                     {e.pct_aprobados}%
                   </span>
-                  <span className="text-gray-400 ml-1">({e.total_aprobados})</span>
+                  <span className="text-gray-400 ml-1">
+                    ({e.total_aprobados})
+                  </span>
                 </td>
                 <td className="py-2 px-2 text-center">
                   <span
                     className={`font-medium ${
-                      e.pct_desaprobados >= 40
-                        ? 'text-red-600'
-                        : 'text-red-400'
+                      e.pct_desaprobados >= 40 ? "text-red-600" : "text-red-400"
                     }`}
                   >
                     {e.pct_desaprobados}%
@@ -200,13 +204,13 @@ export default function GraficoRendimientoMateria({ materia }) {
                   <span
                     className={`font-medium ${
                       e.promedio_nota >= 6
-                        ? 'text-green-600'
+                        ? "text-green-600"
                         : e.promedio_nota >= 4
-                          ? 'text-amber-500'
-                          : 'text-red-500'
+                          ? "text-amber-500"
+                          : "text-red-500"
                     }`}
                   >
-                    {e.promedio_nota > 0 ? e.promedio_nota : '—'}
+                    {e.promedio_nota > 0 ? e.promedio_nota : "—"}
                   </span>
                 </td>
               </tr>

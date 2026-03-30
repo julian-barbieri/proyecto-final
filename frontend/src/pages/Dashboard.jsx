@@ -44,7 +44,7 @@ export default function Dashboard() {
 
   // Estados para la tab de rendimiento
   const [anioSeleccionado, setAnioSeleccionado] = useState(
-    new Date().getFullYear()
+    new Date().getFullYear(),
   );
   const [dataRendimiento, setDataRendimiento] = useState(null);
   const [loadingRend, setLoadingRend] = useState(false);
@@ -77,7 +77,7 @@ export default function Dashboard() {
       try {
         setLoadingRend(true);
         const response = await api.get(
-          `/api/dashboard/rendimiento?anio=${anioSeleccionado}`
+          `/api/dashboard/rendimiento?anio=${anioSeleccionado}`,
         );
         setDataRendimiento(response.data.por_materia);
         setAniosDisponibles(response.data.anios_disponibles);
@@ -236,9 +236,17 @@ export default function Dashboard() {
 // Componente SeccionResumen - Contiene el layout anterior del Dashboard
 // ═════════════════════════════════════════════════════════════════════════════
 
-function SeccionResumen({ loading, error, data, navigate, user, ai_disponible }) {
+function SeccionResumen({
+  loading,
+  error,
+  data,
+  navigate,
+  user,
+  ai_disponible,
+}) {
   const [materiaSeleccionadaTasa, setMateriaSeleccionadaTasa] = useState(null);
-  const [materiaSeleccionadaDistribucion, setMateriaSeleccionadaDistribucion] = useState(null);
+  const [materiaSeleccionadaDistribucion, setMateriaSeleccionadaDistribucion] =
+    useState(null);
 
   if (loading) {
     return (
@@ -322,7 +330,7 @@ function SeccionResumen({ loading, error, data, navigate, user, ai_disponible })
         <KpiCard
           titulo="Total alumnos"
           valor={kpis.total_alumnos}
-          subtitulo="matriculados en AM1 · 2026"
+          subtitulo="registrados"
           color="blue"
           icono="👥"
         />
@@ -336,7 +344,7 @@ function SeccionResumen({ loading, error, data, navigate, user, ai_disponible })
         <KpiCard
           titulo="Tasa de recursado"
           valor={`${kpis.tasa_recursado_global}%`}
-          subtitulo="promedio histórico AM1"
+          subtitulo="Promedio histórico"
           color="amber"
           icono="🔄"
         />
@@ -345,7 +353,7 @@ function SeccionResumen({ loading, error, data, navigate, user, ai_disponible })
           valor={kpis.promedio_notas_global}
           subtitulo="en exámenes rendidos"
           color="blue"
-          icono="⭐"
+          icono="🧾"
         />
       </div>
 
@@ -521,7 +529,11 @@ function SeccionResumen({ loading, error, data, navigate, user, ai_disponible })
             {por_materia && por_materia.length > 0 && (
               <select
                 value={materiaSeleccionadaTasa || ""}
-                onChange={(e) => setMateriaSeleccionadaTasa(e.target.value ? parseInt(e.target.value) : null)}
+                onChange={(e) =>
+                  setMateriaSeleccionadaTasa(
+                    e.target.value ? parseInt(e.target.value) : null,
+                  )
+                }
                 className="border border-gray-200 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">Todas las materias</option>
@@ -582,25 +594,32 @@ function SeccionResumen({ loading, error, data, navigate, user, ai_disponible })
             <h2 className="text-lg font-semibold text-gray-900">
               Distribución de Cursadas por Materia
             </h2>
-            {distribucion_por_materia && distribucion_por_materia.length > 0 && (
-              <select
-                value={materiaSeleccionadaDistribucion || ""}
-                onChange={(e) => setMateriaSeleccionadaDistribucion(e.target.value ? parseInt(e.target.value) : null)}
-                className="border border-gray-200 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">Todas las materias</option>
-                {distribucion_por_materia.map((m) => (
-                  <option key={m.codigo} value={m.id || m.codigo}>
-                    {m.codigo} - {m.nombre}
-                  </option>
-                ))}
-              </select>
-            )}
+            {distribucion_por_materia &&
+              distribucion_por_materia.length > 0 && (
+                <select
+                  value={materiaSeleccionadaDistribucion || ""}
+                  onChange={(e) =>
+                    setMateriaSeleccionadaDistribucion(
+                      e.target.value || null,
+                    )
+                  }
+                  className="border border-gray-200 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Todas las materias</option>
+                  {distribucion_por_materia.map((m) => (
+                    <option key={m.codigo} value={m.codigo}>
+                      {m.codigo} - {m.nombre}
+                    </option>
+                  ))}
+                </select>
+              )}
           </div>
           <div className="space-y-8">
             {distribucion_por_materia && distribucion_por_materia.length > 0 ? (
               (materiaSeleccionadaDistribucion
-                ? distribucion_por_materia.filter((m) => (m.id || m.codigo) === materiaSeleccionadaDistribucion)
+                ? distribucion_por_materia.filter(
+                    (m) => m.codigo === materiaSeleccionadaDistribucion,
+                  )
                 : distribucion_por_materia
               ).map((materia) => {
                 const total =
@@ -718,15 +737,15 @@ function SeccionResumen({ loading, error, data, navigate, user, ai_disponible })
                         alumno.nivel_riesgo === "alto"
                           ? "bg-red-50 text-red-700"
                           : alumno.nivel_riesgo === "medio"
-                          ? "bg-amber-50 text-amber-700"
-                          : "bg-green-50 text-green-700"
+                            ? "bg-amber-50 text-amber-700"
+                            : "bg-green-50 text-green-700"
                       }`}
                     >
                       {alumno.nivel_riesgo === "alto"
                         ? "🔴 Alto"
                         : alumno.nivel_riesgo === "medio"
-                        ? "🟡 Medio"
-                        : "🟢 Bajo"}
+                          ? "🟡 Medio"
+                          : "🟢 Bajo"}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-center">
@@ -754,7 +773,10 @@ function SeccionResumen({ loading, error, data, navigate, user, ai_disponible })
         <div className="p-6 space-y-4">
           {actividad_reciente && actividad_reciente.length > 0 ? (
             actividad_reciente.map((evento, i) => (
-              <div key={i} className="flex items-start gap-4 pb-4 border-b last:border-0">
+              <div
+                key={i}
+                className="flex items-start gap-4 pb-4 border-b last:border-0"
+              >
                 <span className="text-2xl">{getTipoIcono(evento.tipo)}</span>
                 <div className="flex-1">
                   <p className="text-sm font-medium text-gray-900">
@@ -767,7 +789,9 @@ function SeccionResumen({ loading, error, data, navigate, user, ai_disponible })
               </div>
             ))
           ) : (
-            <p className="text-sm text-gray-500 py-3">Sin actividad registrada</p>
+            <p className="text-sm text-gray-500 py-3">
+              Sin actividad registrada
+            </p>
           )}
         </div>
       </div>
