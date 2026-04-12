@@ -2713,20 +2713,47 @@ function seedDemoAlumnosAM2CDU014() {
 
 async function seedUsers() {
   const users = [
-    { username: "director", password: "director123", role: "admin" },
-    { username: "docente", password: "docente123", role: "docente" },
-    { username: "docente1", password: "docente123", role: "docente" },
-    { username: "coordinador", password: "coord123", role: "coordinador" },
-    { username: "alumno", password: "alumno123", role: "alumno" },
+    {
+      username: "director",
+      password: "director123",
+      role: "admin",
+      nombre_completo: "Director Sistema",
+    },
+    {
+      username: "docente",
+      password: "docente123",
+      role: "docente",
+      nombre_completo: "Docente Primero",
+    },
+    {
+      username: "docente1",
+      password: "docente123",
+      role: "docente",
+      nombre_completo: "Segundo Docente",
+    },
+    {
+      username: "coordinador",
+      password: "coord123",
+      role: "coordinador",
+      nombre_completo: "Coordinador Académico",
+    },
+    {
+      username: "alumno",
+      password: "alumno123",
+      role: "alumno",
+      nombre_completo: "Juan Alumno",
+    },
   ];
 
   const insertUser = db.prepare(
-    "INSERT INTO users (username, password, role) VALUES (?, ?, ?)",
+    "INSERT INTO users (username, password, role, nombre_completo) VALUES (?, ?, ?, ?)",
   );
   const findUserByUsername = db.prepare(
     "SELECT id FROM users WHERE username = ?",
   );
-  const updateUserRole = db.prepare("UPDATE users SET role = ? WHERE id = ?");
+  const updateUserRole = db.prepare(
+    "UPDATE users SET role = ?, nombre_completo = ? WHERE id = ?",
+  );
   let createdUsers = 0;
   let updatedRoles = 0;
 
@@ -2734,13 +2761,18 @@ async function seedUsers() {
     const existingUser = findUserByUsername.get(user.username);
 
     if (existingUser) {
-      updateUserRole.run(user.role, existingUser.id);
+      updateUserRole.run(user.role, user.nombre_completo, existingUser.id);
       updatedRoles += 1;
       continue;
     }
 
     const hashedPassword = await bcrypt.hash(user.password, 10);
-    insertUser.run(user.username, hashedPassword, user.role);
+    insertUser.run(
+      user.username,
+      hashedPassword,
+      user.role,
+      user.nombre_completo,
+    );
     createdUsers += 1;
   }
 

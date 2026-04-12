@@ -163,7 +163,10 @@ export default function Dashboard() {
       {/* Header personalizado */}
       <div>
         <h1 className="text-2xl font-medium text-gray-900">
-          Buenos días, {user.nombre_completo.split(" ")[0]}
+          Buenos días,{" "}
+          {user.nombre_completo
+            ? user.nombre_completo.split(" ")[0]
+            : "Usuario"}
         </h1>
         <p className="text-sm text-gray-500 mt-1">
           {new Date().toLocaleDateString("es-AR", {
