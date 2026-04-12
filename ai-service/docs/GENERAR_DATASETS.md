@@ -1,101 +1,99 @@
-# 📊 Generador de Datasets Sintéticos
+# 📁 Estructura de Scripts de Generación de Datos
 
-Este script genera 3 datasets sintéticos para la carrera de Ingeniería en Informática USAL con todas las reglas académicas, correlativas y flujos de examen especificados.
+## Ubicación de Scripts
 
-## 📋 Archivos Generados
+### Opción 1: Ejecutar desde la carpeta `data` (RECOMENDADO)
 
-- **nivel_examen.csv** (~50k-80k registros): Detalle de cada examen rendido (parciales, recuperatorios, finales)
-- **nivel_materia.csv** (~20k-30k registros): Resumen por cursada de materia
-- **nivel_alumno.csv** (500 registros): Datos consolidados por alumno
-
-## 🚀 Cómo Ejecutar
-
-### Opción 1: Desde PowerShell (Recomendado)
-
-```powershell
-# 1. Abrir PowerShell en VS Code o terminal
-# 2. Navegar a la carpeta ai-service
-cd "C:\Users\julia\OneDrive\Documentos\Facultad\Proyecto final\proyecto-final\ai-service"
-
-# 3. Activar el ambiente virtual (si tienes .venv)
-.\.venv\Scripts\Activate.ps1
-
-# 4. Ejecutar el script
-python src/generar_datasets.py
+```bash
+cd data/
+python generar_datasets.py      # Genera los 3 CSVs
+python analizar_datasets.py     # Valida los datasets generados
 ```
 
-### Opción 2: Desde CMD
+### Opción 2: Ejecutar desde la carpeta `src`
 
-```cmd
-# 1. Abrir CMD en VS Code o terminal
-# 2. Navegar a la carpeta ai-service
-cd "C:\Users\julia\OneDrive\Documentos\Facultad\Proyecto final\proyecto-final\ai-service"
-
-# 3. Ejecutar el script
-python src/generar_datasets.py
+```bash
+cd src/
+python generar_datasets.py      # Genera los 3 CSVs en ../data
 ```
 
-### Opción 3: Directamente desde VS Code
+---
 
-1. Abre el archivo `src/generar_datasets.py`
-2. Haz clic en el botón ▶️ (Run) en la esquina superior derecha
-3. O presiona `Ctrl+F5`
+## Scripts Disponibles
 
-## 📂 Dónde se Guardan
+### 🔧 `data/generar_datasets.py`
 
-Los datasets se guardarán en:
+- **Propósito**: Genera los 3 datasets sintéticos desde cero
+- **Entrada**: Nada (genera datos aleatorios)
+- **Salida**:
+  - `nivel_examen.csv` (~47k registros)
+  - `nivel_materia.csv` (~24k registros)
+  - `nivel_alumno.csv` (500 registros)
+- **Parámetros**:
+  - `num_alumnos`: cantidad de estudiantes (default: 500)
+  - `output_dir`: carpeta de destino (default: ".")
+- **Duración**: ~30-60 segundos
 
-```
-ai-service/data/
-├── nivel_examen.csv
-├── nivel_materia.csv
-└── nivel_alumno.csv
-```
+### 📊 `data/analizar_datasets.py`
 
-## ⏱️ Tiempo Estimado
+- **Propósito**: Valida y analiza los datasets generados
+- **Entrada**: Los 3 CSVs generados por `generar_datasets.py`
+- **Salida**: Estadísticas y validaciones en consola
+- **Métricas**:
+  - Distribución de alumnos (activos vs abandonados)
+  - Tasa de graduación (activos: 100%)
+  - Rango de años (2018-2025)
+  - Índice de bloqueo
+  - Materias aprobadas vs cursadas
+- **Duración**: ~1-2 segundos
 
-- **Primera ejecución**: ~2-5 minutos (genera 500 alumnos completos)
-- **Ejecuciones posteriores**: Se sobresciben los archivos anteriores
+---
 
-## ✅ Validaciones Automáticas
+## Características Implementadas
 
-El script verifica y muestra al finalizar:
+✅ **Alumnos Activos 100% Graduados**
 
-- ✓ Porcentaje de alumnos que abandonan (debe ser ~20%)
-- ✓ Porcentaje de alumnos que completaron 1er año
-- ✓ Total de registros generados
+- 418/418 alumnos activos aprueban todas las 48 materias
 
-## 📋 Requisitos
+✅ **Datos Históricos 2018-2025**
 
-Asegúrate que tengas `pandas` y `numpy` instalados:
+- Solo datos "históricos" hasta 2025
 
-```powershell
-pip install pandas numpy
-```
+✅ **IndiceBloqueo Correcto**
 
-Si usas el ambiente virtual del proyecto:
+- Calcula correlativas no aprobadas
+- Rango: 0.0 (sin bloqueo) a 1.0 (bloqueado)
 
-```powershell
-.\.venv\Scripts\activate
-pip install pandas numpy
-```
+✅ **Trayectos Completos**
 
-## 🔧 Personalización
+- Permite estudiar progreso de inicio a fin por alumno
 
-Para modificar parámetros del generador, abre `src/generar_datasets.py` y busca:
+---
 
-- `generar_datasets(num_alumnos=500, ...)` para cambiar cantidad de alumnos
-- `MATERIAS_BOTTLENECK` para las materias críticas
-- Distribuciones de probabilidad en las funciones de generación
+## Cómo Usar
 
-## 📝 Notas
+1. **Generar datasets**:
 
-- Los datasets son **sintéticos pero realistas** respetando:
-  - Correlativas académicas
-  - Tipos de materias (anuales/cuatrimestrales)
-  - Flujos de examen completos
-  - Distribuciones estadísticas de desempeño
-  - Tasa de abandono del 20%
+   ```bash
+   cd data
+   python generar_datasets.py
+   ```
 
-- **Reproducibilidad**: El script usa `np.random.seed(42)`, así que siempre generará los mismos datos
-  - Si quieres datos diferentes: cambia el seed o borra esta línea
+2. **Analizar datasets**:
+
+   ```bash
+   python analizar_datasets.py
+   ```
+
+3. **Modificar parámetros** (editar `generar_datasets.py`, última línea):
+   ```python
+   generar_datasets(num_alumnos=1000, output_dir=".")
+   ```
+
+---
+
+## Archivos Originales en `src/`
+
+- `src/generar_datasets.py`: Versión original (también funciona, generar desde src)
+
+**Nota**: Se recomienda usar los scripts desde la carpeta `data/` para evitar problemas de rutas relativas.
