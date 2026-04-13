@@ -115,20 +115,44 @@ def explicar_modelo(
     X_np = X_test.values  # array numpy para SHAP
 
     # ------------------------------------------------------------------
-    # 2.1  Instanciar TreeExplainer y calcular SHAP values
+    # 2.1  Instanciar Explainer automático según tipo de modelo
     # ------------------------------------------------------------------
     print(f'\n  [{nombre_modelo.upper()}] Calculando SHAP values...')
     try:
-        explainer = shap.TreeExplainer(model)
-        shap_raw  = explainer.shap_values(X_test, check_additivity=False)
+        model_type = type(model).__name__
+        
+        # Detectar tipo de modelo y usar explainer óptimo
+        if 'Logistic' in model_type or 'LinearRegression' in model_type or 'Linear' in model_type:
+            # Modelos lineales: usar LinearExplainer (rápido y exacto)
+            print(f'  [INFO] Detectado modelo lineal: {model_type}. Usando LinearExplainer.')
+            explainer = shap.LinearExplainer(model, X_test)
+            shap_raw = explainer.shap_values(X_test)
+        elif any(tree_model in model_type for tree_model in ['XGB', 'RandomForest', 'GradientBoosting', 'DecisionTree']):
+            # Modelos basados en árboles: usar TreeExplainer (muy rápido)
+            print(f'  [INFO] Detectado modelo basado en árboles: {model_type}. Usando TreeExplainer.')
+            explainer = shap.TreeExplainer(model)
+            shap_raw = explainer.shap_values(X_test, check_additivity=False)
+        else:
+            # Otros modelos: usar KernelExplainer genérico (más lento pero funciona con cualquiera)
+            print(f'  [INFO] Modelo no reconocido: {model_type}. Usando KernelExplainer (puede ser lento).')
+            if tipo == 'clasificacion':
+                predictor = lambda X: model.predict_proba(X)[:, 1]
+            else:
+                predictor = lambda X: model.predict(X)
+            explainer = shap.KernelExplainer(
+                model=predictor,
+                data=shap.sample(X_test, min(100, len(X_test)))
+            )
+            shap_raw = explainer.shap_values(X_test, check_additivity=False)
     except Exception as exc:
-        print(f'  [ERROR] No se pudo instanciar TreeExplainer para {nombre_modelo}: {exc}')
+        print(f'  [ERROR] No se pudo instanciar Explainer para {nombre_modelo}: {exc}')
         raise
 
-    # Para clasificadores binarios, shap_values devuelve una lista [clase0, clase1].
-    # Usamos siempre la clase positiva (índice 1).
+    # Para clasificadores binarios, shap_values podría venir como lista [clase0, clase1].
+    # Usamos siempre la clase positiva (índice 1) si es lista, o valores directos si ya es array.
     if tipo == 'clasificacion':
         if isinstance(shap_raw, list):
+            # TreeExplainer o KernelExplainer con clasificación: devuelven lista
             shap_vals = shap_raw[1]            # (n_muestras, n_features) clase positiva
             base_val  = (
                 explainer.expected_value[1]
@@ -136,18 +160,19 @@ def explicar_modelo(
                 else explainer.expected_value
             )
         else:
-            # Algunos modelos devuelven directamente un array 3D (n, f, 2)
-            shap_vals = shap_raw[:, :, 1] if shap_raw.ndim == 3 else shap_raw
+            # LinearExplainer o array directo
+            shap_vals = shap_raw
             base_val  = (
-                explainer.expected_value[-1]
-                if hasattr(explainer.expected_value, '__len__')
-                else explainer.expected_value
+                float(explainer.expected_value)
+                if not isinstance(explainer.expected_value, (list, np.ndarray))
+                else float(explainer.expected_value[1] if isinstance(explainer.expected_value, list) else explainer.expected_value[0])
             )
     else:
+        # Regresión
         shap_vals = shap_raw          # (n_muestras, n_features)
         base_val  = (
             float(explainer.expected_value)
-            if not hasattr(explainer.expected_value, '__len__')
+            if not isinstance(explainer.expected_value, (list, np.ndarray))
             else float(explainer.expected_value[0])
         )
 

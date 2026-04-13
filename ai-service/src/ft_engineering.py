@@ -11,6 +11,40 @@ from cargar_datos import cargar_datos
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), '..', 'data')
 
+# Mapeo de correlativas: Materia -> Lista de materias que son prerequisito
+# Extraído del plan de estudios - Ingeniería en Informática
+CORRELATIVAS_MAP = {
+    145: [141],           # 145 requiere 141
+    147: [144],           # 147 requiere 144
+    148: [144],           # 148 requiere 144
+    151: [142],           # 151 requiere 142
+    152: [144],           # 152 requiere 144
+    154: [146],           # 154 requiere 146
+    156: [147, 148],      # 156 requiere 147 Y 148
+    157: [147, 148],      # 157 requiere 147 Y 148
+    158: [142],           # 158 requiere 142
+    160: [150],           # 160 requiere 150
+    161: [152],           # 161 requiere 152
+    162: [153],           # 162 requiere 153
+    163: [152],           # 163 requiere 152
+    164: [154],           # 164 requiere 154
+    166: [145],           # 166 requiere 145
+    167: [160],           # 167 requiere 160
+    170: [161],           # 170 requiere 161
+    171: [162],           # 171 requiere 162
+    172: [156, 162],      # 172 requiere 156 O 162
+    173: [164],           # 173 requiere 164
+    174: [166],           # 174 requiere 166
+    175: [162],           # 175 requiere 162
+    176: [162],           # 176 requiere 162
+    178: [164],           # 178 requiere 164
+    181: [170],           # 181 requiere 170
+    182: [165],           # 182 requiere 165
+    183: [172, 175],      # 183 requiere 172 O 175
+    185: [171],           # 185 requiere 171
+    186: [176],           # 186 requiere 176
+}
+
 
 def ft_engineering_procesado(dataset: str = 'examen'):
     """
@@ -161,6 +195,12 @@ def ft_engineering_procesado(dataset: str = 'examen'):
             VecesAusenteMateria       = ('AusenteExamen', 'sum'),
         ).reset_index()
 
+        # -- 0b2) VecesRecursada: contar cuantas veces recurso esta materia -----
+        # En nivel_materia, si Recursa=1 significa que la cursada termino en recursar
+        veces_recursada = materia.groupby(['IdAlumno', 'Materia']).agg(
+            VecesRecursada = ('Recursa', 'sum'),  # Contar filas con Recursa=1
+        ).reset_index()
+
         # Metricas de rendimiento en examen para esta materia (solo presentes)
         ex_notas_mat = ex_presentes_mat.groupby(['IdAlumno', 'Materia']).agg(
             # Promedio de notas obtenidas en esta materia
@@ -207,6 +247,9 @@ def ft_engineering_procesado(dataset: str = 'examen'):
                          'TasaAprobacionMateria']],
             on=['IdAlumno', 'Materia'], how='left'
         )
+        # Join VecesRecursada desde materia (conteo de cursadas con Recursa=1)
+        df = df.merge(veces_recursada, on=['IdAlumno', 'Materia'], how='left')
+        
         # Join por IdAlumno: cada fila recibe el rendimiento global del alumno
         df = df.merge(
             ex_general[['IdAlumno', 'PromedioNotaGeneral', 'TasaAprobacionGeneral']],
@@ -218,8 +261,47 @@ def ft_engineering_procesado(dataset: str = 'examen'):
             'VecesRendidaExamenMateria', 'VecesAusenteMateria',
             'PromedioNotaMateria', 'TasaAprobacionMateria',
             'PromedioNotaGeneral', 'TasaAprobacionGeneral',
+            'VecesRecursada',
         ]
         df[fill_zero] = df[fill_zero].fillna(0)
+
+        # -- 0e) IndiceBloqueo: verificar si el alumno esta bloqueado -----------
+        # Un alumno está bloqueado si no aprobó una de sus correlativas
+        def calcular_indice_bloqueo(row):
+            """
+            Retorna 1 si la materia actual tiene correlativas y el alumno
+            no aprobó al menos una de ellas; 0 en caso contrario.
+            """
+            materia_id = row['Materia']
+            id_alumno = row['IdAlumno']
+            
+            # Si esta materia no tiene correlativas definidas, no está bloqueada
+            if materia_id not in CORRELATIVAS_MAP:
+                return 0
+            
+            correlativas = CORRELATIVAS_MAP[materia_id]
+            
+            # Obtener el historial de exámenes del alumno para las correlativas
+            ex_alumno = examen[examen['IdAlumno'] == id_alumno]
+            
+            # Verificar si aprobó al menos una de cada grupo de correlativas
+            # Si correlativas es [A, B], necesita aprobar A Y B
+            # Si correlativas es [A] o [A, B con alternativa], verificar aprobación
+            
+            # Contar si el alumno aprobó cada correlativa
+            aprobadas = []
+            for corr in correlativas:
+                notas_corr = ex_alumno[ex_alumno['Materia'] == corr]['Nota']
+                # Considerar aprobada si tiene al menos una nota >= 4
+                aprobada = (notas_corr >= 4).any() if len(notas_corr) > 0 else False
+                aprobadas.append(aprobada)
+            
+            # Bloqueado si NO aprobó todas las correlativas (AND lógico)
+            # Si todas las correlativas fueron aprobadas, no está bloqueado
+            bloqueado = not all(aprobadas)
+            return int(bloqueado)
+        
+        df['IndiceBloqueo'] = df.apply(calcular_indice_bloqueo, axis=1)
 
         df = df.drop(columns=['IdAlumno'])
 
@@ -275,7 +357,7 @@ def ft_engineering_procesado(dataset: str = 'examen'):
         # -- 0d) Join y relleno de nulos ----------------------------------------
         # Join por (IdAlumno, Materia): cada examen recibe el historial del
         # alumno en esa materia especifica. Se usa la columna Materia original
-        # (string 'AM1'/'AM2') ya que el encoding ocurre en el paso 1
+        # (numérica 140-187) sin modificaciones previas
         df = df.merge(
             mat_por_materia,
             on=['IdAlumno', 'Materia'], how='left'
@@ -293,7 +375,74 @@ def ft_engineering_procesado(dataset: str = 'examen'):
         ]
         df[fill_zero] = df[fill_zero].fillna(0)
 
-        # -- 0e) Features derivadas del flujo academico (dominio especifico) ----
+        # -- 0e) NotaPromedioCorrelativas: promedio de notas en correlativas ----
+        # Para esta materia, obtener el promedio de notas que tiene el alumno en
+        # las materias que son correlativas (requisitos previos)
+        def calcular_nota_promedio_correlativas(row):
+            """
+            Retorna el promedio de notas del alumno en las materias correlativas
+            de esta materia. Si no tiene correlativas o no las cursó, retorna 0.
+            """
+            materia_id = row['Materia']
+            id_alumno = row['IdAlumno']
+            
+            # Si no hay correlativas definidas, retorna 0
+            if materia_id not in CORRELATIVAS_MAP:
+                return 0.0
+            
+            correlativas = CORRELATIVAS_MAP[materia_id]
+            
+            # Obtener notas del alumno en las correlativas (solo presentes)
+            ex_alumno = examen[
+                (examen['IdAlumno'] == id_alumno) & 
+                (examen['AusenteExamen'] == 0) &
+                (examen['Materia'].isin(correlativas))
+            ]
+            
+            if len(ex_alumno) == 0:
+                return 0.0
+            
+            # Retorna el promedio de las notas en las correlativas
+            return ex_alumno['Nota'].mean()
+        
+        df['NotaPromedioCorrelativas'] = df.apply(
+            calcular_nota_promedio_correlativas, axis=1
+        )
+
+        # -- 0f) IndiceBloqueo: flag si el alumno está bloqueado en esta materia
+        def calcular_indice_bloqueo_examen(row):
+            """
+            Retorna 1 si la materia actual tiene correlativas y el alumno
+            no ha aprobado todas ellas; 0 en caso contrario.
+            """
+            materia_id = row['Materia']
+            id_alumno = row['IdAlumno']
+            
+            # Si no tiene correlativas, no está bloqueado
+            if materia_id not in CORRELATIVAS_MAP:
+                return 0
+            
+            correlativas = CORRELATIVAS_MAP[materia_id]
+            
+            # Obtener notas del alumno en las correlativas
+            ex_alumno = examen[
+                (examen['IdAlumno'] == id_alumno) & 
+                (examen['AusenteExamen'] == 0)
+            ]
+            
+            # Verificar si aprobó todas las correlativas (nota >= 4)
+            for corr in correlativas:
+                notas_corr = ex_alumno[ex_alumno['Materia'] == corr]['Nota']
+                # Si no tiene registros o ninguno >= 4, está bloqueado
+                if len(notas_corr) == 0 or (notas_corr >= 4).sum() == 0:
+                    return 1
+            
+            # Aprobó todas las correlativas
+            return 0
+        
+        df['IndiceBloqueo'] = df.apply(calcular_indice_bloqueo_examen, axis=1)
+
+        # -- 0g) Features derivadas del flujo academico (dominio especifico) ----
         # Basadas en las reglas del dataset: Parcial → Recuperatorio → Final
         # y los umbrales explicitos definidos en el dominio universitario
 
@@ -347,19 +496,6 @@ def ft_engineering_procesado(dataset: str = 'examen'):
             (df['TipoExamen'] == 'Final') & (df['Instancia'] == 3)
         ).astype(int)
 
-        # TieneFinalAM1: flag binario si el alumno tiene aprobado el Final de AM1
-        # (nota >= 4). Segun las correlatividades del sistema, es requisito
-        # indispensable para poder rendir el Final de AM2. Para examenes de AM1
-        # la feature no aplica directamente, pero el modelo puede aprender
-        # que todos los alumnos con TieneFinalAM1=0 rindiendo AM2 estan bloqueados.
-        alumnos_final_am1 = examen[
-            (examen['Materia']       == 'AM1') &
-            (examen['TipoExamen']    == 'Final') &
-            (examen['AusenteExamen'] == 0) &
-            (examen['Nota']          >= 4)
-        ]['IdAlumno'].unique()
-        df['TieneFinalAM1'] = df['IdAlumno'].isin(alumnos_final_am1).astype(int)
-
         df = df.drop(columns=['IdAlumno'])
 
     else:
@@ -385,15 +521,25 @@ def ft_engineering_procesado(dataset: str = 'examen'):
     # Encoding manual de categoricas binarias: string -> 0/1
     if 'Genero' in df.columns:
         df['Genero'] = df['Genero'].map({'Masculino': 1, 'Femenino': 0})
-    if 'Materia' in df.columns: #MATERIA SERIA CATEGORICA PERO SE INGRESA COMO BINARIA YA QUE SON 2
-        df['Materia'] = df['Materia'].map({'AM1': 0, 'AM2': 1})
 
     # -- 2) Identificar variables categoricas, numericas y binarias -----------
-    cat_vars    = [c for c in ['TipoExamen'] if c in df.columns]
-    binary_vars = [c for c in ['Genero', 'Materia', 'AyudaFinanciera', 'ColegioTecnico',
-                               'AsistenciaBajaRiesgo', 'EsUltimaInstancia', 'TieneFinalAM1']
+    # Nota: Materia es una ID numérica (140-187), no una categoría nominal.
+    # No debe ser OneHotEncoded, debe mantener su naturaleza numérica.
+    # Tipo contiene categorías como 'A' y 'C' que SÍ deben ser codificadas.
+    cat_vars    = [c for c in ['TipoExamen', 'Tipo'] if c in df.columns]
+    binary_vars = [c for c in ['Genero', 'AyudaFinanciera', 'ColegioTecnico',
+                               'AsistenciaBajaRiesgo', 'EsUltimaInstancia', 'IndiceBloqueo']
                    if c in df.columns]
     num_vars    = [c for c in df.columns if c not in cat_vars + binary_vars + [target]]
+
+    # Convertir variables categoricas a string para que feature_engine las reconozca
+    for col in cat_vars:
+        if col in df.columns:
+            df[col] = df[col].astype(str)
+    
+    # Asegurar que Materia es numérica si existe
+    if 'Materia' in df.columns:
+        df['Materia'] = pd.to_numeric(df['Materia'], errors='coerce').fillna(0).astype(int)
 
     print(f'\n[{dataset.upper()}] Variables identificadas:')
     print(f'  Numericas   ({len(num_vars)}): {num_vars}')
