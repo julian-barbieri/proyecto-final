@@ -15,9 +15,9 @@ def cargar_datos(data_dir: str = 'data') -> tuple[pd.DataFrame, pd.DataFrame, pd
     Retorna
     -------
     tuple con tres DataFrames: (alumno, materia, examen)
-        - alumno  : nivel_alumno.csv  — perfil demográfico de cada alumno
-        - materia : nivel_materia.csv — registro de cursadas por alumno y materia
-        - examen  : nivel_examen.csv  — instancias de examen con notas
+        - alumno  : data/nivel_alumno.csv  — perfil demográfico de cada alumno
+        - materia : data/nivel_materia.csv — registro de cursadas por alumno y materia
+        - examen  : data/nivel_examen.csv  — instancias de examen con notas
 
     Ejemplo de uso
     --------------
