@@ -27,15 +27,16 @@ app = FastAPI(
 # 3) Llamamos a los modelos ya entrenados
 # ---------------------------------------------------------------------------
 _MODELS_DIR = os.path.join(os.path.dirname(__file__), 'models')
+_MODELS_TRAINED_DIR = os.path.join(_MODELS_DIR, 'models-trained')
 
 try:
-    model_alumno  = joblib.load(os.path.join(_MODELS_DIR, 'modelo_alumno.pkl'))
-    model_materia = joblib.load(os.path.join(_MODELS_DIR, 'modelo_materia.pkl'))
-    model_examen  = joblib.load(os.path.join(_MODELS_DIR, 'modelo_examen.pkl'))
+    model_alumno  = joblib.load(os.path.join(_MODELS_TRAINED_DIR, 'modelo_alumno.pkl'))
+    model_materia = joblib.load(os.path.join(_MODELS_TRAINED_DIR, 'modelo_materia.pkl'))
+    model_examen  = joblib.load(os.path.join(_MODELS_TRAINED_DIR, 'modelo_examen.pkl'))
 except FileNotFoundError as exc:
     raise RuntimeError(
         f'Modelo no encontrado: {exc}. '
-        'Ejecuta model_training_evaluation.py antes de iniciar la API.'
+        'Ejecuta python models/training/main.py antes de iniciar la API.'
     ) from exc
 
 

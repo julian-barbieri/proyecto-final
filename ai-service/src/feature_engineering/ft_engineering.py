@@ -6,10 +6,9 @@ from sklearn.model_selection import train_test_split
 from feature_engine.imputation import MeanMedianImputer
 from feature_engine.encoding import OneHotEncoder as FeOneHotEncoder
 
-sys.path.append(os.path.dirname(__file__))
-from cargar_datos import cargar_datos
+from .cargar_datos import cargar_datos
 
-DATA_DIR = os.path.join(os.path.dirname(__file__), '..', 'data')
+DATA_DIR = os.path.join(os.path.dirname(__file__), '..', '..', 'data')
 
 # Mapeo de correlativas: Materia -> Lista de materias que son prerequisito
 # Extraído del plan de estudios - Ingeniería en Informática
@@ -265,44 +264,6 @@ def ft_engineering_procesado(dataset: str = 'examen'):
         ]
         df[fill_zero] = df[fill_zero].fillna(0)
 
-        # -- 0e) IndiceBloqueo: verificar si el alumno esta bloqueado -----------
-        # Un alumno está bloqueado si no aprobó una de sus correlativas
-        def calcular_indice_bloqueo(row):
-            """
-            Retorna 1 si la materia actual tiene correlativas y el alumno
-            no aprobó al menos una de ellas; 0 en caso contrario.
-            """
-            materia_id = row['Materia']
-            id_alumno = row['IdAlumno']
-            
-            # Si esta materia no tiene correlativas definidas, no está bloqueada
-            if materia_id not in CORRELATIVAS_MAP:
-                return 0
-            
-            correlativas = CORRELATIVAS_MAP[materia_id]
-            
-            # Obtener el historial de exámenes del alumno para las correlativas
-            ex_alumno = examen[examen['IdAlumno'] == id_alumno]
-            
-            # Verificar si aprobó al menos una de cada grupo de correlativas
-            # Si correlativas es [A, B], necesita aprobar A Y B
-            # Si correlativas es [A] o [A, B con alternativa], verificar aprobación
-            
-            # Contar si el alumno aprobó cada correlativa
-            aprobadas = []
-            for corr in correlativas:
-                notas_corr = ex_alumno[ex_alumno['Materia'] == corr]['Nota']
-                # Considerar aprobada si tiene al menos una nota >= 4
-                aprobada = (notas_corr >= 4).any() if len(notas_corr) > 0 else False
-                aprobadas.append(aprobada)
-            
-            # Bloqueado si NO aprobó todas las correlativas (AND lógico)
-            # Si todas las correlativas fueron aprobadas, no está bloqueado
-            bloqueado = not all(aprobadas)
-            return int(bloqueado)
-        
-        df['IndiceBloqueo'] = df.apply(calcular_indice_bloqueo, axis=1)
-
         df = df.drop(columns=['IdAlumno'])
 
     elif dataset == 'examen':
@@ -409,39 +370,6 @@ def ft_engineering_procesado(dataset: str = 'examen'):
             calcular_nota_promedio_correlativas, axis=1
         )
 
-        # -- 0f) IndiceBloqueo: flag si el alumno está bloqueado en esta materia
-        def calcular_indice_bloqueo_examen(row):
-            """
-            Retorna 1 si la materia actual tiene correlativas y el alumno
-            no ha aprobado todas ellas; 0 en caso contrario.
-            """
-            materia_id = row['Materia']
-            id_alumno = row['IdAlumno']
-            
-            # Si no tiene correlativas, no está bloqueado
-            if materia_id not in CORRELATIVAS_MAP:
-                return 0
-            
-            correlativas = CORRELATIVAS_MAP[materia_id]
-            
-            # Obtener notas del alumno en las correlativas
-            ex_alumno = examen[
-                (examen['IdAlumno'] == id_alumno) & 
-                (examen['AusenteExamen'] == 0)
-            ]
-            
-            # Verificar si aprobó todas las correlativas (nota >= 4)
-            for corr in correlativas:
-                notas_corr = ex_alumno[ex_alumno['Materia'] == corr]['Nota']
-                # Si no tiene registros o ninguno >= 4, está bloqueado
-                if len(notas_corr) == 0 or (notas_corr >= 4).sum() == 0:
-                    return 1
-            
-            # Aprobó todas las correlativas
-            return 0
-        
-        df['IndiceBloqueo'] = df.apply(calcular_indice_bloqueo_examen, axis=1)
-
         # -- 0g) Features derivadas del flujo academico (dominio especifico) ----
         # Basadas en las reglas del dataset: Parcial → Recuperatorio → Final
         # y los umbrales explicitos definidos en el dominio universitario
@@ -459,12 +387,6 @@ def ft_engineering_procesado(dataset: str = 'examen'):
             lambda row: posicion_map.get((row['TipoExamen'], row['Instancia']), 0),
             axis=1,
         )
-
-        # AsistenciaBajaRiesgo: flag binario si la asistencia esta por debajo del
-        # umbral critico del 75%. Segun las reglas del sistema, Asistencia < 0.75
-        # impide rendir finales (aparece como ausente). Aunque ya filtramos
-        # examenes no rendidos, captura alumnos en riesgo de quedar bloqueados.
-        df['AsistenciaBajaRiesgo'] = (df['Asistencia'] < 0.75).astype(int)
 
         # NotaPromedioParcialCursada / CantParcialesAprobados:
         # Para cada (IdAlumno, Materia, Anio), agrega las notas de los Parciales
@@ -488,13 +410,6 @@ def ft_engineering_procesado(dataset: str = 'examen'):
         # Filas sin parciales previos (p.ej., la propia fila es un Parcial 1)
         df['NotaPromedioParcialCursada'] = df['NotaPromedioParcialCursada'].fillna(0)
         df['CantParcialesAprobados']     = df['CantParcialesAprobados'].fillna(0)
-
-        # EsUltimaInstancia: flag binario si es Final instancia 3, es decir,
-        # la ultima oportunidad antes de recursar. El alumno que llega aqui
-        # ya fallo Final1 y Final2, lo que puede influir en su desempeño.
-        df['EsUltimaInstancia'] = (
-            (df['TipoExamen'] == 'Final') & (df['Instancia'] == 3)
-        ).astype(int)
 
         df = df.drop(columns=['IdAlumno'])
 
@@ -522,13 +437,47 @@ def ft_engineering_procesado(dataset: str = 'examen'):
     if 'Genero' in df.columns:
         df['Genero'] = df['Genero'].map({'Masculino': 1, 'Femenino': 0})
 
+    # -- 1.5) Seleccionar variables especificas para cada dataset -----------
+    if dataset == 'alumno':
+        # Variables seleccionadas para prediccion de abandonos
+        alumno_vars = [
+            # Variables numericas (13)
+            'CantMaterias', 'PromedioAsistencia',
+            'CantAniosCursados', 'CantExamenesRendidos', 'PromedioNota',
+            'CantFinalesRendidos', 'CantAusencias', 'TasaAusencia',
+            'CantAprobados', 'TasaAprobacion', 'Edad',
+            # Variables binarias (3)
+            'Genero', 'AyudaFinanciera', 'ColegioTecnico',
+            # Variables numericas (1)
+            'PromedioColegio',
+            # Target
+            target
+        ]
+        # Filtrar solo las columnas que existen en df
+        alumno_vars = [col for col in alumno_vars if col in df.columns]
+        df = df[alumno_vars]
+
+    elif dataset == 'materia':
+        # Variables seleccionadas para prediccion de recursada
+        materia_vars = [
+            # Variables numericas (8)
+            'Edad', 'PromedioColegio', 'Asistencia', 'AniosDesdeIngreso',
+            'Materia', 'PromedioNotaGeneral', 'TasaAprobacionGeneral', 'IndiceBloqueo',
+            # Variables binarias (3)
+            'Genero', 'AyudaFinanciera', 'ColegioTecnico',
+            # Target
+            target
+        ]
+        # Filtrar solo las columnas que existen en df
+        materia_vars = [col for col in materia_vars if col in df.columns]
+        df = df[materia_vars]
+
     # -- 2) Identificar variables categoricas, numericas y binarias -----------
     # Nota: Materia es una ID numérica (140-187), no una categoría nominal.
     # No debe ser OneHotEncoded, debe mantener su naturaleza numérica.
     # Tipo contiene categorías como 'A' y 'C' que SÍ deben ser codificadas.
     cat_vars    = [c for c in ['TipoExamen', 'Tipo'] if c in df.columns]
-    binary_vars = [c for c in ['Genero', 'AyudaFinanciera', 'ColegioTecnico',
-                               'AsistenciaBajaRiesgo', 'EsUltimaInstancia', 'IndiceBloqueo']
+    binary_vars = [c for c in ['Genero', 'AyudaFinanciera', 'ColegioTecnico']
                    if c in df.columns]
     num_vars    = [c for c in df.columns if c not in cat_vars + binary_vars + [target]]
 

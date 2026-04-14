@@ -21,7 +21,7 @@ def cargar_datos(data_dir: str = 'data') -> tuple[pd.DataFrame, pd.DataFrame, pd
 
     Ejemplo de uso
     --------------
-    from cargar_datos import cargar_datos
+    from feature_engineering import cargar_datos
 
     alumno, materia, examen = cargar_datos()
     alumno, materia, examen = cargar_datos(data_dir='mi_carpeta/data')

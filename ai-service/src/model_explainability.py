@@ -55,16 +55,17 @@ def cargar_modelos(models_dir: str = _MODELS_DIR) -> dict:
     """
     modelos = {}
     datasets = ['alumno', 'materia', 'examen']
+    models_trained_dir = os.path.join(models_dir, 'models-trained')
 
     for ds in datasets:
-        ruta = os.path.join(models_dir, f'modelo_{ds}.pkl')
+        ruta = os.path.join(models_trained_dir, f'modelo_{ds}.pkl')
         try:
             modelos[ds] = joblib.load(ruta)
             print(f'  [OK] modelo_{ds}.pkl cargado correctamente.')
         except FileNotFoundError:
             raise RuntimeError(
                 f'No se encontró el archivo: {ruta}\n'
-                f'Ejecutá model_training_evaluation.py primero para generar los .pkl.'
+                f'Ejecutá python models/training/main.py primero para generar los .pkl.'
             )
         except Exception as exc:
             raise RuntimeError(f'Error al cargar modelo_{ds}.pkl: {exc}') from exc
@@ -365,16 +366,18 @@ if __name__ == '__main__':
     MODELS_DIR = _MODELS_DIR
     OUTPUT_DIR = _OUTPUT_DIR
 
-    # Rutas a los CSV de test generados por model_training_evaluation.py
+    # Rutas a los CSV de test generados por models/training/main.py
+    # Los archivos se guardan en la carpeta dataset-test dentro de models/
+    DATASET_TEST_DIR = os.path.join(MODELS_DIR, 'dataset-test')
     CSV_X_TEST = {
-        'alumno':  os.path.join(MODELS_DIR, 'X_test_alumno.csv'),
-        'materia': os.path.join(MODELS_DIR, 'X_test_materia.csv'),
-        'examen':  os.path.join(MODELS_DIR, 'X_test_examen.csv'),
+        'alumno':  os.path.join(DATASET_TEST_DIR, 'X_test_alumno.csv'),
+        'materia': os.path.join(DATASET_TEST_DIR, 'X_test_materia.csv'),
+        'examen':  os.path.join(DATASET_TEST_DIR, 'X_test_examen.csv'),
     }
     CSV_Y_TEST = {
-        'alumno':  os.path.join(MODELS_DIR, 'y_test_alumno.csv'),
-        'materia': os.path.join(MODELS_DIR, 'y_test_materia.csv'),
-        'examen':  os.path.join(MODELS_DIR, 'y_test_examen.csv'),
+        'alumno':  os.path.join(DATASET_TEST_DIR, 'y_test_alumno.csv'),
+        'materia': os.path.join(DATASET_TEST_DIR, 'y_test_materia.csv'),
+        'examen':  os.path.join(DATASET_TEST_DIR, 'y_test_examen.csv'),
     }
 
     # Tipo de problema por dataset
