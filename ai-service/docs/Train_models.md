@@ -11,17 +11,21 @@ Este directorio contiene los scripts para entrenar los tres modelos de predicci�
 
 ## Uso
 
-### Entrenar un modelo específico
+### Ejemplos de uso:
 
 ```bash
-# Entrenar solo el modelo de ALUMNO
-python alumno_training.py
+#Entrena todos los modelos
+python main.py                    
+# Entrena modelo alumno
+python main.py --modelo alumno    
 
-# Entrenar solo el modelo de MATERIA
-python materia_training.py
+# Entrena solo predicción de materia
+python main.py --modelo materia   
 
-# Entrenar solo el modelo de EXAMEN
-python examen_training.py
+# Entrena solo predicción de nota
+python main.py --modelo examen    
+
+
 ```
 
 ### Entrenar todos los modelos

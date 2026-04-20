@@ -694,4 +694,13 @@ db.exec(`
   );
 `);
 
+// Nuevas columnas para soporte de 48 materias del plan de estudios
+safeAlterTable("ALTER TABLE materias ADD COLUMN codigo_plan INTEGER");
+safeAlterTable("ALTER TABLE materias ADD COLUMN tipo TEXT DEFAULT 'C'");
+safeAlterTable("ALTER TABLE materias ADD COLUMN anio_carrera INTEGER DEFAULT 1");
+safeAlterTable("ALTER TABLE materias ADD COLUMN correlativas TEXT DEFAULT '[]'");
+safeAlterTable("ALTER TABLE cursadas ADD COLUMN cuatrimestre INTEGER DEFAULT 0");
+safeAlterTable("ALTER TABLE examenes ADD COLUMN tipo_materia TEXT DEFAULT 'C'");
+safeAlterTable("ALTER TABLE examenes ADD COLUMN cuatrimestre INTEGER DEFAULT 0");
+
 module.exports = db;

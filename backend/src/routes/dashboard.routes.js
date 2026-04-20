@@ -12,12 +12,29 @@ router.use(authorize("admin", "coordinador"));
 
 const AI_URL = process.env.AI_SERVICE_URL || "http://localhost:8000";
 
+function sinDatos(alumno) {
+  return {
+    id: alumno.id,
+    nombre: alumno.nombre_completo,
+    veces_cursada: alumno.veces_cursada,
+    asistencia: alumno.ultima_asistencia,
+    abandona: null,
+    probabilidad: null,
+    nivel_riesgo: "sin_datos",
+  };
+}
+
 async function obtenerPrediccionesAbandono(alumnosActivos) {
   const predicciones = [];
   const loteSize = 5;
   let aiDisponible = true;
 
   for (let i = 0; i < alumnosActivos.length; i += loteSize) {
+    if (!aiDisponible) {
+      predicciones.push(...alumnosActivos.slice(i).map(sinDatos));
+      break;
+    }
+
     const lote = alumnosActivos.slice(i, i + loteSize);
     const promesas = lote.map(async (alumno) => {
       try {
@@ -25,7 +42,6 @@ async function obtenerPrediccionesAbandono(alumnosActivos) {
         const body = { ...vars };
         delete body._meta;
 
-        // Aplicar el quirk de PromedioColegio_x/_y
         if (!body.PromedioColegio_x && body.PromedioColegio) {
           body.PromedioColegio_x = body.PromedioColegio;
           body.PromedioColegio_y = body.PromedioColegio;
@@ -33,7 +49,7 @@ async function obtenerPrediccionesAbandono(alumnosActivos) {
         }
 
         const resp = await axios.post(`${AI_URL}/predict/alumno`, [body], {
-          timeout: 5000,
+          timeout: 3000,
         });
         const resultado = resp.data[0];
 
@@ -52,20 +68,9 @@ async function obtenerPrediccionesAbandono(alumnosActivos) {
                 : "bajo",
         };
       } catch (err) {
-        console.error(
-          `Error prediciendo abandono para alumno ${alumno.id}:`,
-          err.message,
-        );
+        console.warn(`Servicio IA no disponible (alumno ${alumno.id}): ${err.message}`);
         aiDisponible = false;
-        return {
-          id: alumno.id,
-          nombre: alumno.nombre_completo,
-          veces_cursada: alumno.veces_cursada,
-          asistencia: alumno.ultima_asistencia,
-          abandona: null,
-          probabilidad: null,
-          nivel_riesgo: "sin_datos",
-        };
+        return sinDatos(alumno);
       }
     });
 
@@ -264,7 +269,6 @@ router.get("/", async (req, res) => {
         en_riesgo_medio: enRiesgoMedio,
         sin_riesgo: sinRiesgo,
         tasa_riesgo_alto_pct: parseFloat(tasaRiesgoAlto),
-        distribucion: prediccionesAbandono,
       },
       por_materia: tasaRecursadoPorMateria,
       distribucion_por_materia: distribucionPorMateria,

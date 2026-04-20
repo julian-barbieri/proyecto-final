@@ -1,23 +1,24 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import api from "../../api/axios";
 
 const currentYear = new Date().getFullYear();
 
 const initialValues = {
-  Materia: "0",
-  TipoExamen: "Parcial",
-  Instancia: "1",
+  Materia: "",
+  Cuatrimestre: "0",
   Anio: String(currentYear),
-  Asistencia: "0.75",
-  VecesRecursada: "0",
-  PosicionFlujo: "1",
-  AsistenciaBajaRiesgo: "0",
-  EsUltimaInstancia: "0",
+  Instancia: "1",
   Genero: "0",
-  Edad: "20",
   AyudaFinanciera: "0",
   ColegioTecnico: "0",
   PromedioColegio: "7",
+  Asistencia: "0.75",
+  VecesRecursada: "0",
+  AnoCarrera: "1",
+  NotaPromedioCorrelativas: "0",
+  MateriasAprobadasHastaMomento: "0",
+  CargaSimultanea: "1",
+  IndiceBloqueo: "0",
   AnioIngreso: String(currentYear - 1),
   AniosDesdeIngreso: "1",
   VecesCursadaMateria: "1",
@@ -26,23 +27,32 @@ const initialValues = {
   TotalCursadasGeneral: "1",
   TasaRecursaGeneral: "0",
   PromedioAsistenciaGeneral: "0.75",
+  PosicionFlujo: "1",
   NotaPromedioParcialCursada: "5",
   CantParcialesAprobados: "0",
-  TieneFinalAM1: "0",
+  Edad: "20",
+  TipoExamen: "Parcial",
+  Tipo: "C",
 };
 
+// payloadFields exactamente en el orden/nombres de feature_names_in_ del modelo examen
+// TipoExamen y Tipo se envían como strings; el AI service los OHE internamente
 const payloadFields = [
   "Materia",
-  "TipoExamen",
-  "Instancia",
+  "Cuatrimestre",
   "Anio",
-  "Asistencia",
-  "VecesRecursada",
+  "Instancia",
   "Genero",
-  "Edad",
   "AyudaFinanciera",
   "ColegioTecnico",
   "PromedioColegio",
+  "Asistencia",
+  "VecesRecursada",
+  "AñoCarrera",
+  "NotaPromedioCorrelativas",
+  "MateriasAprobadasHastaMomento",
+  "CargaSimultanea",
+  "IndiceBloqueo",
   "AniosDesdeIngreso",
   "VecesCursadaMateria",
   "TasaRecursaMateria",
@@ -51,20 +61,19 @@ const payloadFields = [
   "TasaRecursaGeneral",
   "PromedioAsistenciaGeneral",
   "PosicionFlujo",
-  "AsistenciaBajaRiesgo",
   "NotaPromedioParcialCursada",
   "CantParcialesAprobados",
-  "EsUltimaInstancia",
-  "TieneFinalAM1",
+  "Edad",
+  "TipoExamen",
+  "Tipo",
 ];
 
-const sectionClassName =
-  "rounded-xl border border-slate-200 bg-slate-50/70 p-5";
+const sectionClassName = "rounded-xl border border-slate-200 bg-slate-50/70 p-5";
 const readOnlyClassName = "bg-slate-100 text-slate-600";
 
 const posicionFlujoMap = {
-  Parcial: { 1: 1, 2: 2 },
-  Recuperatorio: { 1: 3, 2: 4 },
+  Parcial: { 1: 1, 2: 3 },
+  Recuperatorio: { 1: 2, 2: 4 },
   Final: { 1: 5, 2: 6, 3: 7 },
 };
 
@@ -73,34 +82,24 @@ function isEmptyValue(value) {
 }
 
 function getInstanciaOptions(tipoExamen) {
-  if (tipoExamen === "Final") {
-    return ["1", "2", "3"];
-  }
-
+  if (tipoExamen === "Final") return ["1", "2", "3"];
   return ["1", "2"];
 }
 
 function getMaxCantParcialesAprobados(tipoExamen, instancia) {
-  const instanciaNumerica = Number(instancia || 1);
-
-  if (tipoExamen === "Parcial") {
-    return Math.min(2, Math.max(1, instanciaNumerica));
-  }
-
+  const n = Number(instancia || 1);
+  if (tipoExamen === "Parcial") return Math.min(2, Math.max(1, n));
   return 2;
 }
 
 function buildPayload(formValues) {
   return Object.fromEntries(
     payloadFields.map((key) => {
-      if (key === "TipoExamen") {
-        return [key, formValues[key]];
-      }
-
-      if (key === "TieneFinalAM1" && formValues.Materia !== "1") {
-        return [key, 0];
-      }
-
+      // Los campos OHE se envían como string
+      if (key === "TipoExamen") return [key, formValues.TipoExamen];
+      if (key === "Tipo") return [key, formValues.Tipo];
+      // AñoCarrera tiene tilde — viene de formValues.AnoCarrera (sin tilde en el form)
+      if (key === "AñoCarrera") return [key, Number(formValues.AnoCarrera || 1)];
       return [key, Number(formValues[key])];
     }),
   );
@@ -119,6 +118,7 @@ export default function ExamenForm({
   const [errors, setErrors] = useState({});
   const [errorMessage, setErrorMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [materias, setMaterias] = useState([]);
 
   const submitDisabled = isLoading || isSubmitting;
   const instanciaOptions = getInstanciaOptions(formValues.TipoExamen);
@@ -127,28 +127,38 @@ export default function ExamenForm({
     formValues.Instancia,
   );
 
+  useEffect(() => {
+    api
+      .get("/api/gestion/materias")
+      .then((res) => setMaterias(res.data || []))
+      .catch(() => setMaterias([]));
+  }, []);
+
   const updateDerivedFields = (nextValues) => {
     const anio = Number(nextValues.Anio || currentYear);
     const anioIngreso = Number(nextValues.AnioIngreso || currentYear - 1);
-    const asistencia = Number(nextValues.Asistencia || 0);
     const instancia = Number(nextValues.Instancia || 1);
-    const tieneFinalAM1 =
-      nextValues.Materia === "1" ? nextValues.TieneFinalAM1 : "0";
 
     const aniosDesdeIngreso = Math.max(0, anio - anioIngreso);
-    const posicionFlujo =
-      posicionFlujoMap[nextValues.TipoExamen]?.[instancia] ?? 1;
-    const asistenciaBajaRiesgo = asistencia < 0.75 ? 1 : 0;
-    const esUltimaInstancia =
-      nextValues.TipoExamen === "Final" && instancia === 3 ? 1 : 0;
+    const posicionFlujo = posicionFlujoMap[nextValues.TipoExamen]?.[instancia] ?? 1;
+
+    // Auto-derivar Tipo y AñoCarrera desde la materia seleccionada
+    const materiaSeleccionada = materias.find(
+      (m) => String(m.codigo_plan) === String(nextValues.Materia),
+    );
+    const tipo = materiaSeleccionada?.tipo ?? nextValues.Tipo ?? "C";
+    const anoCarrera = materiaSeleccionada?.anio_carrera ?? nextValues.AnoCarrera ?? 1;
+    // Materias anuales (tipo 'A') tienen cuatrimestre = 0
+    const cuatrimestre =
+      tipo === "A" ? "0" : nextValues.Cuatrimestre ?? "1";
 
     return {
       ...nextValues,
       AniosDesdeIngreso: String(aniosDesdeIngreso),
       PosicionFlujo: String(posicionFlujo),
-      AsistenciaBajaRiesgo: String(asistenciaBajaRiesgo),
-      EsUltimaInstancia: String(esUltimaInstancia),
-      TieneFinalAM1: tieneFinalAM1,
+      Tipo: tipo,
+      AnoCarrera: String(anoCarrera),
+      Cuatrimestre: cuatrimestre,
     };
   };
 
@@ -159,10 +169,10 @@ export default function ExamenForm({
           name: "Materia",
           label: "Materia",
           type: "select",
-          options: [
-            { label: "AM1 - Análisis Matemático 1", value: "0" },
-            { label: "AM2 - Análisis Matemático 2", value: "1" },
-          ],
+          options: materias.map((m) => ({
+            label: `${m.codigo_plan} - ${m.nombre}`,
+            value: String(m.codigo_plan),
+          })),
         },
         {
           name: "TipoExamen",
@@ -194,6 +204,16 @@ export default function ExamenForm({
           min: 0,
           max: 1,
           step: "0.01",
+        },
+        {
+          name: "Cuatrimestre",
+          label: "Cuatrimestre (0=anual, 1=1°C, 2=2°C)",
+          type: "select",
+          options: [
+            { label: "Anual (0)", value: "0" },
+            { label: "1° Cuatrimestre", value: "1" },
+            { label: "2° Cuatrimestre", value: "2" },
+          ],
         },
         {
           name: "VecesRecursada",
@@ -251,6 +271,44 @@ export default function ExamenForm({
           label: "Años desde el ingreso",
           type: "number",
           readOnly: true,
+        },
+        {
+          name: "AnoCarrera",
+          label: "Año de carrera (derivado de la materia)",
+          type: "number",
+          min: 1,
+          max: 5,
+          readOnly: true,
+        },
+      ],
+      contexto: [
+        {
+          name: "MateriasAprobadasHastaMomento",
+          label: "Materias aprobadas hasta el momento",
+          type: "number",
+          min: 0,
+        },
+        {
+          name: "CargaSimultanea",
+          label: "Materias cursadas simultáneamente",
+          type: "number",
+          min: 1,
+        },
+        {
+          name: "IndiceBloqueo",
+          label: "Índice de bloqueo (0=sin bloqueo, 1=bloqueado)",
+          type: "number",
+          min: 0,
+          max: 1,
+          step: "0.01",
+        },
+        {
+          name: "NotaPromedioCorrelativas",
+          label: "Promedio de notas en correlativas",
+          type: "number",
+          min: 0,
+          max: 10,
+          step: "0.1",
         },
       ],
       historialMateria: [
@@ -318,71 +376,51 @@ export default function ExamenForm({
           max: 2,
         },
         {
-          name: "TieneFinalAM1",
-          label: "¿Tiene Final de AM1 aprobado?",
-          type: "select",
-          options: [
-            { label: "No", value: "0" },
-            { label: "Sí", value: "1" },
-          ],
+          name: "PosicionFlujo",
+          label: "Posición en el flujo académico (1-7)",
+          type: "number",
+          min: 1,
+          max: 7,
+          readOnly: true,
         },
       ],
     }),
-    [],
+    [materias],
   );
 
   const validateForm = (values) => {
+    const skipKeys = new Set(["PosicionFlujo", "AnoCarrera", "Tipo"]);
+    const numericPayloadKeys = payloadFields.filter(
+      (k) => k !== "TipoExamen" && k !== "Tipo" && k !== "AñoCarrera",
+    );
     const validationErrors = Object.fromEntries(
-      Object.entries(values)
-        .filter(([key, value]) => {
-          if (
-            [
-              "PosicionFlujo",
-              "AsistenciaBajaRiesgo",
-              "EsUltimaInstancia",
-            ].includes(key)
-          ) {
-            return false;
-          }
-
-          return isEmptyValue(value);
+      numericPayloadKeys
+        .filter((key) => {
+          const formKey = key === "AñoCarrera" ? "AnoCarrera" : key;
+          return !skipKeys.has(formKey) && isEmptyValue(values[formKey]);
         })
-        .map(([key]) => [key, "Este campo es obligatorio"]),
+        .map((key) => {
+          const formKey = key === "AñoCarrera" ? "AnoCarrera" : key;
+          return [formKey, "Este campo es obligatorio"];
+        }),
     );
 
-    const cantParcialesAprobados = Number(values.CantParcialesAprobados || 0);
-    const maxParcialesAprobados = getMaxCantParcialesAprobados(
-      values.TipoExamen,
-      values.Instancia,
-    );
-
-    if (cantParcialesAprobados > 2) {
+    const cant = Number(values.CantParcialesAprobados || 0);
+    if (cant > 2) {
       validationErrors.CantParcialesAprobados =
         "La cantidad de parciales aprobados no puede superar 2.";
-    } else if (cantParcialesAprobados > maxParcialesAprobados) {
-      validationErrors.CantParcialesAprobados =
-        values.TipoExamen === "Parcial"
-          ? `Para ${values.TipoExamen.toLowerCase()} ${values.Instancia}, la cantidad de parciales aprobados no puede superar ${maxParcialesAprobados}.`
-          : `La cantidad de parciales aprobados no puede superar ${maxParcialesAprobados}.`;
+    } else if (cant > maxCantParcialesAprobados) {
+      validationErrors.CantParcialesAprobados = `Para ${values.TipoExamen.toLowerCase()} ${values.Instancia}, no puede superar ${maxCantParcialesAprobados}.`;
     }
 
-    const notaPromedioParcialCursada = Number(
-      values.NotaPromedioParcialCursada || 0,
-    );
-
-    if (cantParcialesAprobados === 0 && notaPromedioParcialCursada >= 4) {
+    const notaPromedio = Number(values.NotaPromedioParcialCursada || 0);
+    if (cant === 0 && notaPromedio >= 4) {
       validationErrors.NotaPromedioParcialCursada =
-        "Si no hay parciales aprobados, el promedio de parciales no debería ser aprobatorio.";
+        "Si no hay parciales aprobados, el promedio no debería ser aprobatorio.";
     }
-
-    if (cantParcialesAprobados > 0 && notaPromedioParcialCursada === 0) {
+    if (cant > 0 && notaPromedio === 0) {
       validationErrors.NotaPromedioParcialCursada =
-        "Si hay parciales aprobados, el promedio de parciales no puede ser 0.";
-    }
-
-    if (values.Materia !== "1" && values.TieneFinalAM1 !== "0") {
-      validationErrors.TieneFinalAM1 =
-        "Solo se puede informar Final de AM1 aprobado cuando la materia es AM2.";
+        "Si hay parciales aprobados, el promedio no puede ser 0.";
     }
 
     return validationErrors;
@@ -390,57 +428,15 @@ export default function ExamenForm({
 
   const handleChange = (event) => {
     const { name, value } = event.target;
-
     setFormValues((prev) => {
-      const nextValues = {
-        ...prev,
-        [name]: value,
-      };
-
-      if (name === "TipoExamen") {
-        nextValues.Instancia = "1";
-      }
-
+      const nextValues = { ...prev, [name]: value };
+      if (name === "TipoExamen") nextValues.Instancia = "1";
       return updateDerivedFields(nextValues);
     });
-
     setErrors((prev) => {
-      if (
-        !prev[name] &&
-        !(
-          prev.CantParcialesAprobados &&
-          ["TipoExamen", "Instancia", "CantParcialesAprobados"].includes(name)
-        ) &&
-        !(
-          prev.NotaPromedioParcialCursada &&
-          ["CantParcialesAprobados", "NotaPromedioParcialCursada"].includes(
-            name,
-          )
-        ) &&
-        !(prev.TieneFinalAM1 && ["Materia", "TieneFinalAM1"].includes(name))
-      ) {
-        return prev;
-      }
-
+      if (!prev[name]) return prev;
       const nextErrors = { ...prev };
       delete nextErrors[name];
-
-      if (
-        ["TipoExamen", "Instancia", "CantParcialesAprobados"].includes(name)
-      ) {
-        delete nextErrors.CantParcialesAprobados;
-      }
-
-      if (
-        ["CantParcialesAprobados", "NotaPromedioParcialCursada"].includes(name)
-      ) {
-        delete nextErrors.NotaPromedioParcialCursada;
-      }
-
-      if (["Materia", "TieneFinalAM1"].includes(name)) {
-        delete nextErrors.TieneFinalAM1;
-      }
-
       return nextErrors;
     });
   };
@@ -460,10 +456,7 @@ export default function ExamenForm({
 
     const validationErrors = validateForm(formValues);
     setErrors(validationErrors);
-
-    if (Object.keys(validationErrors).length > 0) {
-      return;
-    }
+    if (Object.keys(validationErrors).length > 0) return;
 
     onPredictStart?.();
     setIsSubmitting(true);
@@ -475,15 +468,9 @@ export default function ExamenForm({
     } catch (error) {
       const message = !error?.response
         ? "No se pudo conectar con el backend. Verificá que esté corriendo en http://localhost:3001"
-        : error?.message ||
-          error?.response?.data?.error ||
-          "No se pudo obtener la predicción.";
-
-      if (onPredictError) {
-        onPredictError(message);
-      } else {
-        setErrorMessage(message);
-      }
+        : error?.message || error?.response?.data?.error || "No se pudo obtener la predicción.";
+      if (onPredictError) onPredictError(message);
+      else setErrorMessage(message);
     } finally {
       setIsSubmitting(false);
       onPredictEnd?.();
@@ -498,7 +485,7 @@ export default function ExamenForm({
     if (field.type === "select") {
       const options =
         field.name === "Instancia"
-          ? instanciaOptions.map((value) => ({ label: value, value }))
+          ? instanciaOptions.map((v) => ({ label: v, value: v }))
           : field.options;
 
       return (
@@ -510,6 +497,9 @@ export default function ExamenForm({
           className={sharedClassName}
           required
         >
+          {field.name === "Materia" && (
+            <option value="">-- Seleccionar materia --</option>
+          )}
           {options.map((option) => (
             <option key={option.value} value={option.value}>
               {option.label}
@@ -549,10 +539,7 @@ export default function ExamenForm({
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         {sectionFields.map((field) => (
           <div key={field.name}>
-            <label
-              htmlFor={field.name}
-              className="text-sm font-medium text-slate-700"
-            >
+            <label htmlFor={field.name} className="text-sm font-medium text-slate-700">
               {field.label}
             </label>
             {renderField(field)}
@@ -571,9 +558,7 @@ export default function ExamenForm({
       className="space-y-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
     >
       <div>
-        <h2 className="text-xl font-semibold text-slate-900">
-          Predicción de nota de examen
-        </h2>
+        <h2 className="text-xl font-semibold text-slate-900">Predicción de nota de examen</h2>
         <p className="mt-1 text-sm text-slate-600">
           Cargá los datos del examen y del alumno para estimar la nota esperada.
         </p>
@@ -590,6 +575,11 @@ export default function ExamenForm({
         fields.alumno,
       )}
       {renderSection(
+        "Contexto académico",
+        "Información sobre correlativas, carga simultánea y bloqueo.",
+        fields.contexto,
+      )}
+      {renderSection(
         "Historial en esta materia",
         "Indicadores históricos específicos de la materia.",
         fields.historialMateria,
@@ -602,10 +592,7 @@ export default function ExamenForm({
       {renderSection(
         "Rendimiento en la cursada actual",
         "Desempeño de la cursada vigente.",
-        fields.rendimiento.filter(
-          (field) =>
-            field.name !== "TieneFinalAM1" || formValues.Materia === "1",
-        ),
+        fields.rendimiento,
       )}
 
       {errorMessage && (

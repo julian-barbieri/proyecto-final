@@ -8,6 +8,21 @@ import SeccionRendimiento from "../components/dashboard/SeccionRendimiento";
 function SkeletonLoader() {
   return (
     <div className="space-y-6">
+      {/* Loading message */}
+      <div className="flex flex-col items-center justify-center py-10 gap-4">
+        <div className="relative w-16 h-16">
+          <div className="absolute inset-0 rounded-full border-4 border-blue-100" />
+          <div className="absolute inset-0 rounded-full border-4 border-blue-500 border-t-transparent animate-spin" />
+          <div className="absolute inset-0 flex items-center justify-center text-2xl">
+            🎓
+          </div>
+        </div>
+        <div className="text-center">
+          <p className="text-base font-medium text-gray-700">Cargando predicciones...</p>
+          <p className="text-sm text-gray-400 mt-1">Esto puede tomar unos segundos</p>
+        </div>
+      </div>
+
       {/* KPI Skeleton */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {[1, 2, 3, 4].map((i) => (
@@ -22,13 +37,6 @@ function SkeletonLoader() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="animate-pulse bg-gray-200 rounded-lg h-64 w-full" />
         <div className="animate-pulse bg-gray-200 rounded-lg h-64 w-full" />
-      </div>
-
-      {/* Tabla Skeleton */}
-      <div className="animate-pulse space-y-2">
-        {[1, 2, 3, 4, 5].map((i) => (
-          <div key={i} className="bg-gray-200 rounded-lg h-12 w-full" />
-        ))}
       </div>
     </div>
   );
@@ -252,32 +260,7 @@ function SeccionResumen({
     useState(null);
 
   if (loading) {
-    return (
-      <div className="space-y-6">
-        {/* KPI Skeleton */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {[1, 2, 3, 4].map((i) => (
-            <div
-              key={i}
-              className="animate-pulse bg-gray-200 rounded-lg h-24 w-full"
-            />
-          ))}
-        </div>
-
-        {/* Alertas y Distribución Skeleton */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="animate-pulse bg-gray-200 rounded-lg h-64 w-full" />
-          <div className="animate-pulse bg-gray-200 rounded-lg h-64 w-full" />
-        </div>
-
-        {/* Tabla Skeleton */}
-        <div className="animate-pulse space-y-2">
-          {[1, 2, 3, 4, 5].map((i) => (
-            <div key={i} className="bg-gray-200 rounded-lg h-12 w-full" />
-          ))}
-        </div>
-      </div>
-    );
+    return <SkeletonLoader />;
   }
 
   if (error) {
@@ -684,87 +667,7 @@ function SeccionResumen({
         </div>
       </div>
 
-      {/* SECCIÓN 4: Tabla de alumnos */}
-      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-        <div className="bg-gradient-to-r from-gray-50 to-gray-50 px-6 py-4 border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-900">
-            📋 Estado de todos los alumnos
-          </h2>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50 border-b border-gray-200">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                  Nombre
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                  Veces
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                  Asistencia
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                  Riesgo
-                </th>
-                <th className="px-6 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                  Acción
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {abandono.distribucion.map((alumno) => (
-                <tr key={alumno.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                    {alumno.nombre}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                    {alumno.veces_cursada}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm">
-                    <span
-                      className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
-                        alumno.asistencia_pct >= 75
-                          ? "bg-green-50 text-green-700"
-                          : "bg-red-50 text-red-700"
-                      }`}
-                    >
-                      {alumno.asistencia_pct}%
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm">
-                    <span
-                      className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium ${
-                        alumno.nivel_riesgo === "alto"
-                          ? "bg-red-50 text-red-700"
-                          : alumno.nivel_riesgo === "medio"
-                            ? "bg-amber-50 text-amber-700"
-                            : "bg-green-50 text-green-700"
-                      }`}
-                    >
-                      {alumno.nivel_riesgo === "alto"
-                        ? "🔴 Alto"
-                        : alumno.nivel_riesgo === "medio"
-                          ? "🟡 Medio"
-                          : "🟢 Bajo"}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-center">
-                    <button
-                      onClick={() => navigate(`/alumnos/${alumno.id}`)}
-                      className="text-blue-600 hover:text-blue-800 font-medium text-sm"
-                    >
-                      Ver perfil →
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* SECCIÓN 5: Actividad reciente */}
+      {/* SECCIÓN 4: Actividad reciente */}
       <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
         <div className="bg-gradient-to-r from-purple-50 to-purple-50 px-6 py-4 border-b border-purple-200">
           <h2 className="text-lg font-semibold text-gray-900">

@@ -1,6 +1,87 @@
 const bcrypt = require("bcryptjs");
 const db = require("./database");
 
+// Plan de estudios completo — Ingeniería en Informática
+// Formato: [codigo_plan, nombre, tipo ('A'=anual, 'C'=cuatrimestral), anio_carrera, correlativas[]]
+const PLAN_CURRICULUM = [
+  [140, "Introducción a la Administración de Empresas", "C", 1, []],
+  [141, "Sistemas Numéricos", "C", 1, []],
+  [142, "Análisis Matemático I", "A", 1, []],
+  [143, "Metodología de la Investigación", "C", 1, []],
+  [144, "Introducción a la Programación", "C", 1, []],
+  [145, "Arquitectura de Computadoras", "C", 1, [141]],
+  [146, "Álgebra I", "C", 1, []],
+  [147, "Paradigmas de Programación", "C", 1, [144]],
+  [148, "Programación I", "C", 1, [144]],
+  [149, "Sistemas de Representación", "C", 2, []],
+  [150, "Física I", "C", 2, []],
+  [151, "Cálculo Numérico", "C", 2, [142]],
+  [152, "Estructura de Datos y Algoritmos", "A", 2, [144]],
+  [153, "Sistemas de Información I", "A", 2, []],
+  [154, "Álgebra II", "C", 2, [146]],
+  [155, "Filosofía", "C", 2, []],
+  [156, "Programación II", "C", 2, [147, 148]],
+  [157, "Teoría de Lenguajes", "C", 2, [147, 148]],
+  [158, "Análisis Matemático II", "C", 2, [142]],
+  [159, "Química General", "C", 3, []],
+  [160, "Física II", "C", 3, [150]],
+  [161, "Sistemas Operativos", "A", 3, [152]],
+  [162, "Sistemas de Información II", "A", 3, [153]],
+  [163, "Sistemas de Bases de Datos", "A", 3, [152]],
+  [164, "Probabilidad y Estadística", "A", 3, [154]],
+  [165, "Programación Avanzada", "A", 3, [156]],
+  [166, "Teleinformática", "C", 3, [145]],
+  [167, "Física III", "C", 3, [160]],
+  [168, "Inglés I", "C", 3, []],
+  [169, "Inglés II", "C", 3, []],
+  [170, "Tecnología Informática", "C", 4, [161]],
+  [171, "Ingeniería del Software", "C", 4, [162]],
+  [172, "Seminario de Integración Profesional", "A", 4, [156, 162]],
+  [173, "Investigación Operativa", "C", 4, [164]],
+  [174, "Arquitectura de Redes", "C", 4, [166]],
+  [175, "Dirección de Proyectos Informáticos", "C", 4, [162]],
+  [176, "Auditoría de Sistemas", "C", 4, [162]],
+  [177, "Teología", "C", 4, []],
+  [178, "Modelos y Simulación", "C", 4, [164]],
+  [179, "Derecho Informático", "C", 5, []],
+  [180, "Ética Profesional", "C", 5, []],
+  [181, "Tecnologías Emergentes", "A", 5, [170]],
+  [182, "Sistemas Inteligentes", "A", 5, [165]],
+  [183, "Proyecto Final de Ingeniería en Informática", "A", 5, [172, 175]],
+  [184, "Gestión Ambiental", "C", 5, []],
+  [185, "Aseguramiento de la Calidad del Software", "C", 5, [171]],
+  [186, "Seguridad Informática", "C", 5, [176]],
+  [187, "Elementos de Economía", "C", 5, []],
+];
+
+// AM1 = plan 142 (Análisis Matemático I), AM2 = plan 158 (Análisis Matemático II)
+// Ambos mantienen sus códigos de texto para compatibilidad con datos demo existentes.
+function seedRestoCurriculumPlan() {
+  const insertOrIgnore = db.prepare(`
+    INSERT OR IGNORE INTO materias (nombre, codigo, codigo_plan, tipo, anio_carrera, correlativas)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `);
+  const updatePlanData = db.prepare(`
+    UPDATE materias SET codigo_plan=?, tipo=?, anio_carrera=?, correlativas=? WHERE codigo=?
+  `);
+
+  for (const [planId, nombre, tipo, anio, corrs] of PLAN_CURRICULUM) {
+    const correlativasJson = JSON.stringify(corrs);
+
+    // AM1 y AM2 ya tienen código de texto — solo actualizar metadatos del plan
+    if (planId === 142) {
+      updatePlanData.run(142, tipo, anio, correlativasJson, "AM1");
+      continue;
+    }
+    if (planId === 158) {
+      updatePlanData.run(158, tipo, anio, correlativasJson, "AM2");
+      continue;
+    }
+
+    insertOrIgnore.run(nombre, String(planId), planId, tipo, anio, correlativasJson);
+  }
+}
+
 function seedMateriasInscripcionesYContenido() {
   const currentYear = new Date().getFullYear();
 
@@ -10,24 +91,36 @@ function seedMateriasInscripcionesYContenido() {
 
   if (totalMaterias.count === 0) {
     const insertMateria = db.prepare(
-      "INSERT INTO materias (nombre, codigo, descripcion) VALUES (?, ?, ?)",
+      "INSERT INTO materias (nombre, codigo, codigo_plan, tipo, anio_carrera, correlativas, descripcion) VALUES (?, ?, ?, ?, ?, ?, ?)",
     );
 
     insertMateria.run(
-      "Análisis Matemático 1",
+      "Análisis Matemático I",
       "AM1",
-      "Fundamentos de límites y derivadas",
+      142,
+      "A",
+      1,
+      "[]",
+      "Fundamentos de límites, derivadas e integrales",
     );
     insertMateria.run(
-      "Análisis Matemático 2",
+      "Análisis Matemático II",
       "AM2",
-      "Integrales y aplicaciones",
+      158,
+      "C",
+      2,
+      "[142]",
+      "Funciones de varias variables e integrales múltiples",
     );
   }
 
+  // Siempre asegurar que los 46 materias restantes del plan existan
+  seedRestoCurriculumPlan();
+
   const alumno =
     db.prepare("SELECT id FROM users WHERE username = ?").get("alumno1") ||
-    db.prepare("SELECT id FROM users WHERE username = ?").get("alumno");
+    db.prepare("SELECT id FROM users WHERE username = ?").get("alumno") ||
+    db.prepare("SELECT id FROM users WHERE role = 'alumno' ORDER BY id LIMIT 1").get();
 
   const tutor =
     db.prepare("SELECT id FROM users WHERE username = ?").get("docente") ||
@@ -148,7 +241,8 @@ function seedGestionMateriasCDU005() {
 
   const alumno =
     db.prepare("SELECT id FROM users WHERE username = ?").get("alumno1") ||
-    db.prepare("SELECT id FROM users WHERE username = ?").get("alumno");
+    db.prepare("SELECT id FROM users WHERE username = ?").get("alumno") ||
+    db.prepare("SELECT id FROM users WHERE role = 'alumno' ORDER BY id LIMIT 1").get();
 
   const am1 = db.prepare("SELECT id FROM materias WHERE codigo = ?").get("AM1");
   const am2 = db.prepare("SELECT id FROM materias WHERE codigo = ?").get("AM2");
@@ -276,7 +370,8 @@ function seedMensajeriaCDU003() {
 
   const alumno =
     db.prepare("SELECT id FROM users WHERE username = ?").get("alumno1") ||
-    db.prepare("SELECT id FROM users WHERE username = ?").get("alumno");
+    db.prepare("SELECT id FROM users WHERE username = ?").get("alumno") ||
+    db.prepare("SELECT id FROM users WHERE role = 'alumno' ORDER BY id LIMIT 1").get();
 
   const tutor =
     db.prepare("SELECT id FROM users WHERE username = ?").get("docente1") ||
@@ -451,7 +546,8 @@ function seedMisCursosCDU004() {
 
   const alumno =
     db.prepare("SELECT id FROM users WHERE username = ?").get("alumno1") ||
-    db.prepare("SELECT id FROM users WHERE username = ?").get("alumno");
+    db.prepare("SELECT id FROM users WHERE username = ?").get("alumno") ||
+    db.prepare("SELECT id FROM users WHERE role = 'alumno' ORDER BY id LIMIT 1").get();
 
   const am1 = db.prepare("SELECT id FROM materias WHERE codigo = ?").get("AM1");
   const am2 = db.prepare("SELECT id FROM materias WHERE codigo = ?").get("AM2");
@@ -556,9 +652,10 @@ function seedPrediccionesAutomaticasCDU009() {
   const am1 = db.prepare("SELECT id FROM materias WHERE codigo = ?").get("AM1");
   const am2 = db.prepare("SELECT id FROM materias WHERE codigo = ?").get("AM2");
 
-  const alumno1 = db
-    .prepare("SELECT id FROM users WHERE username = ?")
-    .get("alumno");
+  const alumno1 =
+    db.prepare("SELECT id FROM users WHERE username = ?").get("alumno1") ||
+    db.prepare("SELECT id FROM users WHERE username = ?").get("alumno") ||
+    db.prepare("SELECT id FROM users WHERE role = 'alumno' ORDER BY id LIMIT 1").get();
 
   if (!am1 || !am2 || !alumno1) {
     return;
@@ -2711,6 +2808,193 @@ function seedDemoAlumnosAM2CDU014() {
   }
 }
 
+async function seedAlumnosGenerales() {
+  try {
+    const NOMBRES = [
+      "Valentina", "Lucía", "Martina", "Sofía", "Camila", "Agustina", "Florencia", "Julieta",
+      "Micaela", "Natalia", "Paula", "Carolina", "Daniela", "Gabriela", "Romina", "Antonella",
+      "Constanza", "Emilia", "Pilar", "Victoria",
+      "Santiago", "Mateo", "Nicolás", "Facundo", "Tomás", "Ignacio", "Federico", "Gonzalo",
+      "Sebastián", "Rodrigo", "Maximiliano", "Ezequiel", "Leandro", "Bruno", "Joaquín",
+      "Franco", "Agustín", "Diego", "Marcos", "Hernán",
+    ];
+    const APELLIDOS = [
+      "García", "Rodríguez", "González", "Fernández", "López", "Martínez", "Pérez", "Sánchez",
+      "Romero", "Torres", "Díaz", "Flores", "Morales", "Jiménez", "Ruiz", "Vargas", "Castro",
+      "Herrera", "Medina", "Silva", "Reyes", "Gómez", "Suárez", "Rojas", "Vega", "Mendoza",
+      "Núñez", "Alvarez", "Muñoz", "Cabrera", "Ortega", "Delgado", "Ríos", "Molina", "Sosa",
+      "Acosta", "Benítez", "Ponce", "Villalba", "Figueroa",
+    ];
+
+    const MATERIAS_POR_ANIO = {
+      1: [140, 141, 142, 143, 144, 145, 146, 147, 148],
+      2: [149, 150, 151, 152, 153, 154, 155, 156, 157, 158],
+      3: [159, 160, 161, 162, 163, 164, 165, 166, 167, 168, 169],
+      4: [170, 171, 172, 173, 174, 175, 176, 177, 178],
+      5: [179, 180, 181, 182, 183, 184, 185, 186, 187],
+    };
+
+    const CORRELATIVAS = {};
+    for (const [planId, , , , corrs] of PLAN_CURRICULUM) {
+      CORRELATIVAS[planId] = corrs || [];
+    }
+
+    const MATERIA_IDS = {};
+    for (const [planId] of PLAN_CURRICULUM) {
+      const row = db.prepare("SELECT id FROM materias WHERE codigo_plan = ?").get(planId);
+      MATERIA_IDS[planId] = row ? row.id : null;
+    }
+
+    const hashedPassword = await bcrypt.hash("alumno123", 10);
+
+    const stmtInsertUser = db.prepare(`
+      INSERT OR IGNORE INTO users
+        (username, password, role, nombre_completo, email, oauth_provider,
+         genero, fecha_nac, ayuda_financiera, colegio_tecnico, promedio_colegio, anio_ingreso)
+      VALUES (?, ?, 'alumno', ?, ?, 'local', ?, ?, ?, ?, ?, ?)
+    `);
+    const stmtGetUser = db.prepare("SELECT id FROM users WHERE username = ?");
+    const stmtInsertInscripcion = db.prepare(`
+      INSERT OR IGNORE INTO inscripciones (alumno_id, materia_id, anio, periodo_id, estado)
+      VALUES (?, ?, 2026, NULL, 'activa')
+    `);
+    const stmtInsertCursada = db.prepare(`
+      INSERT OR IGNORE INTO cursadas (alumno_id, materia_id, anio, asistencia, estado)
+      VALUES (?, ?, ?, ?, ?)
+    `);
+    const stmtInsertExamen = db.prepare(`
+      INSERT OR IGNORE INTO examenes (alumno_id, materia_id, anio, tipo, instancia, rendido, nota)
+      VALUES (?, ?, ?, ?, ?, 1, ?)
+    `);
+    const stmtMarkRecursada = db.prepare(
+      "UPDATE cursadas SET estado = 'recursada' WHERE alumno_id = ? AND materia_id = ? AND anio = ?"
+    );
+
+    function rng(min, max) {
+      return Math.floor(Math.random() * (max - min + 1)) + min;
+    }
+    function pickRandom(arr) {
+      return arr[Math.floor(Math.random() * arr.length)];
+    }
+    function generateGrade() {
+      const r = Math.random();
+      if (r < 0.08) return rng(1, 3);
+      if (r < 0.15) return 4;
+      if (r < 0.65) return rng(5, 7);
+      if (r < 0.88) return 8;
+      return rng(9, 10);
+    }
+    function canTake(planId, passedSet) {
+      return (CORRELATIVAS[planId] || []).every((c) => passedSet.has(c));
+    }
+    function shuffle(arr) {
+      return [...arr].sort(() => Math.random() - 0.5);
+    }
+
+    let totalCreated = 0;
+
+    for (let cohortYear = 1; cohortYear <= 5; cohortYear++) {
+      const startIdx = (cohortYear - 1) * 100;
+      const anioIngreso = 2026 - (cohortYear - 1);
+
+      const processCohort = db.transaction(() => {
+        for (let i = 0; i < 100; i++) {
+          const idx = startIdx + i + 1;
+          const username = `alumno${String(idx).padStart(3, "0")}`;
+          const nombre = pickRandom(NOMBRES);
+          const apellido = pickRandom(APELLIDOS);
+          const nombre_completo = `${apellido}, ${nombre}`;
+          const email = `${username}@usal.edu.ar`;
+          const genero = Math.random() < 0.45 ? "Femenino" : "Masculino";
+          const birthYear = 2008 - cohortYear - rng(0, 2);
+          const birthMonth = String(rng(1, 12)).padStart(2, "0");
+          const birthDay = String(rng(1, 28)).padStart(2, "0");
+          const fecha_nac = `${birthDay}-${birthMonth}-${birthYear}`;
+          const ayuda_financiera = Math.random() < 0.2 ? 1 : 0;
+          const colegio_tecnico = Math.random() < 0.3 ? 1 : 0;
+          const promedio_colegio = rng(60, 100) / 10;
+
+          stmtInsertUser.run(
+            username, hashedPassword, nombre_completo, email,
+            genero, fecha_nac, ayuda_financiera, colegio_tecnico, promedio_colegio, anioIngreso
+          );
+
+          const userRow = stmtGetUser.get(username);
+          if (!userRow) continue;
+          const alumnoId = userRow.id;
+
+          const passedSubjects = new Set();
+
+          for (let prevYear = 1; prevYear < cohortYear; prevYear++) {
+            const dbYear = 2026 - (cohortYear - prevYear);
+            for (const planId of MATERIAS_POR_ANIO[prevYear]) {
+              const matId = MATERIA_IDS[planId];
+              if (!matId) continue;
+              if (prevYear === cohortYear - 1 && Math.random() < 0.10) {
+                stmtInsertCursada.run(alumnoId, matId, dbYear - 1, rng(30, 55) / 100, "recursada");
+              }
+              stmtInsertCursada.run(alumnoId, matId, dbYear, rng(60, 95) / 100, "aprobada");
+              passedSubjects.add(planId);
+            }
+          }
+
+          const yearSubjects = MATERIAS_POR_ANIO[cohortYear];
+          const available =
+            cohortYear === 1
+              ? yearSubjects.filter((p) => MATERIA_IDS[p])
+              : yearSubjects.filter((p) => canTake(p, passedSubjects) && MATERIA_IDS[p]);
+
+          if (available.length < 1) continue;
+
+          const count = rng(4, Math.min(7, available.length));
+          const chosen = shuffle(available).slice(0, count);
+
+          if (cohortYear > 1 && Math.random() < 0.15) {
+            const prevYearSubjects = MATERIAS_POR_ANIO[cohortYear - 1];
+            const safeRecursados = prevYearSubjects.filter((p) => {
+              if (!MATERIA_IDS[p]) return false;
+              return !chosen.some((cp) => (CORRELATIVAS[cp] || []).includes(p));
+            });
+            if (safeRecursados.length > 0) {
+              const rPlanId = pickRandom(safeRecursados);
+              const rMatId = MATERIA_IDS[rPlanId];
+              stmtMarkRecursada.run(alumnoId, rMatId, 2025);
+              if (!chosen.includes(rPlanId)) chosen.push(rPlanId);
+            }
+          }
+
+          const isAbandoned = Math.random() < 0.08;
+
+          for (const planId of chosen) {
+            const matId = MATERIA_IDS[planId];
+            if (!matId) continue;
+
+            stmtInsertInscripcion.run(alumnoId, matId);
+            if (isAbandoned) continue;
+
+            stmtInsertCursada.run(alumnoId, matId, 2026, rng(55, 100) / 100, "cursando");
+            const nota = generateGrade();
+            stmtInsertExamen.run(alumnoId, matId, 2026, "Parcial", 1, nota);
+
+            if (nota < 4) {
+              const notaRecu = generateGrade();
+              stmtInsertExamen.run(alumnoId, matId, 2026, "Recuperatorio", 1, notaRecu);
+            }
+          }
+
+          totalCreated++;
+        }
+      });
+
+      processCohort();
+    }
+
+    console.log(`✅ Seed alumnos generales: ${totalCreated} alumnos insertados (100 por año).`);
+  } catch (error) {
+    console.error("❌ Error en seed alumnos generales:", error.message);
+  }
+}
+
 async function seedUsers() {
   const users = [
     {
@@ -2736,12 +3020,6 @@ async function seedUsers() {
       password: "coord123",
       role: "coordinador",
       nombre_completo: "Coordinador Académico",
-    },
-    {
-      username: "alumno",
-      password: "alumno123",
-      role: "alumno",
-      nombre_completo: "Juan Alumno",
     },
   ];
 
@@ -2780,15 +3058,16 @@ async function seedUsers() {
     `Seed usuarios completado. Nuevos: ${createdUsers}. Roles actualizados: ${updatedRoles}.`,
   );
 
-  seedMateriasInscripcionesYContenido();
+  seedMateriasInscripcionesYContenido(); // crea AM1, AM2 y demás materias
+  seedRestoCurriculumPlan();
+  await seedAlumnosGenerales();         // crea 500 alumnos (necesita materias)
+  seedMateriasInscripcionesYContenido(); // segunda pasada: ahora encuentra alumnos y seedea contenido CDU002
   seedMensajeriaCDU003();
   seedMensajeriaCDU007();
   seedMisCursosCDU004();
   seedGestionMateriasCDU005();
   seedGestionContenidoCDU008();
   seedPrediccionesAutomaticasCDU009();
-  seedDemoAlumnosCDU010();
-  seedDemoAlumnosAM2CDU014();
 }
 
 if (require.main === module) {

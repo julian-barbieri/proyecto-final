@@ -105,6 +105,23 @@ function isMateriaAprobada(alumnoId, materiaId) {
   return hasCursadaAprobada && hasFinalAprobado;
 }
 
+// Lista todas las materias del plan con sus metadatos (usado por formularios de predicción)
+router.get("/materias", (req, res) => {
+  const materias = db
+    .prepare(
+      `SELECT id, nombre, codigo, codigo_plan, tipo, anio_carrera, correlativas
+       FROM materias
+       WHERE codigo_plan IS NOT NULL
+       ORDER BY codigo_plan ASC`,
+    )
+    .all()
+    .map((m) => ({
+      ...m,
+      correlativas: JSON.parse(m.correlativas || "[]"),
+    }));
+  return res.json(materias);
+});
+
 router.get("/periodos", authorize("admin", "coordinador"), (req, res) => {
   const periodos = db
     .prepare(
