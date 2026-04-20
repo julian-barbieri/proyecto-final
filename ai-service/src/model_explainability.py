@@ -149,24 +149,31 @@ def explicar_modelo(
         print(f'  [ERROR] No se pudo instanciar Explainer para {nombre_modelo}: {exc}')
         raise
 
-    # Para clasificadores binarios, shap_values podría venir como lista [clase0, clase1].
-    # Usamos siempre la clase positiva (índice 1) si es lista, o valores directos si ya es array.
+    # Para clasificadores binarios, shap_values puede venir en 3 formatos según versión de SHAP:
+    #   - lista [clase0, clase1]  → SHAP antiguo con TreeExplainer/KernelExplainer
+    #   - array 3D (n, f, clases) → SHAP nuevo con RandomForest/sklearn tree models
+    #   - array 2D (n, f)         → LinearExplainer o GBM log-odds directo
+    # Siempre extraemos la clase positiva (índice 1) para clasificación binaria.
     if tipo == 'clasificacion':
         if isinstance(shap_raw, list):
-            # TreeExplainer o KernelExplainer con clasificación: devuelven lista
-            shap_vals = shap_raw[1]            # (n_muestras, n_features) clase positiva
-            base_val  = (
+            shap_vals = shap_raw[1]
+            base_val  = float(
                 explainer.expected_value[1]
                 if isinstance(explainer.expected_value, (list, np.ndarray))
                 else explainer.expected_value
             )
+        elif isinstance(shap_raw, np.ndarray) and shap_raw.ndim == 3:
+            # SHAP >= 0.40 con sklearn tree: shape (n_muestras, n_features, n_clases)
+            shap_vals = shap_raw[:, :, 1]
+            ev = explainer.expected_value
+            base_val  = float(ev[1] if isinstance(ev, (list, np.ndarray)) else ev)
         else:
-            # LinearExplainer o array directo
+            # Array 2D directo (GBM log-odds, LinearExplainer)
             shap_vals = shap_raw
-            base_val  = (
-                float(explainer.expected_value)
-                if not isinstance(explainer.expected_value, (list, np.ndarray))
-                else float(explainer.expected_value[1] if isinstance(explainer.expected_value, list) else explainer.expected_value[0])
+            ev = explainer.expected_value
+            base_val  = float(
+                ev if not isinstance(ev, (list, np.ndarray))
+                else (ev[1] if isinstance(ev, list) else ev[0])
             )
     else:
         # Regresión

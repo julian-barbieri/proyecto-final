@@ -59,7 +59,15 @@ out/
 # Pytest
 .pytest_cache/
 .coverage
+.coverage.*
 htmlcov/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# Streamlit
+.streamlit/
 
 # ==========================================
 # VARIABLES DE ENTORNO (¡IMPORTANTES!)
@@ -141,6 +149,16 @@ logs/
 temp/
 tmp/
 *.tmp
+tmp_*.js
+debug*.js
+debug-data.js
+
+# Test outputs
+test-output.txt
+test-*.js
+
+# Upload files
+backend/uploads/
 
 # Bases de datos locales
 *.sqlite
@@ -150,8 +168,26 @@ tmp/
 # OUTPUTS Y MODELOS ENTRENADOS (OPCIONAL)
 # ==========================================
 # Descomenta si NO quieres subir los modelos/outputs
-# ai-service/models/*.pkl
-# ai-service/outputs/shap/*.csv
+
+# Modelos entrenados (todos los formatos)
+*.pkl
+*.pickle
+*.joblib
+*.h5
+*.pth
+*.pt
+*.model
+*.onnx
+ai-service/models/models-trained/
+ai-service/models/dataset-test/
+
+# Outputs de análisis y SHAP
+ai-service/outputs/shap/*.csv
+ai-service/outputs/
+
+# Datasets generados (CSV grandes)
+*.csv
+ai-service/data/*.csv
 
 # ==========================================
 # DOCKER
@@ -159,6 +195,25 @@ tmp/
 
 .dockerignore
 docker-compose.override.yml
+
+# ==========================================
+# FORMATOS DE DATOS Y ARCHIVOS GRANDES
+# ==========================================
+
+# Datos serializados
+*.parquet
+*.feather
+*.pkl
+*.pickle
+
+# Archivos de estado/caché de modelos
+*.h5.gz
+
+# ==========================================
+# CLAUDE
+# ==========================================
+
+.claude/settings.local.json
 
 # ==========================================
 # OTROS
@@ -172,3 +227,5 @@ docker-compose.override.yml
 .sass-cache
 .ruby-version
 .ruby-gemset
+
+

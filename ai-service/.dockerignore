@@ -1,39 +1,15 @@
-# =============================================================================
-# .dockerignore — ai-service
-# Excluye archivos del contexto de construcción para acelerar el build
-# y reducir el tamaño de la imagen.
-# =============================================================================
-
-# --- Entorno virtual ---------------------------------------------------------
 .venv/
-venv/
-env/
-
-# --- Caché de Python ---------------------------------------------------------
 __pycache__/
-*.py[cod]
+*.pyc
 *.pyo
-*.pyd
-*.pycache
-
-# --- Jupyter -----------------------------------------------------------------
-*.ipynb
-.ipynb_checkpoints/
-
-# --- Git ---------------------------------------------------------------------
 .git/
-.gitignore
-
-# --- Outputs generados (gráficos SHAP, reportes) ----------------------------
-# No son necesarios para servir la API; se generan en tiempo de ejecución
-# desde la app Streamlit si hace falta.
 outputs/
-
-# --- Aplicación Streamlit ----------------------------------------------------
-# No forma parte de la API; se puede levantar como servicio separado.
 app/
-
-# --- Datos de entrenamiento --------------------------------------------------
-# Los modelos ya están entrenados y guardados como .pkl en src/models/.
-# Los CSV de origen no son necesarios en tiempo de ejecución de la API.
 data/
+docs/
+src/data-analysis/
+src/feature_engineering/
+src/models/training/
+src/models/dataset-test/
+src/model_explainability.py
+requirements.txt

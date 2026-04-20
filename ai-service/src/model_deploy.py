@@ -6,8 +6,8 @@ import joblib
 import numpy as np
 import pandas as pd
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
-from typing import List
+from pydantic import BaseModel, create_model
+from typing import Any, Dict, List, Type
 
 
 # ---------------------------------------------------------------------------
@@ -17,17 +17,31 @@ app = FastAPI(
     title='API de Predicciones Academicas',
     description=(
         'Prediccion de abandono de carrera (alumno), '
-        'recursado de materia (materia) y nota de examen (examen).'
+        'recursado de materia (materia) y nota de examen (examen). '
+        'Los schemas de entrada se generan automaticamente desde '
+        'feature_names_in_ de cada modelo .pkl.'
     ),
-    version='1.0.0',
+    version='2.0.0',
 )
 
 
 # ---------------------------------------------------------------------------
-# 3) Llamamos a los modelos ya entrenados
+# 3) Grupos OHE conocidos
+#    Prefijo → categorias posibles.
+#    Se detecta cuales estan presentes en cada modelo al cargar los .pkl.
 # ---------------------------------------------------------------------------
-_MODELS_DIR = os.path.join(os.path.dirname(__file__), 'models')
-_MODELS_TRAINED_DIR = os.path.join(_MODELS_DIR, 'models-trained')
+_OHE_GROUPS: Dict[str, List[str]] = {
+    'TipoExamen': ['Final', 'Parcial', 'Recuperatorio'],
+    'Tipo':       ['A', 'C'],
+}
+
+
+# ---------------------------------------------------------------------------
+# 4) Carga de modelos entrenados
+# ---------------------------------------------------------------------------
+_MODELS_TRAINED_DIR = os.path.join(
+    os.path.dirname(__file__), 'models', 'models-trained'
+)
 
 try:
     model_alumno  = joblib.load(os.path.join(_MODELS_TRAINED_DIR, 'modelo_alumno.pkl'))
@@ -39,162 +53,133 @@ except FileNotFoundError as exc:
         'Ejecuta python models/training/main.py antes de iniciar la API.'
     ) from exc
 
+# Feature names leidas directamente del atributo que sklearn guarda en el fit().
+# Se convierten a str Python para evitar que numpy.str_ cause problemas en Pydantic.
+_ALUMNO_COLS  = [str(f) for f in model_alumno.feature_names_in_]
+_MATERIA_COLS = [str(f) for f in model_materia.feature_names_in_]
+_EXAMEN_COLS  = [str(f) for f in model_examen.feature_names_in_]
+
 
 # ---------------------------------------------------------------------------
-# 3b) Health check
+# 5) Funciones auxiliares
+# ---------------------------------------------------------------------------
+
+def _detectar_ohe(feature_names: List[str]) -> Dict[str, List[str]]:
+    """Retorna los grupos OHE presentes en feature_names."""
+    ohe_found: Dict[str, List[str]] = {}
+    for prefix, categories in _OHE_GROUPS.items():
+        present = [cat for cat in categories if f'{prefix}_{cat}' in feature_names]
+        if present:
+            ohe_found[prefix] = present
+    return ohe_found
+
+
+def _crear_pydantic_model(
+    name: str,
+    feature_names: List[str],
+    ohe_map: Dict[str, List[str]],
+) -> Type[BaseModel]:
+    """
+    Genera un Pydantic model dinamico a partir de feature_names:
+    - Columnas OHE se reemplazan por el campo raw categorico (str).
+    - PromedioColegio_x / _y (artifact del merge) se exponen como un unico
+      campo PromedioColegio (float).
+    - El resto son float con default 0.0.
+    """
+    ohe_cols         = {f'{prefix}_{cat}' for prefix, cats in ohe_map.items() for cat in cats}
+    promedio_dup_cols = {'PromedioColegio_x', 'PromedioColegio_y'}
+
+    fields: Dict[str, Any] = {}
+    seen:   set             = set()
+
+    for feat in feature_names:
+        if feat in ohe_cols:
+            continue
+        if feat in promedio_dup_cols:
+            if 'PromedioColegio' not in seen:
+                fields['PromedioColegio'] = (float, 0.0)
+                seen.add('PromedioColegio')
+            continue
+        fields[feat] = (float, 0.0)
+
+    for prefix, cats in ohe_map.items():
+        fields[prefix] = (str, cats[0] if cats else '')
+
+    return create_model(name, **fields)
+
+
+def _registros_a_df(
+    registros: list,
+    feature_names: List[str],
+    ohe_map: Dict[str, List[str]],
+) -> pd.DataFrame:
+    """Convierte una lista de instancias Pydantic a DataFrame listo para predict()."""
+    promedio_dup_cols = {'PromedioColegio_x', 'PromedioColegio_y'}
+    has_promedio_dup  = bool(set(feature_names) & promedio_dup_cols)
+
+    filas = []
+    for r in registros:
+        row = r.model_dump()
+
+        # Expansion OHE: reemplaza el campo raw por columnas binarias
+        for prefix, categories in ohe_map.items():
+            raw_val = row.pop(prefix, None)
+            for cat in categories:
+                col_name = f'{prefix}_{cat}'
+                if col_name in feature_names:
+                    row[col_name] = 1 if raw_val == cat else 0
+
+        # Durante el entrenamiento, el merge de nivel_alumno con los agregados
+        # de nivel_materia genero PromedioColegio_x y PromedioColegio_y.
+        # Ambas representan el mismo valor; se replican aqui para que los nombres
+        # del DataFrame coincidan con los que el modelo vio durante el fit().
+        if has_promedio_dup:
+            pc = row.pop('PromedioColegio', 0.0)
+            row['PromedioColegio_x'] = pc
+            row['PromedioColegio_y'] = pc
+
+        filas.append(row)
+
+    return pd.DataFrame(filas)[feature_names]
+
+
+# ---------------------------------------------------------------------------
+# 6) OHE maps y Pydantic models (generados al arrancar el servidor)
+# ---------------------------------------------------------------------------
+_alumno_ohe  = _detectar_ohe(_ALUMNO_COLS)
+_materia_ohe = _detectar_ohe(_MATERIA_COLS)
+_examen_ohe  = _detectar_ohe(_EXAMEN_COLS)
+
+AlumnoInput  = _crear_pydantic_model('AlumnoInput',  _ALUMNO_COLS,  _alumno_ohe)
+MateriaInput = _crear_pydantic_model('MateriaInput', _MATERIA_COLS, _materia_ohe)
+ExamenInput  = _crear_pydantic_model('ExamenInput',  _EXAMEN_COLS,  _examen_ohe)
+
+
+# ---------------------------------------------------------------------------
+# 7) Health check
 # ---------------------------------------------------------------------------
 
 @app.get('/health', summary='Health check', tags=['Sistema'])
 def health():
-    """Verifica que la API está activa y los tres modelos están cargados."""
+    """Verifica que la API esta activa y lista los features de cada modelo."""
     return {
         'status': 'ok',
-        'modelos_cargados': ['modelo_alumno', 'modelo_materia', 'modelo_examen'],
+        'modelos_cargados': {
+            'alumno':  {'n_features': len(_ALUMNO_COLS),  'features': _ALUMNO_COLS},
+            'materia': {'n_features': len(_MATERIA_COLS), 'features': _MATERIA_COLS},
+            'examen':  {'n_features': len(_EXAMEN_COLS),  'features': _EXAMEN_COLS},
+        },
     }
 
 
 # ---------------------------------------------------------------------------
-# 4) Modelos de datos de entrada (validacion con Pydantic)
-# ---------------------------------------------------------------------------
-
-class AlumnoInput(BaseModel):
-    """
-    Features requeridas para predecir si un alumno abandona la carrera.
-    Las features de historial deben ser pre-calculadas agregando
-    nivel_materia y nivel_examen por IdAlumno.
-    """
-    # -- Demograficas ----------------------------------------------------------
-    Genero: int            # 0=Femenino, 1=Masculino
-    Edad: int              # Edad al momento de ingreso a la carrera
-    AyudaFinanciera: int   # 0=No, 1=Si
-    ColegioTecnico: int    # 0=No, 1=Si
-    AnioIngreso: int       # Anio en que ingreso a la carrera
-
-    # -- Historial de cursadas (agregado desde nivel_materia) ------------------
-    CantMaterias: int        # Total de materias cursadas
-    CantRecursa: int         # Cuantas cursadas terminaron en recursar
-    TasaRecursa: float       # CantRecursa / CantMaterias (0.0 si sin actividad)
-    PromedioAsistencia: float # Promedio de asistencia en todas las cursadas
-    CantAniosCursados: int   # Cantidad de anios distintos con actividad
-
-    # -- Historial de examenes (agregado desde nivel_examen) -------------------
-    CantExamenesRendidos: int  # Total de examenes efectivamente rendidos
-    PromedioNota: float        # Promedio de notas en examenes rendidos
-    CantFinalesRendidos: int   # Cuantas veces llego a instancia Final
-    CantAusencias: int         # Total de ausencias a examenes
-    TasaAusencia: float        # CantAusencias / TotalIntentos
-    CantAprobados: int         # Examenes aprobados (nota >= 4)
-    TasaAprobacion: float      # CantAprobados / CantExamenesRendidos
-
-
-class MateriaInput(BaseModel):
-    """
-    Features requeridas para predecir si un alumno recursara una materia.
-    Las features de historial deben ser pre-calculadas por (IdAlumno, Materia)
-    y por IdAlumno desde nivel_examen.
-    """
-    # -- Datos de la cursada ---------------------------------------------------
-    Materia: int        # 0=AM1, 1=AM2
-    Asistencia: float   # Asistencia en esta cursada (0.0 a 1.0)
-    AyudaFinanciera: int  # 0=No, 1=Si
-    ColegioTecnico: int   # 0=No, 1=Si
-    PromedioColegio: float # Promedio del colegio secundario (0-10)
-    AnioCursada: int      # Anio de la cursada
-
-    # -- Demograficas (desde nivel_alumno) ------------------------------------
-    Genero: int            # 0=Femenino, 1=Masculino
-    Edad: int              # Edad al momento de la cursada
-    AniosDesdeIngreso: int # AnioCursada - AnioIngreso
-
-    # -- Historial en esta materia especifica (desde nivel_examen) ------------
-    VecesRendidaExamenMateria: int  # Total de intentos de examen en esta materia
-    VecesAusenteMateria: int        # Cuantas veces estuvo ausente en esta materia
-    PromedioNotaMateria: float      # Promedio de notas en examenes de esta materia
-    TasaAprobacionMateria: float    # Aprobados / Rendidos en esta materia
-
-    # -- Rendimiento general del alumno (desde nivel_examen) ------------------
-    PromedioNotaGeneral: float    # Promedio de notas en todas las materias
-    TasaAprobacionGeneral: float  # Tasa de aprobacion general
-
-
-class ExamenInput(BaseModel):
-    """
-    Features requeridas para predecir la nota que obtendra un alumno en un examen.
-    Las features de historial deben ser pre-calculadas desde nivel_materia.
-    Las features de dominio (PosicionFlujo, etc.) pueden computarse a partir
-    de TipoExamen e Instancia antes de llamar al endpoint.
-    """
-    # -- Datos del examen -----------------------------------------------------
-    Materia: int      # 0=AM1, 1=AM2
-    TipoExamen: str   # 'Parcial', 'Recuperatorio' o 'Final'
-    Instancia: int    # 1, 2 o 3
-    Anio: int         # Anio calendario del examen (ej: 2024)
-    Asistencia: float # Asistencia en la cursada (0.0 a 1.0)
-    VecesRecursada: int   # Cantidad de veces que el alumno recurso esta materia
-
-    # -- Demograficas ---------------------------------------------------------
-    Genero: int            # 0=Femenino, 1=Masculino
-    Edad: int              # Edad al momento del examen
-    AyudaFinanciera: int   # 0=No, 1=Si
-    ColegioTecnico: int    # 0=No, 1=Si
-    PromedioColegio: float # Promedio del colegio secundario (0-10)
-    AniosDesdeIngreso: int # Anio del examen - AnioIngreso
-
-    # -- Historial en esta materia (desde nivel_materia) ----------------------
-    VecesCursadaMateria: int             # Veces que curso esta materia
-    TasaRecursaMateria: float            # Tasa de recursado en esta materia
-    PromedioAsistenciaHistMateria: float # Promedio historico de asistencia
-
-    # -- Historial general (desde nivel_materia) ------------------------------
-    TotalCursadasGeneral: int       # Total de cursadas en todas las materias
-    TasaRecursaGeneral: float       # Tasa de recursado general
-    PromedioAsistenciaGeneral: float # Promedio de asistencia general
-
-    # -- Features de dominio academico ----------------------------------------
-    # Pueden calcularse con: PosicionFlujo = posicion_map[(TipoExamen, Instancia)]
-    PosicionFlujo: int              # Posicion ordinal en el flujo (1 Parcial1 → 7 Final3)
-    AsistenciaBajaRiesgo: int       # 1 si Asistencia < 0.75
-    NotaPromedioParcialCursada: float # Promedio de notas de parciales de esta cursada
-    CantParcialesAprobados: int     # Parciales aprobados (nota >= 4) en esta cursada
-    EsUltimaInstancia: int          # 1 si es Final instancia 3
-    TieneFinalAM1: int              # 1 si el alumno tiene Final de AM1 aprobado
-
-
-# ---------------------------------------------------------------------------
-# Helpers internos
-# ---------------------------------------------------------------------------
-
-def _to_df(registros: list, campos: List[str]) -> pd.DataFrame:
-    """Convierte lista de Pydantic models a DataFrame con columnas ordenadas."""
-    return pd.DataFrame([r.model_dump() for r in registros])[campos]
-
-
-def _ohe_tipo_examen(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    One-Hot Encoding de TipoExamen identico al aplicado en ft_engineering
-    (drop_last=False → 3 columnas: Final, Parcial, Recuperatorio).
-    """
-    for categoria in ['Final', 'Parcial', 'Recuperatorio']:
-        df[f'TipoExamen_{categoria}'] = (df['TipoExamen'] == categoria).astype(int)
-    return df.drop(columns=['TipoExamen'])
-
-
-# Columnas exactas que cada modelo espera, leidas directamente desde el atributo
-# feature_names_in_ que sklearn almacena en el momento del fit().
-# Esto evita cualquier desajuste de nombres u orden con el DataFrame de entrenamiento.
-_ALUMNO_COLS  = list(model_alumno.feature_names_in_)
-_MATERIA_COLS = list(model_materia.feature_names_in_)
-_EXAMEN_COLS  = list(model_examen.feature_names_in_)
-
-
-# ---------------------------------------------------------------------------
-# 5) Endpoints
+# 8) Endpoints de prediccion
 # ---------------------------------------------------------------------------
 
 @app.post(
     '/predict/alumno',
     summary='Prediccion de abandono',
-    response_description='Lista con prediccion de abandono y probabilidad por alumno',
+    response_description='Prediccion de abandono y probabilidad por alumno',
 )
 def predict_alumno(registros: List[AlumnoInput]):
     """
@@ -206,21 +191,9 @@ def predict_alumno(registros: List[AlumnoInput]):
     if not registros:
         raise HTTPException(status_code=422, detail='La lista de registros no puede estar vacia.')
 
-    df = pd.DataFrame([r.model_dump() for r in registros])
+    df = _registros_a_df(registros, _ALUMNO_COLS, _alumno_ohe)
 
-    # Durante el entrenamiento, alumno.csv y mat_agg tenian ambos una columna
-    # 'PromedioColegio'. El merge de pandas las renombro automaticamente a
-    # 'PromedioColegio_x' (alumno original) y 'PromedioColegio_y' (mat_agg).
-    # Ambas representan el mismo valor; se replican aqui para que los nombres
-    # del DataFrame coincidan exactamente con los del modelo entrenado.
-    if 'PromedioColegio_x' in _ALUMNO_COLS:
-        df['PromedioColegio_x'] = df['PromedioColegio']
-        df['PromedioColegio_y'] = df['PromedioColegio']
-        df = df.drop(columns=['PromedioColegio'])
-
-    df = df[_ALUMNO_COLS]
-
-    predicciones  = model_alumno.predict(df).tolist()
+    predicciones   = model_alumno.predict(df).tolist()
     probabilidades = (
         model_alumno.predict_proba(df)[:, 1].tolist()
         if hasattr(model_alumno, 'predict_proba') else [None] * len(predicciones)
@@ -238,7 +211,7 @@ def predict_alumno(registros: List[AlumnoInput]):
 @app.post(
     '/predict/materia',
     summary='Prediccion de recursado',
-    response_description='Lista con prediccion de recursado y probabilidad por cursada',
+    response_description='Prediccion de recursado y probabilidad por cursada',
 )
 def predict_materia(registros: List[MateriaInput]):
     """
@@ -250,9 +223,9 @@ def predict_materia(registros: List[MateriaInput]):
     if not registros:
         raise HTTPException(status_code=422, detail='La lista de registros no puede estar vacia.')
 
-    df = _to_df(registros, _MATERIA_COLS)
+    df = _registros_a_df(registros, _MATERIA_COLS, _materia_ohe)
 
-    predicciones  = model_materia.predict(df).tolist()
+    predicciones   = model_materia.predict(df).tolist()
     probabilidades = (
         model_materia.predict_proba(df)[:, 1].tolist()
         if hasattr(model_materia, 'predict_proba') else [None] * len(predicciones)
@@ -270,7 +243,7 @@ def predict_materia(registros: List[MateriaInput]):
 @app.post(
     '/predict/examen',
     summary='Prediccion de nota de examen',
-    response_description='Lista con la nota predicha por examen',
+    response_description='Nota predicha por examen',
 )
 def predict_examen(registros: List[ExamenInput]):
     """
@@ -281,8 +254,7 @@ def predict_examen(registros: List[ExamenInput]):
     if not registros:
         raise HTTPException(status_code=422, detail='La lista de registros no puede estar vacia.')
 
-    df = pd.DataFrame([r.model_dump() for r in registros])
-    df = _ohe_tipo_examen(df)[_EXAMEN_COLS]
+    df = _registros_a_df(registros, _EXAMEN_COLS, _examen_ohe)
 
     predicciones = model_examen.predict(df).tolist()
 
