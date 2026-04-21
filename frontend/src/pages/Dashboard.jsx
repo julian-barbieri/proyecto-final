@@ -255,9 +255,9 @@ function SeccionResumen({
   user,
   ai_disponible,
 }) {
-  const [materiaSeleccionadaTasa, setMateriaSeleccionadaTasa] = useState(null);
-  const [materiaSeleccionadaDistribucion, setMateriaSeleccionadaDistribucion] =
-    useState(null);
+  const [materiaAnioTasa, setMateriaAnioTasa] = useState("1");
+  const [materiaAnioDistribucion, setMateriaAnioDistribucion] = useState("1");
+  const [modalRiesgo, setModalRiesgo] = useState(null); // null | { titulo, alumnos }
 
   if (loading) {
     return <SkeletonLoader />;
@@ -283,6 +283,7 @@ function SeccionResumen({
     por_materia,
     distribucion_por_materia,
     alertas,
+    todos_en_riesgo,
     actividad_reciente,
   } = data;
 
@@ -310,8 +311,80 @@ function SeccionResumen({
     }
   };
 
+  const alumnosAlto = (todos_en_riesgo || []).filter(
+    (a) => a.nivel_riesgo === "alto",
+  );
+  const alumnosMedio = (todos_en_riesgo || []).filter(
+    (a) => a.nivel_riesgo === "medio",
+  );
+
+  const acciones = [
+    abandono.en_riesgo_alto > 0 && {
+      nivel: "critico",
+      icono: "🔴",
+      texto: (
+        <>
+          <strong>{abandono.en_riesgo_alto}</strong> alumno/s con riesgo alto de
+          abandono requieren intervención inmediata.
+        </>
+      ),
+      accion: {
+        label: "Ver alumnos",
+        onClick: () =>
+          setModalRiesgo({
+            titulo: "Alumnos con riesgo alto de abandono",
+            alumnos: alumnosAlto,
+          }),
+      },
+    },
+    kpis.alumnos_asistencia_baja > 0 && {
+      nivel: "advertencia",
+      icono: "⚠",
+      texto: (
+        <>
+          <strong>{kpis.alumnos_asistencia_baja}</strong> alumno/s con
+          asistencia bajo el 75% — no podrán rendir finales si no mejoran.
+        </>
+      ),
+      accion: null,
+    },
+    abandono.en_riesgo_medio > 0 && {
+      nivel: "advertencia",
+      icono: "🟡",
+      texto: (
+        <>
+          <strong>{abandono.en_riesgo_medio}</strong> alumno/s en riesgo medio
+          de abandono — considerar seguimiento preventivo.
+        </>
+      ),
+      accion: {
+        label: "Ver alumnos",
+        onClick: () =>
+          setModalRiesgo({
+            titulo: "Alumnos con riesgo medio de abandono",
+            alumnos: alumnosMedio,
+          }),
+      },
+    },
+  ].filter(Boolean);
+
   return (
     <div className="space-y-6">
+      {/* Modal alumnos en riesgo */}
+      {modalRiesgo && (
+        <ModalAlumnosRiesgo
+          titulo={modalRiesgo.titulo}
+          alumnos={modalRiesgo.alumnos}
+          onClose={() => setModalRiesgo(null)}
+          navigate={navigate}
+        />
+      )}
+
+      {/* Panel de acciones requeridas */}
+      {acciones.length > 0 && (
+        <PanelAccionesRequeridas acciones={acciones} />
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard
           titulo="Total alumnos"
@@ -333,6 +406,15 @@ function SeccionResumen({
           subtitulo="Promedio histórico"
           color="amber"
           icono="🔄"
+          tendencia={
+            kpis.tendencias?.tasa_aprobacion_parciales
+              ? {
+                  ...kpis.tendencias.tasa_aprobacion_parciales,
+                  sufijo: "% aprob. parciales",
+                  arriba_es_bueno: true,
+                }
+              : null
+          }
         />
         <KpiCard
           titulo="Promedio de notas"
@@ -340,32 +422,17 @@ function SeccionResumen({
           subtitulo="en exámenes rendidos"
           color="blue"
           icono="🧾"
+          tendencia={
+            kpis.tendencias?.promedio_notas
+              ? {
+                  ...kpis.tendencias.promedio_notas,
+                  sufijo: " pts",
+                  arriba_es_bueno: true,
+                }
+              : null
+          }
         />
       </div>
-
-      {/* Alerta de asistencia baja */}
-      {kpis.alumnos_asistencia_baja > 0 && (
-        <div className="flex items-center gap-2 text-sm text-amber-700 bg-amber-50 px-4 py-3 rounded-lg border border-amber-200">
-          <span>⚠</span>
-          <span>
-            <strong>{kpis.alumnos_asistencia_baja}</strong> alumno/s con
-            asistencia por debajo del 75% — no podrán rendir finales si no
-            mejoran.
-          </span>
-        </div>
-      )}
-
-      {/* Alerta de finales AM2 bloqueados */}
-      {kpis.finales_am2_bloqueados > 0 && (
-        <div className="flex items-center gap-2 text-sm text-blue-700 bg-blue-50 px-4 py-3 rounded-lg border border-blue-200">
-          <span>ℹ</span>
-          <span>
-            <strong>{kpis.finales_am2_bloqueados}</strong> alumno/s cursando AM2
-            tiene/n el final de AM1 pendiente — no podrá/n rendir finales de AM2
-            hasta aprobarlo.
-          </span>
-        </div>
-      )}
 
       {/* SECCIÓN 2: Alertas + Distribución de riesgo */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -508,39 +575,22 @@ function SeccionResumen({
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Tasa de recursado por materia */}
         <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <div className="mb-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-2">
+          <div className="mb-4 flex items-center justify-between gap-3 flex-wrap">
+            <h2 className="text-lg font-semibold text-gray-900">
               Tasa de Recursado por Materia
             </h2>
-            {por_materia && por_materia.length > 0 && (
-              <select
-                value={materiaSeleccionadaTasa || ""}
-                onChange={(e) =>
-                  setMateriaSeleccionadaTasa(
-                    e.target.value ? parseInt(e.target.value) : null,
-                  )
-                }
-                className="border border-gray-200 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">Todas las materias</option>
-                {por_materia.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.codigo} - {m.nombre}
-                  </option>
-                ))}
-              </select>
-            )}
+            <FiltroAnioMateria
+              valor={materiaAnioTasa}
+              onChange={setMateriaAnioTasa}
+            />
           </div>
           <div className="space-y-6">
             {por_materia && por_materia.length > 0 ? (
-              (materiaSeleccionadaTasa
-                ? por_materia.filter((m) => m.id === materiaSeleccionadaTasa)
-                : por_materia
-              ).map((materia) => (
+              filtrarPorAnio(por_materia, materiaAnioTasa).map((materia) => (
                 <div key={materia.id}>
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-sm font-medium text-gray-700">
-                      {materia.codigo} {materia.nombre}
+                      {materia.codigo} — {materia.nombre}
                     </span>
                     <span className="text-sm font-semibold text-gray-900">
                       {materia.tasa_pct ?? "—"}%
@@ -551,9 +601,7 @@ function SeccionResumen({
                       <div className="w-full bg-gray-100 rounded-full h-2">
                         <div
                           className="bg-amber-400 h-2 rounded-full"
-                          style={{
-                            width: `${materia.tasa_pct || 0}%`,
-                          }}
+                          style={{ width: `${materia.tasa_pct || 0}%` }}
                         />
                       </div>
                       <p className="text-xs text-gray-500 mt-1">
@@ -576,90 +624,62 @@ function SeccionResumen({
 
         {/* Distribución de cursadas por materia */}
         <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <div className="mb-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-2">
-              Distribución de Cursadas por Materia
+          <div className="mb-4 flex items-center justify-between gap-3 flex-wrap">
+            <h2 className="text-lg font-semibold text-gray-900">
+              Alumnos por intento de cursada
             </h2>
-            {distribucion_por_materia &&
-              distribucion_por_materia.length > 0 && (
-                <select
-                  value={materiaSeleccionadaDistribucion || ""}
-                  onChange={(e) =>
-                    setMateriaSeleccionadaDistribucion(e.target.value || null)
-                  }
-                  className="border border-gray-200 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">Todas las materias</option>
-                  {distribucion_por_materia.map((m) => (
-                    <option key={m.codigo} value={m.codigo}>
-                      {m.codigo} - {m.nombre}
-                    </option>
-                  ))}
-                </select>
-              )}
+            <FiltroAnioMateria
+              valor={materiaAnioDistribucion}
+              onChange={setMateriaAnioDistribucion}
+            />
           </div>
           <div className="space-y-8">
             {distribucion_por_materia && distribucion_por_materia.length > 0 ? (
-              (materiaSeleccionadaDistribucion
-                ? distribucion_por_materia.filter(
-                    (m) => m.codigo === materiaSeleccionadaDistribucion,
-                  )
-                : distribucion_por_materia
-              ).map((materia) => {
-                const total =
-                  materia.primera_vez +
-                  materia.segunda_vez +
-                  materia.tercera_vez_o_mas;
-                return (
-                  <div key={materia.codigo}>
-                    <h3 className="text-sm font-medium text-gray-900 mb-3">
-                      {materia.codigo} — {materia.nombre}
-                    </h3>
-                    <div className="space-y-3">
-                      {[
-                        {
-                          label: "1ra vez",
-                          count: materia.primera_vez,
-                          icon: "📚",
-                        },
-                        {
-                          label: "2da vez",
-                          count: materia.segunda_vez,
-                          icon: "🔁",
-                        },
-                        {
-                          label: "3ra vez o más",
-                          count: materia.tercera_vez_o_mas,
-                          icon: "⏳",
-                        },
-                      ].map((item) => {
-                        const pct =
-                          total > 0
-                            ? ((item.count / total) * 100).toFixed(0)
-                            : 0;
-                        return (
-                          <div key={item.label}>
-                            <div className="flex items-center justify-between mb-1">
-                              <span className="text-xs font-medium text-gray-600">
-                                {item.icon} {item.label}
-                              </span>
-                              <span className="text-xs font-semibold text-gray-700">
-                                {item.count} ({pct}%)
-                              </span>
+              filtrarPorAnio(distribucion_por_materia, materiaAnioDistribucion).map(
+                (materia) => {
+                  const total =
+                    materia.primera_vez +
+                    materia.segunda_vez +
+                    materia.tercera_vez_o_mas;
+                  return (
+                    <div key={materia.codigo}>
+                      <h3 className="text-sm font-medium text-gray-900 mb-3">
+                        {materia.codigo} — {materia.nombre}
+                      </h3>
+                      <div className="space-y-3">
+                        {[
+                          { label: "1ra vez", count: materia.primera_vez, icon: "📚" },
+                          { label: "2da vez", count: materia.segunda_vez, icon: "🔁" },
+                          { label: "3ra vez o más", count: materia.tercera_vez_o_mas, icon: "⏳" },
+                        ].map((item) => {
+                          const pct =
+                            total > 0
+                              ? ((item.count / total) * 100).toFixed(0)
+                              : 0;
+                          return (
+                            <div key={item.label}>
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="text-xs font-medium text-gray-600">
+                                  {item.icon} {item.label}
+                                </span>
+                                <span className="text-xs font-semibold text-gray-700">
+                                  {item.count} ({pct}%)
+                                </span>
+                              </div>
+                              <div className="w-full bg-gray-100 rounded-full h-2">
+                                <div
+                                  className="bg-blue-500 h-2 rounded-full"
+                                  style={{ width: `${pct}%` }}
+                                />
+                              </div>
                             </div>
-                            <div className="w-full bg-gray-100 rounded-full h-2">
-                              <div
-                                className="bg-blue-500 h-2 rounded-full"
-                                style={{ width: `${pct}%` }}
-                              />
-                            </div>
-                          </div>
-                        );
-                      })}
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
-                );
-              })
+                  );
+                },
+              )
             ) : (
               <p className="text-sm text-gray-500">Sin datos de distribución</p>
             )}
@@ -697,6 +717,192 @@ function SeccionResumen({
               Sin actividad registrada
             </p>
           )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Componente PanelAccionesRequeridas
+// ═════════════════════════════════════════════════════════════════════════════
+
+const ESTILOS_NIVEL = {
+  critico: {
+    contenedor: "bg-red-50 border-red-300",
+    icono: "text-red-500",
+    texto: "text-red-800",
+    boton: "bg-red-100 hover:bg-red-200 text-red-700 border-red-300",
+  },
+  advertencia: {
+    contenedor: "bg-amber-50 border-amber-300",
+    icono: "text-amber-500",
+    texto: "text-amber-800",
+    boton: "bg-amber-100 hover:bg-amber-200 text-amber-700 border-amber-300",
+  },
+  info: {
+    contenedor: "bg-blue-50 border-blue-300",
+    icono: "text-blue-500",
+    texto: "text-blue-800",
+    boton: "bg-blue-100 hover:bg-blue-200 text-blue-700 border-blue-300",
+  },
+};
+
+function PanelAccionesRequeridas({ acciones }) {
+  return (
+    <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+      <div className="px-5 py-3 border-b border-gray-200 flex items-center gap-2">
+        <span className="text-base font-semibold text-gray-900">
+          Acciones requeridas
+        </span>
+        <span className="ml-1 inline-flex items-center justify-center w-5 h-5 rounded-full bg-red-500 text-white text-xs font-bold">
+          {acciones.length}
+        </span>
+      </div>
+      <div className="divide-y divide-gray-100">
+        {acciones.map((accion, i) => {
+          const estilos = ESTILOS_NIVEL[accion.nivel] || ESTILOS_NIVEL.info;
+          return (
+            <div
+              key={i}
+              className={`flex items-center justify-between px-5 py-3 border-l-4 ${estilos.contenedor}`}
+            >
+              <div className="flex items-center gap-3">
+                <span className={`text-lg flex-shrink-0 ${estilos.icono}`}>
+                  {accion.icono}
+                </span>
+                <p className={`text-sm ${estilos.texto}`}>{accion.texto}</p>
+              </div>
+              {accion.accion && (
+                <button
+                  onClick={accion.accion.onClick}
+                  className={`ml-4 flex-shrink-0 text-xs font-medium px-3 py-1 rounded border transition-colors ${estilos.boton}`}
+                >
+                  {accion.accion.label} →
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Helper: filtrar materias por año de carrera
+// "all" muestra todas; "1".."5" filtra por anio_carrera
+// ═════════════════════════════════════════════════════════════════════════════
+function filtrarPorAnio(lista, anio) {
+  if (!anio || anio === "all") return lista;
+  return lista.filter((m) => String(m.anio_carrera) === String(anio));
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Componente FiltroAnioMateria
+// ═════════════════════════════════════════════════════════════════════════════
+const ANIOS_CARRERA = [
+  { value: "1", label: "1er año" },
+  { value: "2", label: "2do año" },
+  { value: "3", label: "3er año" },
+  { value: "4", label: "4to año" },
+  { value: "5", label: "5to año" },
+  { value: "all", label: "Todas" },
+];
+
+function FiltroAnioMateria({ valor, onChange }) {
+  return (
+    <select
+      value={valor}
+      onChange={(e) => onChange(e.target.value)}
+      className="border border-gray-200 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+    >
+      {ANIOS_CARRERA.map((a) => (
+        <option key={a.value} value={a.value}>
+          {a.label}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Componente ModalAlumnosRiesgo
+// ═════════════════════════════════════════════════════════════════════════════
+function ModalAlumnosRiesgo({ titulo, alumnos, onClose, navigate }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[80vh] flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+          <h2 className="text-base font-semibold text-gray-900">{titulo}</h2>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 text-xl leading-none"
+          >
+            ×
+          </button>
+        </div>
+
+        {/* Lista */}
+        <div className="overflow-y-auto flex-1 divide-y divide-gray-100">
+          {alumnos.length === 0 ? (
+            <p className="p-6 text-sm text-gray-500 text-center">
+              Sin alumnos en este nivel de riesgo.
+            </p>
+          ) : (
+            alumnos.map((alumno) => {
+              const pct = ((alumno.probabilidad || 0) * 100).toFixed(0);
+              const esAlto = alumno.nivel_riesgo === "alto";
+              return (
+                <div
+                  key={alumno.id}
+                  className="flex items-center gap-4 px-6 py-3 hover:bg-gray-50 transition-colors"
+                >
+                  <span className="text-lg flex-shrink-0">
+                    {esAlto ? "🔴" : "🟡"}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900 truncate">
+                      {alumno.nombre}
+                    </p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <div className="flex-1 bg-gray-100 rounded-full h-1.5">
+                        <div
+                          className={`h-1.5 rounded-full ${esAlto ? "bg-red-500" : "bg-amber-400"}`}
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                      <span
+                        className={`text-xs font-semibold w-8 text-right ${esAlto ? "text-red-600" : "text-amber-600"}`}
+                      >
+                        {pct}%
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      onClose();
+                      navigate(`/alumnos/${alumno.id}`);
+                    }}
+                    className="flex-shrink-0 text-xs text-blue-600 hover:text-blue-800 font-medium"
+                  >
+                    Ver perfil →
+                  </button>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-3 border-t border-gray-200 flex justify-end">
+          <button
+            onClick={onClose}
+            className="text-sm px-4 py-1.5 rounded border border-gray-300 text-gray-600 hover:bg-gray-50"
+          >
+            Cerrar
+          </button>
         </div>
       </div>
     </div>

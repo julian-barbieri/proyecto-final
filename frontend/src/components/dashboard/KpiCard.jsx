@@ -1,9 +1,11 @@
+// tendencia: { delta: number, anio_ref: number, arriba_es_bueno: boolean, sufijo?: string }
 export default function KpiCard({
   titulo,
   valor,
   subtitulo,
   color = "blue",
   icono,
+  tendencia = null,
 }) {
   const colorClasses = {
     blue: "bg-blue-50 border-blue-200 text-blue-700",
@@ -18,6 +20,31 @@ export default function KpiCard({
     amber: "text-amber-500",
     red: "text-red-500",
   };
+
+  function renderTendencia() {
+    if (!tendencia || tendencia.delta === null) return null;
+
+    const { delta, anio_ref, arriba_es_bueno = true, sufijo = "" } = tendencia;
+    const subiendo = delta > 0;
+    const esBueno = subiendo === arriba_es_bueno;
+    const esNeutro = delta === 0;
+
+    const claseColor = esNeutro
+      ? "text-gray-500"
+      : esBueno
+        ? "text-green-600"
+        : "text-red-600";
+
+    const flecha = esNeutro ? "→" : subiendo ? "↑" : "↓";
+    const signo = delta > 0 ? "+" : "";
+    const label = `${flecha} ${signo}${delta}${sufijo} vs ${anio_ref}`;
+
+    return (
+      <span className={`text-xs font-medium mt-1 block ${claseColor}`}>
+        {label}
+      </span>
+    );
+  }
 
   return (
     <div
@@ -34,6 +61,7 @@ export default function KpiCard({
         </p>
         <p className="text-3xl font-bold text-gray-900 mt-1">{valor}</p>
         <p className="text-xs text-gray-600 mt-2">{subtitulo}</p>
+        {renderTendencia()}
       </div>
     </div>
   );

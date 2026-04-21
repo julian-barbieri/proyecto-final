@@ -66,9 +66,9 @@ async function obtenerPrediccionesAbandono(alumnosActivos) {
           abandona: resultado.Abandona,
           probabilidad: resultado.probabilidad,
           nivel_riesgo:
-            resultado.probabilidad >= 0.6
+            resultado.probabilidad >= 0.95
               ? "alto"
-              : resultado.probabilidad >= 0.3
+              : resultado.probabilidad >= 0.7
                 ? "medio"
                 : "bajo",
         };
@@ -149,27 +149,70 @@ router.get("/", async (req, res) => {
             .get(am2Id, am1Id)?.cnt || 0
         : 0;
 
-    // Tasa de recursado por materia
+    // Tendencias año actual vs año anterior (usando examenes con campo anio)
+    const anioActual = new Date().getFullYear();
+    const anioAnterior = anioActual - 1;
+
+    function promedioNotasPorAnio(anio) {
+      return (
+        db
+          .prepare(
+            `SELECT ROUND(AVG(nota), 2) AS prom FROM examenes
+             WHERE rendido=1 AND nota IS NOT NULL AND anio = ?`,
+          )
+          .get(anio).prom || null
+      );
+    }
+
+    function tasaAprobacionParcialesPorAnio(anio) {
+      const row = db
+        .prepare(
+          `SELECT COUNT(*) AS total,
+            SUM(CASE WHEN nota >= 4 AND rendido=1 THEN 1 ELSE 0 END) AS aprobados
+           FROM examenes WHERE anio = ? AND tipo='Parcial' AND rendido=1`,
+        )
+        .get(anio);
+      return row.total > 0
+        ? parseFloat(((row.aprobados / row.total) * 100).toFixed(1))
+        : null;
+    }
+
+    const promActual = promedioNotasPorAnio(anioActual);
+    const promAnterior = promedioNotasPorAnio(anioAnterior);
+    const deltaPromedio =
+      promActual !== null && promAnterior !== null
+        ? parseFloat((promActual - promAnterior).toFixed(2))
+        : null;
+
+    const aprobActual = tasaAprobacionParcialesPorAnio(anioActual);
+    const aprobAnterior = tasaAprobacionParcialesPorAnio(anioAnterior);
+    const deltaAprobacion =
+      aprobActual !== null && aprobAnterior !== null
+        ? parseFloat((aprobActual - aprobAnterior).toFixed(1))
+        : null;
+
+    // Tasa de recursado por materia (incluye anio_carrera para filtro frontend)
     const tasaRecursadoPorMateria = db
       .prepare(
         `
-        SELECT m.id, m.codigo, m.nombre,
+        SELECT m.id, m.codigo, m.nombre, COALESCE(m.anio_carrera, 1) AS anio_carrera,
           COUNT(c.id) AS total_cursadas,
           SUM(CASE WHEN c.estado='recursada' THEN 1 ELSE 0 END) AS recursadas,
           ROUND(SUM(CASE WHEN c.estado='recursada' THEN 1.0 ELSE 0 END) / COUNT(c.id) * 100, 1) AS tasa_pct
         FROM materias m
         LEFT JOIN cursadas c ON c.materia_id = m.id
         GROUP BY m.id
+        ORDER BY m.anio_carrera, m.codigo
       `,
       )
       .all();
 
-    // Distribución de veces cursada por materia
+    // Distribución de veces cursada por materia (incluye anio_carrera para filtro frontend)
     const distribucionPorMateria =
       db
         .prepare(
           `
-        SELECT m.codigo, m.nombre,
+        SELECT m.id, m.codigo, m.nombre, COALESCE(m.anio_carrera, 1) AS anio_carrera,
           COUNT(CASE WHEN veces = 1 THEN 1 END) AS primera_vez,
           COUNT(CASE WHEN veces = 2 THEN 1 END) AS segunda_vez,
           COUNT(CASE WHEN veces >= 3 THEN 1 END) AS tercera_vez_o_mas
@@ -180,6 +223,7 @@ router.get("/", async (req, res) => {
         ) sub
         JOIN materias m ON sub.materia_id = m.id
         GROUP BY sub.materia_id
+        ORDER BY m.anio_carrera, m.codigo
       `,
         )
         .all() || [];
@@ -250,11 +294,17 @@ router.get("/", async (req, res) => {
         ? ((enRiesgoAlto / alumnosActivos.length) * 100).toFixed(1)
         : 0;
 
-    // Top 5 alumnos con mayor riesgo
-    const alertasAbandono = prediccionesAbandono
+    // Top 5 alumnos con mayor riesgo (para la sección de detalle en dashboard)
+    const prediccionesOrdenadas = prediccionesAbandono
       .filter((p) => p.probabilidad !== null)
-      .sort((a, b) => b.probabilidad - a.probabilidad)
-      .slice(0, 5);
+      .sort((a, b) => b.probabilidad - a.probabilidad);
+
+    const alertasAbandono = prediccionesOrdenadas.slice(0, 5);
+
+    // Todos los alumnos en riesgo alto o medio (para modal de acciones)
+    const todosEnRiesgo = prediccionesOrdenadas.filter(
+      (p) => p.nivel_riesgo === "alto" || p.nivel_riesgo === "medio",
+    );
 
     // ──────── PASO 3: Armar respuesta ────────
     res.json({
@@ -263,6 +313,16 @@ router.get("/", async (req, res) => {
         cursando_ahora: cursandoAhora,
         tasa_recursado_global: parseFloat(tasaRecursadoGlobal),
         promedio_notas_global: parseFloat(promedioNotasGlobal),
+        tendencias: {
+          promedio_notas:
+            deltaPromedio !== null
+              ? { delta: deltaPromedio, anio_ref: anioAnterior }
+              : null,
+          tasa_aprobacion_parciales:
+            deltaAprobacion !== null
+              ? { delta: deltaAprobacion, anio_ref: anioAnterior }
+              : null,
+        },
         alumnos_asistencia_baja: asistenciaBaja,
         finales_am2_bloqueados: finalesAM2Bloqueados,
       },
@@ -275,6 +335,7 @@ router.get("/", async (req, res) => {
       por_materia: tasaRecursadoPorMateria,
       distribucion_por_materia: distribucionPorMateria,
       alertas: alertasAbandono,
+      todos_en_riesgo: todosEnRiesgo,
       actividad_reciente: ultimasPredicciones,
       ai_disponible: aiDisponible,
       calculado_en: new Date().toISOString(),
