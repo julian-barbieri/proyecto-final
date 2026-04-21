@@ -508,8 +508,8 @@ function SeccionResumen({
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Tasa de recursado por materia */}
         <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-lg font-semibold text-gray-900">
+          <div className="mb-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-2">
               Tasa de Recursado por Materia
             </h2>
             {por_materia && por_materia.length > 0 && (
@@ -576,8 +576,8 @@ function SeccionResumen({
 
         {/* Distribución de cursadas por materia */}
         <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-lg font-semibold text-gray-900">
+          <div className="mb-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-2">
               Distribución de Cursadas por Materia
             </h2>
             {distribucion_por_materia &&

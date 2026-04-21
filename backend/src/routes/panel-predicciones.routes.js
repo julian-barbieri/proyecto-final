@@ -205,7 +205,42 @@ router.get("/alumnos/:alumnoId", (req, res) => {
   });
 });
 
+function getCursandoAlumnos(materiaId) {
+  return db
+    .prepare(
+      `
+      SELECT DISTINCT
+        u.id,
+        COALESCE(u.nombre_completo, u.username) AS nombre_completo,
+        u.email,
+        u.genero,
+        u.fecha_nac,
+        u.promedio_colegio,
+        u.anio_ingreso,
+        MAX(c.anio) AS ultimo_anio,
+        MAX(c.asistencia) AS ultima_asistencia,
+        COUNT(c.id) AS veces_cursada,
+        (
+          SELECT ROUND(AVG(e.nota), 2)
+          FROM examenes e
+          WHERE e.alumno_id = u.id
+            AND e.materia_id = ?
+            AND e.rendido = 1
+            AND e.nota IS NOT NULL
+        ) AS promedio_nota
+      FROM users u
+      JOIN cursadas c ON c.alumno_id = u.id AND c.materia_id = ?
+      WHERE u.role = 'alumno'
+      GROUP BY u.id
+      HAVING MAX(CASE WHEN c.estado = 'cursando' THEN 1 ELSE 0 END) = 1
+      ORDER BY nombre_completo ASC
+    `,
+    )
+    .all(materiaId, materiaId);
+}
+
 // GET /api/panel-predicciones/materias/:materiaId/panel-predicciones
+// Soporta ?skipPredicciones=true para carga rápida inicial (solo alumnos, sin predicciones IA)
 router.get("/materias/:materiaId/panel-predicciones", async (req, res) => {
   const materiaId = toPositiveInt(req.params.materiaId);
 
@@ -222,142 +257,21 @@ router.get("/materias/:materiaId/panel-predicciones", async (req, res) => {
   }
 
   try {
-    // Obtener alumnos en las 3 categorías
-    const cursando = db
-      .prepare(
-        `
-        SELECT DISTINCT
-          u.id,
-          COALESCE(u.nombre_completo, u.username) AS nombre_completo,
-          u.email,
-          u.genero,
-          u.fecha_nac,
-          u.promedio_colegio,
-          u.anio_ingreso,
-          MAX(c.anio) AS ultimo_anio,
-          MAX(c.asistencia) AS ultima_asistencia,
-          COUNT(c.id) AS veces_cursada,
-          (
-            SELECT ROUND(AVG(e.nota), 2)
-            FROM examenes e
-            WHERE e.alumno_id = u.id
-              AND e.materia_id = ?
-              AND e.rendido = 1
-              AND e.nota IS NOT NULL
-          ) AS promedio_nota
-        FROM users u
-        JOIN cursadas c ON c.alumno_id = u.id AND c.materia_id = ?
-        WHERE u.role = 'alumno'
-        GROUP BY u.id
-        HAVING MAX(CASE WHEN c.estado = 'cursando' THEN 1 ELSE 0 END) = 1
-        ORDER BY nombre_completo ASC
-      `,
-      )
-      .all(materiaId, materiaId);
+    const cursando = getCursandoAlumnos(materiaId);
+    const skipPredicciones = req.query.skipPredicciones === "true";
 
-    const recursadoSinAprobar = db
-      .prepare(
-        `
-        SELECT DISTINCT
-          u.id,
-          COALESCE(u.nombre_completo, u.username) AS nombre_completo,
-          u.email,
-          u.genero,
-          u.fecha_nac,
-          u.promedio_colegio,
-          u.anio_ingreso,
-          MAX(c.anio) AS ultimo_anio,
-          MAX(c.asistencia) AS ultima_asistencia,
-          COUNT(c.id) AS veces_cursada,
-          (
-            SELECT ROUND(AVG(e.nota), 2)
-            FROM examenes e
-            WHERE e.alumno_id = u.id
-              AND e.materia_id = ?
-              AND e.rendido = 1
-              AND e.nota IS NOT NULL
-          ) AS promedio_nota
-        FROM users u
-        JOIN cursadas c ON c.alumno_id = u.id AND c.materia_id = ?
-        WHERE u.role = 'alumno'
-        GROUP BY u.id
-        HAVING COUNT(CASE WHEN c.estado = 'recursada' THEN 1 END) > 0
-           AND COUNT(CASE WHEN c.estado = 'aprobada' THEN 1 END) = 0
-           AND COUNT(CASE WHEN c.estado = 'cursando' THEN 1 END) = 0
-        ORDER BY nombre_completo ASC
-      `,
-      )
-      .all(materiaId, materiaId);
+    if (skipPredicciones) {
+      return res.status(200).json({
+        materia,
+        cursando,
+        resumen: { total: cursando.length },
+      });
+    }
 
-    const finalPendiente = db
-      .prepare(
-        `
-        SELECT DISTINCT
-          u.id,
-          COALESCE(u.nombre_completo, u.username) AS nombre_completo,
-          u.email,
-          u.genero,
-          u.fecha_nac,
-          u.promedio_colegio,
-          u.anio_ingreso,
-          MAX(c.anio) AS ultimo_anio,
-          MAX(c.asistencia) AS ultima_asistencia,
-          COUNT(c.id) AS veces_cursada,
-          (
-            SELECT ROUND(AVG(e.nota), 2)
-            FROM examenes e
-            WHERE e.alumno_id = u.id
-              AND e.materia_id = ?
-              AND e.rendido = 1
-              AND e.nota IS NOT NULL
-          ) AS promedio_nota
-        FROM users u
-        JOIN cursadas c ON c.alumno_id = u.id
-        WHERE c.materia_id = ?
-          AND c.estado = 'aprobada'
-          AND u.role = 'alumno'
-          AND NOT EXISTS (
-            SELECT 1
-            FROM examenes e
-            WHERE e.alumno_id = u.id
-              AND e.materia_id = ?
-              AND e.tipo = 'Final'
-              AND e.nota >= 4
-              AND e.rendido = 1
-          )
-          AND NOT EXISTS (
-            SELECT 1
-            FROM cursadas c2
-            WHERE c2.alumno_id = u.id
-              AND c2.materia_id = ?
-              AND c2.estado = 'cursando'
-          )
-        GROUP BY u.id
-        ORDER BY nombre_completo ASC
-      `,
-      )
-      .all(materiaId, materiaId, materiaId, materiaId);
+    const alumnosIds = cursando.map((a) => a.id);
+    const predicciones = await precalcularPrediccionesCompletas(alumnosIds, materiaId);
 
-    // Agrupar todos los alumnos con categoría
-    const allAlumnos = [
-      ...cursando.map((a) => ({ ...a, categoria: "cursando" })),
-      ...recursadoSinAprobar.map((a) => ({
-        ...a,
-        categoria: "recursado_sin_aprobar",
-      })),
-      ...finalPendiente.map((a) => ({ ...a, categoria: "final_pendiente" })),
-    ];
-
-    const alumnosIds = allAlumnos.map((a) => a.id);
-
-    // Precalcular predicciones completas (abandono + recursado + nota)
-    const predicciones = await precalcularPrediccionesCompletas(
-      alumnosIds,
-      materiaId,
-    );
-
-    // Agregar predicciones a los alumnos
-    const alumnosConPredicciones = allAlumnos.map((alumno) => ({
+    const cursandoConPredicciones = cursando.map((alumno) => ({
       ...alumno,
       prediccion: predicciones[alumno.id] || {
         abandono: { error: "No calculado" },
@@ -366,35 +280,48 @@ router.get("/materias/:materiaId/panel-predicciones", async (req, res) => {
       },
     }));
 
-    // Agrupar por categoría
-    const porCategoria = {
-      cursando: [],
-      recursado_sin_aprobar: [],
-      final_pendiente: [],
-    };
-
-    alumnosConPredicciones.forEach((alumno) => {
-      if (alumno.categoria === "cursando") {
-        porCategoria.cursando.push(alumno);
-      } else if (alumno.categoria === "recursado_sin_aprobar") {
-        porCategoria.recursado_sin_aprobar.push(alumno);
-      } else if (alumno.categoria === "final_pendiente") {
-        porCategoria.final_pendiente.push(alumno);
-      }
-    });
-
     return res.status(200).json({
       materia,
-      por_categoria: porCategoria,
-      resumen: {
-        total: allAlumnos.length,
-        cursando: porCategoria.cursando.length,
-        recursado_sin_aprobar: porCategoria.recursado_sin_aprobar.length,
-        final_pendiente: porCategoria.final_pendiente.length,
-      },
+      cursando: cursandoConPredicciones,
+      resumen: { total: cursando.length },
     });
   } catch (error) {
     console.error("Error en panel-predicciones:", error);
+    return res.status(500).json({
+      error: "Error al calcular predicciones",
+      details: error.message,
+    });
+  }
+});
+
+// GET /api/panel-predicciones/materias/:materiaId/predicciones?page=1&pageSize=10
+// Retorna predicciones paginadas para los alumnos cursando (C)
+router.get("/materias/:materiaId/predicciones", async (req, res) => {
+  const materiaId = toPositiveInt(req.params.materiaId);
+
+  if (!materiaId) {
+    return res.status(400).json({ error: "Materia inválida." });
+  }
+
+  const page = Math.max(1, parseInt(req.query.page) || 1);
+  const pageSize = Math.min(50, Math.max(1, parseInt(req.query.pageSize) || 10));
+
+  try {
+    const cursando = getCursandoAlumnos(materiaId);
+    const total = cursando.length;
+    const totalPages = Math.ceil(total / pageSize);
+    const start = (page - 1) * pageSize;
+    const alumnosPagina = cursando.slice(start, start + pageSize);
+    const alumnosIds = alumnosPagina.map((a) => a.id);
+
+    const predicciones = await precalcularPrediccionesCompletas(alumnosIds, materiaId);
+
+    return res.status(200).json({
+      predicciones,
+      pagination: { page, pageSize, total, totalPages },
+    });
+  } catch (error) {
+    console.error("Error al calcular predicciones:", error);
     return res.status(500).json({
       error: "Error al calcular predicciones",
       details: error.message,

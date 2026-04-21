@@ -25,34 +25,39 @@ function sinDatos(alumno) {
 }
 
 async function obtenerPrediccionesAbandono(alumnosActivos) {
-  const predicciones = [];
-  const loteSize = 5;
-  let aiDisponible = true;
+  // Calcular variables de todos los alumnos (sincrónico, DB local)
+  const alumnosConVars = alumnosActivos.map((alumno) => {
+    try {
+      const vars = calcularVariablesAbandono(alumno.id);
+      const body = { ...vars };
+      delete body._meta;
 
-  for (let i = 0; i < alumnosActivos.length; i += loteSize) {
-    if (!aiDisponible) {
-      predicciones.push(...alumnosActivos.slice(i).map(sinDatos));
-      break;
+      if (!body.PromedioColegio_x && body.PromedioColegio) {
+        body.PromedioColegio_x = body.PromedioColegio;
+        body.PromedioColegio_y = body.PromedioColegio;
+        delete body.PromedioColegio;
+      }
+
+      return { alumno, body };
+    } catch {
+      return { alumno, body: null };
     }
+  });
 
-    const lote = alumnosActivos.slice(i, i + loteSize);
-    const promesas = lote.map(async (alumno) => {
-      try {
-        const vars = calcularVariablesAbandono(alumno.id);
-        const body = { ...vars };
-        delete body._meta;
+  const validos = alumnosConVars.filter((a) => a.body !== null);
+  const invalidos = alumnosConVars.filter((a) => a.body === null);
 
-        if (!body.PromedioColegio_x && body.PromedioColegio) {
-          body.PromedioColegio_x = body.PromedioColegio;
-          body.PromedioColegio_y = body.PromedioColegio;
-          delete body.PromedioColegio;
-        }
+  // Un solo POST con todos los alumnos en lugar de N requests
+  try {
+    const resp = await axios.post(
+      `${AI_URL}/predict/alumno`,
+      validos.map((a) => a.body),
+      { timeout: 15000 },
+    );
 
-        const resp = await axios.post(`${AI_URL}/predict/alumno`, [body], {
-          timeout: 3000,
-        });
-        const resultado = resp.data[0];
-
+    const predicciones = [
+      ...validos.map(({ alumno }, i) => {
+        const resultado = resp.data[i];
         return {
           id: alumno.id,
           nombre: alumno.nombre_completo,
@@ -67,18 +72,15 @@ async function obtenerPrediccionesAbandono(alumnosActivos) {
                 ? "medio"
                 : "bajo",
         };
-      } catch (err) {
-        console.warn(`Servicio IA no disponible (alumno ${alumno.id}): ${err.message}`);
-        aiDisponible = false;
-        return sinDatos(alumno);
-      }
-    });
+      }),
+      ...invalidos.map(({ alumno }) => sinDatos(alumno)),
+    ];
 
-    const resultados = await Promise.all(promesas);
-    predicciones.push(...resultados);
+    return { predicciones, aiDisponible: true };
+  } catch (err) {
+    console.warn(`Servicio IA no disponible: ${err.message}`);
+    return { predicciones: alumnosActivos.map(sinDatos), aiDisponible: false };
   }
-
-  return { predicciones, aiDisponible };
 }
 
 router.get("/", async (req, res) => {

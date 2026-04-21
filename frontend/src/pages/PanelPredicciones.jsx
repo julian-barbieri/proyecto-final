@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import api from "../api/axios";
 import LoadingSpinner from "../components/LoadingSpinner";
 
@@ -121,6 +121,14 @@ function AlumnoFila({ alumno, onViewDetail }) {
 
       {/* Predicciones Grid - Mejoradas */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        {/* Cargando predicciones */}
+        {!alumno.prediccion && (
+          <div className="col-span-3 flex items-center gap-2 text-xs text-slate-500 italic">
+            <div className="h-3 w-3 animate-spin rounded-full border-2 border-slate-400 border-t-transparent" />
+            Calculando predicciones...
+          </div>
+        )}
+
         {/* ABANDONO */}
         {alumno.prediccion?.abandono && (
           <div className="flex flex-col gap-1 rounded-lg border border-slate-200 bg-gradient-to-br from-slate-100 to-slate-100/50 p-2 hover:shadow-sm transition-shadow">
@@ -723,15 +731,21 @@ function DetallePanel({ alumno, alumnoData, onClose, loading, materiaActiva }) {
   );
 }
 
+const PAGE_SIZE = 10;
+
 export default function PanelPredicciones() {
   const [materias, setMaterias] = useState([]);
   const [materiaActiva, setMateriaActiva] = useState(null);
   const [datos, setDatos] = useState(null);
+  const [predicciones, setPredicciones] = useState({});
   const [alumnoDetalle, setAlumnoDetalle] = useState(null);
   const [alumnoData, setAlumnoData] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [loadingPredicciones, setLoadingPredicciones] = useState(false);
   const [loadingDetalle, setLoadingDetalle] = useState(false);
   const [error, setError] = useState("");
+  // Ref para cancelar cargas de predicciones si el usuario cambia de materia
+  const activeMateriaRef = useRef(null);
 
   useEffect(() => {
     let active = true;
@@ -771,23 +785,60 @@ export default function PanelPredicciones() {
   }, []);
 
   const cargarAlumnos = async (materiaId, materiasRef = materias) => {
+    activeMateriaRef.current = materiaId;
     setLoading(true);
     setError("");
+    setPredicciones({});
 
     try {
+      // Fase 1: cargar alumnos sin predicciones (rápido)
       const response = await api.get(
-        `/api/panel-predicciones/materias/${materiaId}/panel-predicciones`,
+        `/api/panel-predicciones/materias/${materiaId}/panel-predicciones?skipPredicciones=true`,
       );
+
+      if (activeMateriaRef.current !== materiaId) return;
+
       setDatos(response.data);
 
       const selected = (materiasRef || []).find(
         (m) => Number(m.id) === Number(materiaId),
       );
       setMateriaActiva(selected || response.data?.materia || null);
-    } catch (fetchError) {
-      setError(fetchError.message || "No se pudieron cargar los alumnos.");
-    } finally {
       setLoading(false);
+
+      // Fase 2: cargar predicciones página por página (C)
+      const totalAlumnos = response.data?.cursando?.length ?? 0;
+      if (totalAlumnos > 0) {
+        setLoadingPredicciones(true);
+        const totalPages = Math.ceil(totalAlumnos / PAGE_SIZE);
+        try {
+          for (let page = 1; page <= totalPages; page++) {
+            if (activeMateriaRef.current !== materiaId) break;
+
+            const predResp = await api.get(
+              `/api/panel-predicciones/materias/${materiaId}/predicciones?page=${page}&pageSize=${PAGE_SIZE}`,
+            );
+
+            if (activeMateriaRef.current !== materiaId) break;
+
+            setPredicciones((prev) => ({
+              ...prev,
+              ...predResp.data.predicciones,
+            }));
+          }
+        } catch {
+          // Las predicciones son opcionales; no bloquear la UI
+        } finally {
+          if (activeMateriaRef.current === materiaId) {
+            setLoadingPredicciones(false);
+          }
+        }
+      }
+    } catch (fetchError) {
+      if (activeMateriaRef.current === materiaId) {
+        setError(fetchError.message || "No se pudieron cargar los alumnos.");
+        setLoading(false);
+      }
     }
   };
 
@@ -803,12 +854,12 @@ export default function PanelPredicciones() {
 
       // Obtener alumno del listado actual
       if (datos) {
-        for (const grupo of Object.values(datos.por_categoria)) {
-          const alumno = grupo.find((a) => a.id === alumnoId);
-          if (alumno) {
-            setAlumnoDetalle(alumno);
-            break;
-          }
+        const alumno = (datos.cursando || []).find((a) => a.id === alumnoId);
+        if (alumno) {
+          setAlumnoDetalle({
+            ...alumno,
+            prediccion: predicciones[alumno.id] ?? null,
+          });
         }
       }
     } catch (fetchError) {
@@ -838,116 +889,83 @@ export default function PanelPredicciones() {
         </div>
       ) : null}
 
-      {/* Selector de materias */}
-      <section className="grid gap-3 md:grid-cols-2">
-        {materias.map((materia) => (
-          <button
-            key={materia.id}
-            type="button"
-            onClick={() => cargarAlumnos(materia.id)}
-            className={`flex w-full flex-col items-center rounded-xl border-2 p-6 text-center transition-all ${
-              Number(materiaActiva?.id) === Number(materia.id)
-                ? "border-blue-500 bg-blue-50 text-blue-800"
-                : "border-gray-200 bg-white hover:border-gray-300"
-            }`}
+      {/* Selector de materias — dropdown */}
+      {materias.length > 0 && (
+        <section className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-200 bg-white p-4">
+          <label
+            htmlFor="materia-select"
+            className="text-sm font-medium text-slate-700 whitespace-nowrap"
           >
-            <span className="text-lg font-medium">{materia.nombre}</span>
-            <span className="mt-1 text-sm text-gray-500">
-              {materia.total_relevantes} alumnos
-            </span>
-          </button>
-        ))}
-      </section>
+            Materia:
+          </label>
+          <select
+            id="materia-select"
+            value={materiaActiva?.id ?? ""}
+            onChange={(e) => cargarAlumnos(Number(e.target.value))}
+            disabled={loading}
+            className="flex-1 min-w-[220px] rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50"
+          >
+            {materias.map((materia) => (
+              <option key={materia.id} value={materia.id}>
+                {materia.nombre}
+                {materia.total_relevantes != null
+                  ? ` (${materia.total_relevantes} alumnos)`
+                  : ""}
+              </option>
+            ))}
+          </select>
+        </section>
+      )}
 
-      {/* Resumen de riesgo */}
+      {/* Resumen */}
       {datos ? (
-        <section className="grid gap-3 md:grid-cols-4">
+        <section className="grid gap-3 md:grid-cols-2">
           <article className="rounded-lg border border-slate-200 p-3 bg-white">
-            <p className="text-xs text-slate-500">Total de alumnos</p>
+            <p className="text-xs text-slate-500">Total cursando</p>
             <p className="text-lg font-semibold text-slate-900">
               {datos.resumen.total}
             </p>
           </article>
-          <article className="rounded-lg border border-blue-200 bg-blue-50 p-3">
-            <p className="text-xs text-blue-600">📚 Cursando</p>
-            <p className="text-lg font-semibold text-blue-700">
-              {datos.resumen.cursando}
+          <article className="rounded-lg border border-blue-200 bg-blue-50 p-3 flex items-center gap-2">
+            <p className="text-xs text-blue-600 flex-1">
+              {loadingPredicciones
+                ? "Calculando predicciones..."
+                : "Predicciones listas"}
             </p>
-          </article>
-          <article className="rounded-lg border border-orange-200 bg-orange-50 p-3">
-            <p className="text-xs text-orange-600">🔁 Recursaron sin aprobar</p>
-            <p className="text-lg font-semibold text-orange-700">
-              {datos.resumen.recursado_sin_aprobar}
-            </p>
-          </article>
-          <article className="rounded-lg border border-amber-200 bg-amber-50 p-3">
-            <p className="text-xs text-amber-600">⏳ Final pendiente</p>
-            <p className="text-lg font-semibold text-amber-700">
-              {datos.resumen.final_pendiente}
-            </p>
+            {loadingPredicciones && (
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
+            )}
           </article>
         </section>
       ) : null}
 
-      {/* Listas de alumnos por riesgo */}
+      {/* Lista de alumnos */}
       {loading ? (
-        <LoadingSpinner size="md" text="Cargando alumnos con predicciones..." />
+        <LoadingSpinner size="md" text="Cargando alumnos..." />
       ) : datos ? (
         <section className="space-y-6">
-          {/* Cursando */}
-          {datos.por_categoria?.cursando?.length > 0 && (
+          {(datos.cursando?.length ?? 0) > 0 ? (
             <div className="space-y-3 rounded-lg border border-blue-200 bg-blue-50 p-4">
               <h3 className="text-sm font-semibold text-blue-900">
-                📚 Cursando ({datos.por_categoria.cursando.length})
+                📚 Cursando ({datos.cursando.length})
               </h3>
               <div className="space-y-2">
-                {datos.por_categoria.cursando.map((alumno) => (
+                {datos.cursando.map((alumno) => (
                   <AlumnoFila
                     key={alumno.id}
-                    alumno={alumno}
+                    alumno={{
+                      ...alumno,
+                      prediccion: predicciones[alumno.id] ?? null,
+                    }}
                     onViewDetail={cargarDetalle}
                   />
                 ))}
               </div>
             </div>
-          )}
-
-          {/* Recursaron sin aprobar */}
-          {datos.por_categoria?.recursado_sin_aprobar?.length > 0 && (
-            <div className="space-y-3 rounded-lg border border-orange-200 bg-orange-50 p-4">
-              <h3 className="text-sm font-semibold text-orange-900">
-                🔁 Recursaron sin aprobar (
-                {datos.por_categoria.recursado_sin_aprobar.length})
-              </h3>
-              <div className="space-y-2">
-                {datos.por_categoria.recursado_sin_aprobar.map((alumno) => (
-                  <AlumnoFila
-                    key={alumno.id}
-                    alumno={alumno}
-                    onViewDetail={cargarDetalle}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Final pendiente */}
-          {datos.por_categoria?.final_pendiente?.length > 0 && (
-            <div className="space-y-3 rounded-lg border border-amber-200 bg-amber-50 p-4">
-              <h3 className="text-sm font-semibold text-amber-900">
-                ⏳ Final pendiente ({datos.por_categoria.final_pendiente.length}
-                )
-              </h3>
-              <div className="space-y-2">
-                {datos.por_categoria.final_pendiente.map((alumno) => (
-                  <AlumnoFila
-                    key={alumno.id}
-                    alumno={alumno}
-                    onViewDetail={cargarDetalle}
-                  />
-                ))}
-              </div>
-            </div>
+          ) : (
+            <p className="text-sm text-slate-500 rounded-lg border border-slate-200 bg-white p-4">
+              No hay alumnos cursando esta materia actualmente.
+            </p>
           )}
         </section>
       ) : null}

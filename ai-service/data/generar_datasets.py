@@ -364,15 +364,30 @@ def generar_datasets(num_alumnos=500, output_dir="data"):
     for (alumno_id, materia, anio, cuatrimestre), data in cursadas_unicas.items():
         datos_alumno = estudiantes[alumno_id]
         tiene_final_aprobado = any(nota >= 4 for nota in data['finales']) if data['finales'] else False
-        
-        # Alumnos activos: SIEMPRE Recursa=0 (todos aprueban)
+
+        # Generar asistencia antes de decidir recursado para poder correlacionarla
+        asistencia = round(np.clip(np.random.normal(0.84, 0.11), 0.10, 1.0), 2)
+        es_bottleneck = materia in MATERIAS_BOTTLENECK
+        indice_bloqueo = data['indice_bloqueo']
+
         if not datos_alumno["abandona"]:
-            recursa = 0
+            # Alumnos activos pueden recursar: probabilidad basada en asistencia,
+            # bottleneck e índice de bloqueo. Target ~20% tasa global.
+            prob_recursa = 0.05
+            if asistencia < 0.60:
+                prob_recursa += 0.40
+            elif asistencia < 0.75:
+                prob_recursa += 0.20
+            if es_bottleneck:
+                prob_recursa += 0.15
+            if indice_bloqueo > 0.5:
+                prob_recursa += 0.10
+            recursa = int(np.random.random() < prob_recursa)
         else:
             recursa = 0 if tiene_final_aprobado else 1
-        
+
         delay = anio - (datos_alumno["anio_ingreso"] + data['ano_plan'] - 1)
-        
+
         registros_materia.append({
             "IdAlumno": alumno_id, "Materia": materia, "Tipo": data['tipo'],
             "Cuatrimestre": cuatrimestre, "AnioCursada": anio,
@@ -380,7 +395,7 @@ def generar_datasets(num_alumnos=500, output_dir="data"):
             "AyudaFinanciera": datos_alumno["ayuda_financiera"],
             "ColegioTecnico": datos_alumno["colegio_tecnico"],
             "PromedioColegio": round(datos_alumno["promedio_colegio"], 2),
-            "Asistencia": round(np.clip(np.random.normal(0.84, 0.11), 0.10, 1.0), 2),
+            "Asistencia": asistencia,
             "Recursa": recursa,
             "AñoCarrera": data['ano_plan'], "DelayRespectoPlan": delay,
             "NotaPromedioPrevias": round(np.random.uniform(4, 8) if MATERIAS[materia][3] else 0.0, 2),
