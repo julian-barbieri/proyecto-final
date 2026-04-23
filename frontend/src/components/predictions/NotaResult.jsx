@@ -46,6 +46,8 @@ function getCategory(nota) {
   };
 }
 
+const EXAM_LABELS = { Parcial: "Parcial", Recuperatorio: "Recuperatorio", Final: "Final" };
+
 export default function NotaResult({ result }) {
   if (!result) {
     return null;
@@ -56,10 +58,20 @@ export default function NotaResult({ result }) {
   const positionPercent = (nota / 10) * 100;
   const category = getCategory(nota);
 
+  const nextExam = result._nextExam;
+  const examLabel = nextExam
+    ? `${EXAM_LABELS[nextExam.tipoExamen] ?? nextExam.tipoExamen} — Instancia ${nextExam.instancia}`
+    : null;
+
   return (
     <section
       className={`rounded-2xl border ${category.border} ${category.soft} p-6 shadow-sm`}
     >
+      {examLabel && (
+        <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+          Predicción para: {examLabel}
+        </p>
+      )}
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-sm font-medium text-slate-600">Nota predicha</p>

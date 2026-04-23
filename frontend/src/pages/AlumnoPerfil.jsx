@@ -91,13 +91,25 @@ function AcordeonCursada({ cursada }) {
     abandonada: "bg-red-100 text-red-700",
   };
 
+  const examenesConNota = (cursada.examenes || []).filter(
+    (e) => e.rendido && e.nota !== null && e.nota !== undefined,
+  );
+  const promedioNota =
+    examenesConNota.length > 0
+      ? examenesConNota.reduce((s, e) => s + Number(e.nota), 0) /
+        examenesConNota.length
+      : null;
+  const aprobados = examenesConNota.filter((e) => Number(e.nota) >= 4).length;
+  const tasaAprobacion =
+    examenesConNota.length > 0 ? aprobados / examenesConNota.length : null;
+
   return (
     <div className="border border-gray-100 rounded-lg mb-2 overflow-hidden">
       <button
         onClick={() => setAbierto((v) => !v)}
         className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors"
       >
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <span className="text-sm font-medium text-gray-700">
             Año {cursada.anio}
           </span>
@@ -115,16 +127,40 @@ function AcordeonCursada({ cursada }) {
                 : "text-gray-400"
             }`}
           >
-            Asistencia: {(cursada.asistencia * 100).toFixed(0)}%
+            {(cursada.asistencia * 100).toFixed(0)}% asist.
             {cursada.asistencia < 0.75 && " ⚠"}
           </span>
+          {promedioNota !== null && (
+            <span
+              className={`text-xs font-medium ${
+                promedioNota >= 6
+                  ? "text-green-600"
+                  : promedioNota >= 4
+                    ? "text-amber-600"
+                    : "text-red-500"
+              }`}
+            >
+              Prom. {promedioNota.toFixed(1)}
+            </span>
+          )}
+          {tasaAprobacion !== null && (
+            <span
+              className={`text-xs ${
+                tasaAprobacion >= 0.6 ? "text-green-500" : "text-red-400"
+              }`}
+            >
+              {Math.round(tasaAprobacion * 100)}% aprob.
+            </span>
+          )}
         </div>
-        <span className="text-gray-400 text-sm">{abierto ? "▲" : "▼"}</span>
+        <span className="text-gray-400 text-sm ml-2 flex-shrink-0">
+          {abierto ? "▲" : "▼"}
+        </span>
       </button>
 
       {abierto && (
         <div className="px-4 pb-4">
-          {cursada.examenes.length === 0 ? (
+          {(cursada.examenes || []).length === 0 ? (
             <p className="text-sm text-gray-400 py-2">
               Sin exámenes registrados.
             </p>
@@ -136,31 +172,50 @@ function AcordeonCursada({ cursada }) {
                     Examen
                   </th>
                   <th className="text-left py-2 px-2 font-medium text-gray-600">
-                    Rendido
+                    Estado
                   </th>
                   <th className="text-left py-2 px-2 font-medium text-gray-600">
                     Nota
                   </th>
-                  <th className="text-left py-2 px-2 font-medium text-gray-600">
-                    Ausente
-                  </th>
                 </tr>
               </thead>
               <tbody>
-                {cursada.examenes.map((exam, i) => (
-                  <tr key={i} className="border-b border-gray-50 last:border-0">
-                    <td className="py-2 px-2 text-gray-700">
-                      {exam.tipo} {exam.instancia}
-                    </td>
-                    <td className="py-2 px-2">{exam.rendido ? "✅" : "⏳"}</td>
-                    <td className="py-2 px-2">
-                      {exam.nota !== null && exam.nota !== undefined
-                        ? exam.nota
-                        : "—"}
-                    </td>
-                    <td className="py-2 px-2">{exam.ausente ? "✅" : "❌"}</td>
-                  </tr>
-                ))}
+                {cursada.examenes.map((exam, i) => {
+                  const nota = exam.nota !== null && exam.nota !== undefined ? Number(exam.nota) : null;
+                  return (
+                    <tr key={i} className="border-b border-gray-50 last:border-0">
+                      <td className="py-2 px-2 text-gray-700 font-medium">
+                        {exam.tipo} {exam.instancia}
+                      </td>
+                      <td className="py-2 px-2">
+                        {exam.ausente ? (
+                          <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">Ausente</span>
+                        ) : exam.rendido ? (
+                          <span className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full">Rendido</span>
+                        ) : (
+                          <span className="text-xs bg-gray-50 text-gray-400 px-2 py-0.5 rounded-full">Pendiente</span>
+                        )}
+                      </td>
+                      <td className="py-2 px-2">
+                        {nota !== null ? (
+                          <span
+                            className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                              nota >= 6
+                                ? "bg-green-100 text-green-700"
+                                : nota >= 4
+                                  ? "bg-amber-100 text-amber-700"
+                                  : "bg-red-100 text-red-700"
+                            }`}
+                          >
+                            {nota}
+                          </span>
+                        ) : (
+                          <span className="text-gray-300">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           )}
@@ -181,6 +236,7 @@ export default function AlumnoPerfil() {
   const [tabActiva, setTabActiva] = useState("perfil"); // 'perfil' | 'academico' | 'predicciones'
   const [notasPredecidas, setNotasPredecidas] = useState([]);
   const [loadingNotas, setLoadingNotas] = useState(false);
+  const [busquedaAcademica, setBusquedaAcademica] = useState("");
 
   // Estados para edición de campos
   const [editando, setEditando] = useState(false);
@@ -188,6 +244,11 @@ export default function AlumnoPerfil() {
   const [editError, setEditError] = useState(null);
   const [formEdit, setFormEdit] = useState({
     ayuda_financiera: 0,
+  });
+  const [simulacion, setSimulacion] = useState({
+    loading: false,
+    resultado: null,
+    error: null,
   });
 
   // Cargar perfil del alumno
@@ -351,21 +412,9 @@ export default function AlumnoPerfil() {
         try {
           console.log(`[DEBUG] Procesando cursada:`, cursada);
 
-          // Orden del flujo académico: P1 → R1 → P2 → R2 → F1 → F2 → F3
-          const flujo = [
-            { tipo: "Parcial", inst: 1 },
-            { tipo: "Recuperatorio", inst: 1 },
-            { tipo: "Parcial", inst: 2 },
-            { tipo: "Recuperatorio", inst: 2 },
-            { tipo: "Final", inst: 1 },
-            { tipo: "Final", inst: 2 },
-            { tipo: "Final", inst: 3 },
-          ];
-
           // Para cursadas aprobadas, buscar el próximo final no aprobado
           let proximoExamen;
           if (cursada.estado === "aprobada") {
-            // Solo buscar en finales
             const examenActual = cursada.examenes || [];
             proximoExamen = [1, 2, 3]
               .map((inst) => ({ tipo: "Final", inst }))
@@ -376,20 +425,76 @@ export default function AlumnoPerfil() {
                     e.instancia === f.inst &&
                     e.rendido === 1,
                 );
-                // Buscar el primer final no rendido o desaprobado
-                return !finalExam || (finalExam && finalExam.nota < 4);
+                return !finalExam || finalExam.nota < 4;
               });
           } else {
-            // Para cursadas en "cursando", buscar el primer examen no rendido
-            proximoExamen = flujo.find(
-              (f) =>
-                !(cursada.examenes || []).some(
-                  (e) =>
-                    e.tipo === f.tipo &&
-                    e.instancia === f.inst &&
-                    e.rendido === 1,
-                ),
-            );
+            // Para cursadas en "cursando", respetar la lógica académica:
+            // aprobar Parcial N habilita Final (cuatrimestral) o Parcial N+1 (anual)
+            const examenes = cursada.examenes || [];
+            const materiaType = cursada.materia_tipo ?? "C";
+            const passed = (tipo, inst) =>
+              examenes.some(
+                (e) =>
+                  e.tipo === tipo &&
+                  e.instancia === inst &&
+                  e.rendido === 1 &&
+                  (e.nota ?? 0) >= 4,
+              );
+            const taken = (tipo, inst) =>
+              examenes.some(
+                (e) => e.tipo === tipo && e.instancia === inst && e.rendido === 1,
+              );
+
+            const calcularProximo = () => {
+              if (!taken("Parcial", 1)) return { tipo: "Parcial", inst: 1 };
+              if (passed("Parcial", 1)) {
+                if (materiaType === "A") {
+                  if (!taken("Parcial", 2)) return { tipo: "Parcial", inst: 2 };
+                  if (passed("Parcial", 2)) {
+                    for (const inst of [1, 2, 3]) {
+                      if (!taken("Final", inst)) return { tipo: "Final", inst };
+                    }
+                  } else {
+                    if (!taken("Recuperatorio", 2)) return { tipo: "Recuperatorio", inst: 2 };
+                    if (passed("Recuperatorio", 2)) {
+                      for (const inst of [1, 2, 3]) {
+                        if (!taken("Final", inst)) return { tipo: "Final", inst };
+                      }
+                    }
+                  }
+                } else {
+                  for (const inst of [1, 2, 3]) {
+                    if (!taken("Final", inst)) return { tipo: "Final", inst };
+                  }
+                }
+              } else {
+                if (!taken("Recuperatorio", 1)) return { tipo: "Recuperatorio", inst: 1 };
+                if (passed("Recuperatorio", 1)) {
+                  if (materiaType === "A") {
+                    if (!taken("Parcial", 2)) return { tipo: "Parcial", inst: 2 };
+                    if (passed("Parcial", 2)) {
+                      for (const inst of [1, 2, 3]) {
+                        if (!taken("Final", inst)) return { tipo: "Final", inst };
+                      }
+                    } else {
+                      if (!taken("Recuperatorio", 2)) return { tipo: "Recuperatorio", inst: 2 };
+                      if (passed("Recuperatorio", 2)) {
+                        for (const inst of [1, 2, 3]) {
+                          if (!taken("Final", inst)) return { tipo: "Final", inst };
+                        }
+                      }
+                    }
+                  } else {
+                    for (const inst of [1, 2, 3]) {
+                      if (!taken("Final", inst)) return { tipo: "Final", inst };
+                    }
+                  }
+                }
+              }
+              return null;
+            };
+
+            proximoExamen = calcularProximo();
           }
 
           console.log(
@@ -779,10 +884,29 @@ export default function AlumnoPerfil() {
       setLoadingNotas(false);
     };
 
-    if (tabActiva === "predicciones" && data) {
+    if ((tabActiva === "predicciones" || tabActiva === "academico") && data) {
       generarPrediccionesNotas();
     }
   }, [tabActiva, data, alumnoId]);
+
+  async function simularImpacto() {
+    setSimulacion({ loading: true, resultado: null, error: null });
+    try {
+      const resp = await api.post(
+        `/api/gestion-alumnos/alumnos/${alumnoId}/simular`,
+        { ayuda_financiera: formEdit.ayuda_financiera },
+      );
+      setSimulacion({ loading: false, resultado: resp.data, error: null });
+    } catch (err) {
+      setSimulacion({
+        loading: false,
+        resultado: null,
+        error:
+          err.response?.data?.error ||
+          "No se pudo calcular el impacto. ¿Está corriendo el servicio de IA?",
+      });
+    }
+  }
 
   // Función para guardar ediciones
   async function guardarEdicion() {
@@ -915,18 +1039,6 @@ export default function AlumnoPerfil() {
                 </span>
               )}
 
-              {/* Estado cursada activa */}
-              {cursadas
-                .filter((c) => c.estado === "cursando")
-                .map((c) => (
-                  <span
-                    key={c.materia_id}
-                    className="text-xs px-2.5 py-1 rounded-full bg-blue-100 text-blue-700 font-medium"
-                  >
-                    📚 Cursando {c.materia_codigo} {c.anio}
-                  </span>
-                ))}
-
               {/* Promedio global */}
               {indicadores.promedio_nota_global !== null && (
                 <span
@@ -1030,6 +1142,7 @@ export default function AlumnoPerfil() {
                     onClick={() => {
                       setEditando(false);
                       setEditError(null);
+                      setSimulacion({ loading: false, resultado: null, error: null });
                     }}
                     className="text-xs text-gray-500 hover:underline"
                   >
@@ -1082,12 +1195,13 @@ export default function AlumnoPerfil() {
                   {editando ? (
                     <select
                       value={formEdit.ayuda_financiera}
-                      onChange={(e) =>
+                      onChange={(e) => {
                         setFormEdit((f) => ({
                           ...f,
                           ayuda_financiera: parseInt(e.target.value),
-                        }))
-                      }
+                        }));
+                        setSimulacion({ loading: false, resultado: null, error: null });
+                      }}
                       className="text-sm border border-gray-300 rounded px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-400"
                     >
                       <option value={0}>No</option>
@@ -1100,8 +1214,130 @@ export default function AlumnoPerfil() {
                   )}
                 </dd>
               </div>
+
+              {/* Botón simular impacto */}
+              {editando &&
+                formEdit.ayuda_financiera !== (data.alumno.ayuda_financiera ?? 0) && (
+                  <div className="pt-2">
+                    <button
+                      onClick={simularImpacto}
+                      disabled={simulacion.loading}
+                      className="w-full text-xs bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 px-3 py-2 rounded-lg transition-colors disabled:opacity-50 font-medium"
+                    >
+                      {simulacion.loading
+                        ? "Calculando impacto..."
+                        : "⚡ Ver impacto antes de guardar"}
+                    </button>
+                  </div>
+                )}
             </dl>
           </div>
+
+          {/* Panel de simulación de impacto */}
+          {editando && (simulacion.resultado || simulacion.error) && (() => {
+            const actual = predicciones.abandono;
+            const sim = simulacion.resultado;
+            if (simulacion.error) {
+              return (
+                <div className="md:col-span-2 bg-red-50 border border-red-200 rounded-xl p-4">
+                  <p className="text-sm text-red-700">{simulacion.error}</p>
+                </div>
+              );
+            }
+            if (!actual || !sim) return null;
+
+            const probActual = Math.round(actual.probabilidad * 100);
+            const probSim = Math.round(sim.probabilidad * 100);
+            const delta = probSim - probActual;
+            const mejora = delta < 0;
+            const nivelColor = {
+              alto: "text-red-700 bg-red-50 border-red-200",
+              medio: "text-amber-700 bg-amber-50 border-amber-200",
+              bajo: "text-green-700 bg-green-50 border-green-200",
+            };
+            const nivelLabel = { alto: "🔴 Alto", medio: "🟡 Medio", bajo: "🟢 Bajo" };
+
+            return (
+              <div className="md:col-span-2 bg-indigo-50 border border-indigo-200 rounded-xl p-5">
+                <h3 className="text-sm font-semibold text-indigo-800 mb-4">
+                  ⚡ Impacto simulado del cambio en ayuda financiera
+                </h3>
+                <div className="grid grid-cols-3 gap-4 items-center">
+                  {/* Actual */}
+                  <div className={`rounded-lg border p-3 text-center ${nivelColor[actual.nivel_riesgo]}`}>
+                    <p className="text-xs font-medium uppercase tracking-wide opacity-70 mb-1">Situación actual</p>
+                    <p className="text-2xl font-bold">{probActual}%</p>
+                    <p className="text-xs font-semibold mt-1">{nivelLabel[actual.nivel_riesgo]} riesgo</p>
+                  </div>
+
+                  {/* Flecha */}
+                  <div className="text-center">
+                    <p className={`text-3xl font-bold ${mejora ? "text-green-600" : "text-red-600"}`}>
+                      {mejora ? "↓" : "↑"}
+                    </p>
+                    <p className={`text-sm font-semibold mt-1 ${mejora ? "text-green-700" : "text-red-700"}`}>
+                      {Math.abs(delta)} pp {mejora ? "menos" : "más"}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      {mejora ? "Mejoraría" : "Empeoraría"}
+                    </p>
+                  </div>
+
+                  {/* Simulado */}
+                  <div className={`rounded-lg border p-3 text-center ${nivelColor[sim.nivel_riesgo]}`}>
+                    <p className="text-xs font-medium uppercase tracking-wide opacity-70 mb-1">Con el cambio</p>
+                    <p className="text-2xl font-bold">{probSim}%</p>
+                    <p className="text-xs font-semibold mt-1">{nivelLabel[sim.nivel_riesgo]} riesgo</p>
+                  </div>
+                </div>
+
+                {actual.nivel_riesgo !== sim.nivel_riesgo && (
+                  <p className={`mt-3 text-xs font-medium rounded-lg px-3 py-2 ${mejora ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>
+                    {mejora
+                      ? `El alumno pasaría de riesgo ${actual.nivel_riesgo} a riesgo ${sim.nivel_riesgo}. El cambio tiene un impacto significativo.`
+                      : `El alumno pasaría de riesgo ${actual.nivel_riesgo} a riesgo ${sim.nivel_riesgo}. Considerá el impacto antes de confirmar.`}
+                  </p>
+                )}
+
+                {actual.nivel_riesgo === sim.nivel_riesgo && (
+                  <p className="mt-3 text-xs text-indigo-700 bg-indigo-100 rounded-lg px-3 py-2">
+                    El nivel de riesgo no cambiaría ({nivelLabel[sim.nivel_riesgo]}), aunque la probabilidad varía {Math.abs(delta)} puntos porcentuales.
+                  </p>
+                )}
+              </div>
+            );
+          })()}
+
+          {/* Probabilidad de abandono */}
+          {predicciones?.abandono && predicciones.abandono.probabilidad !== null && (() => {
+            const prob = Math.round(predicciones.abandono.probabilidad * 100);
+            const nivel = predicciones.abandono.nivel_riesgo;
+            const cfg = {
+              alto:  { bg: "bg-red-50",   border: "border-red-200",   bar: "bg-red-500",   text: "text-red-700",   badge: "bg-red-100 text-red-700",   label: "🔴 Riesgo alto" },
+              medio: { bg: "bg-amber-50", border: "border-amber-200", bar: "bg-amber-400", text: "text-amber-700", badge: "bg-amber-100 text-amber-700", label: "🟡 Riesgo medio" },
+              bajo:  { bg: "bg-green-50", border: "border-green-200", bar: "bg-green-500", text: "text-green-700", badge: "bg-green-100 text-green-700", label: "🟢 Riesgo bajo" },
+            }[nivel] || { bg: "bg-gray-50", border: "border-gray-200", bar: "bg-gray-400", text: "text-gray-700", badge: "bg-gray-100 text-gray-700", label: "Sin datos" };
+
+            return (
+              <div className={`md:col-span-2 ${cfg.bg} border ${cfg.border} rounded-xl p-5`}>
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wide">
+                    Probabilidad de abandono
+                  </h2>
+                  <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${cfg.badge}`}>
+                    {cfg.label}
+                  </span>
+                </div>
+                <div className="flex items-end gap-3 mb-3">
+                  <p className={`text-4xl font-bold ${cfg.text}`}>{prob}%</p>
+                  <p className="text-sm text-gray-500 pb-1">de probabilidad de abandono</p>
+                </div>
+                <div className="w-full bg-white/70 rounded-full h-2 overflow-hidden">
+                  <div className={`h-2 rounded-full transition-all ${cfg.bar}`} style={{ width: `${Math.min(prob, 100)}%` }} />
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Indicadores clave (fila de 4 tarjetas) */}
           <div className="md:col-span-2 grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -1200,25 +1436,211 @@ export default function AlumnoPerfil() {
 
       {tabActiva === "academico" && (
         <div className="space-y-4">
-          {["AM1", "AM2"].map((codigo) => {
+          {/* Buscador */}
+          <div className="relative">
+            <span className="absolute inset-y-0 left-3 flex items-center text-gray-400 pointer-events-none text-sm">🔍</span>
+            <input
+              type="text"
+              value={busquedaAcademica}
+              onChange={(e) => setBusquedaAcademica(e.target.value)}
+              placeholder="Buscar materia por código o nombre..."
+              className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-300 bg-gray-50"
+            />
+          </div>
+
+          {[...new Set(cursadas.map((c) => c.materia_codigo))]
+            .filter((codigo) => {
+              if (!busquedaAcademica.trim()) return true;
+              const q = busquedaAcademica.trim().toLowerCase();
+              const cursadasMateria = cursadas.filter((c) => c.materia_codigo === codigo);
+              const nombre = cursadasMateria[0]?.materia_nombre || "";
+              return codigo.toLowerCase().includes(q) || nombre.toLowerCase().includes(q);
+            })
+            .map((codigo) => {
             const cursadasMateria = cursadas.filter(
               (c) => c.materia_codigo === codigo,
             );
             if (cursadasMateria.length === 0) return null;
+
+            // Calcular resumen agregado de la materia
+            const todosExamenes = cursadasMateria.flatMap((c) => c.examenes || []);
+            const examenesConNota = todosExamenes.filter(
+              (e) => e.rendido && e.nota !== null && e.nota !== undefined,
+            );
+            const promedioTotal =
+              examenesConNota.length > 0
+                ? examenesConNota.reduce((s, e) => s + Number(e.nota), 0) /
+                  examenesConNota.length
+                : null;
+            const aprobadosTotal = examenesConNota.filter(
+              (e) => Number(e.nota) >= 4,
+            ).length;
+            const tasaAprobTotal =
+              examenesConNota.length > 0
+                ? aprobadosTotal / examenesConNota.length
+                : null;
+            const promedioAsist =
+              cursadasMateria.length > 0
+                ? cursadasMateria.reduce(
+                    (s, c) => s + Number(c.asistencia || 0),
+                    0,
+                  ) / cursadasMateria.length
+                : null;
+            const estadoUltima = cursadasMateria[0]?.estado;
+
             return (
               <div
                 key={codigo}
                 className="bg-white border border-gray-100 rounded-xl p-5"
               >
-                <h3 className="text-base font-medium text-gray-800 mb-4">
-                  {codigo} — {cursadasMateria[0].materia_nombre}
-                  <span className="ml-2 text-sm font-normal text-gray-400">
-                    ({cursadasMateria.length} cursada/s)
+                {/* Encabezado con nombre y badge de estado */}
+                <div className="flex items-start justify-between mb-3">
+                  <div>
+                    <h3 className="text-base font-semibold text-gray-800">
+                      {codigo} — {cursadasMateria[0].materia_nombre}
+                    </h3>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      {cursadasMateria.length} cursada/s
+                    </p>
+                  </div>
+                  <span
+                    className={`text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${
+                      estadoUltima === "aprobada"
+                        ? "bg-green-100 text-green-700"
+                        : estadoUltima === "cursando"
+                          ? "bg-blue-100 text-blue-700"
+                          : estadoUltima === "recursada"
+                            ? "bg-amber-100 text-amber-700"
+                            : "bg-red-100 text-red-700"
+                    }`}
+                  >
+                    {estadoUltima
+                      ? estadoUltima.charAt(0).toUpperCase() +
+                        estadoUltima.slice(1)
+                      : "—"}
                   </span>
-                </h3>
+                </div>
+
+                {/* Estadísticas rápidas */}
+                {(promedioTotal !== null || tasaAprobTotal !== null) && (
+                  <div className="flex gap-4 mb-4 pb-3 border-b border-gray-100">
+                    {promedioTotal !== null && (
+                      <div>
+                        <p className="text-xs text-gray-400">Promedio notas</p>
+                        <p
+                          className={`text-lg font-semibold ${
+                            promedioTotal >= 6
+                              ? "text-green-600"
+                              : promedioTotal >= 4
+                                ? "text-amber-600"
+                                : "text-red-500"
+                          }`}
+                        >
+                          {promedioTotal.toFixed(1)}
+                        </p>
+                      </div>
+                    )}
+                    {tasaAprobTotal !== null && (
+                      <div>
+                        <p className="text-xs text-gray-400">Tasa aprobación</p>
+                        <p
+                          className={`text-lg font-semibold ${
+                            tasaAprobTotal >= 0.6
+                              ? "text-green-600"
+                              : tasaAprobTotal >= 0.4
+                                ? "text-amber-600"
+                                : "text-red-500"
+                          }`}
+                        >
+                          {Math.round(tasaAprobTotal * 100)}%
+                        </p>
+                      </div>
+                    )}
+                    {promedioAsist !== null && (
+                      <div>
+                        <p className="text-xs text-gray-400">Asistencia prom.</p>
+                        <p
+                          className={`text-lg font-semibold ${
+                            promedioAsist >= 0.8
+                              ? "text-green-600"
+                              : promedioAsist >= 0.75
+                                ? "text-amber-600"
+                                : "text-red-500"
+                          }`}
+                        >
+                          {Math.round(promedioAsist * 100)}%
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {cursadasMateria.map((cursada) => (
-                  <AcordeonCursada key={cursada.anio} cursada={cursada} />
+                  <AcordeonCursada key={`${cursada.materia_id}-${cursada.anio}`} cursada={cursada} />
                 ))}
+
+                {/* Predicciones inline para la cursada activa */}
+                {estadoUltima === "cursando" && (() => {
+                  const predRecursado = notasPredecidas.find(
+                    (p) => p.materia === codigo && p.es_prediccion_recursado,
+                  );
+                  const predNota = notasPredecidas.find(
+                    (p) => p.materia === codigo && !p.es_prediccion_recursado,
+                  );
+
+                  if (loadingNotas) {
+                    return (
+                      <div className="mt-3 pt-3 border-t border-gray-100 flex items-center gap-2 text-xs text-gray-400">
+                        <div className="animate-spin w-3 h-3 border-2 border-gray-200 border-t-gray-500 rounded-full" />
+                        Generando predicciones...
+                      </div>
+                    );
+                  }
+
+                  if (!predRecursado && !predNota) return null;
+
+                  return (
+                    <div className="mt-3 pt-3 border-t border-gray-100">
+                      <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">Predicciones IA</p>
+                      <div className="grid grid-cols-2 gap-3">
+                        {predRecursado && predRecursado.nota_predicha !== null && (() => {
+                          const pct = Math.round(predRecursado.nota_predicha * 100);
+                          const cfg =
+                            pct > 60 ? { bg: "bg-red-50", border: "border-red-200", bar: "bg-red-500", text: "text-red-700" }
+                            : pct > 40 ? { bg: "bg-amber-50", border: "border-amber-200", bar: "bg-amber-400", text: "text-amber-700" }
+                            : { bg: "bg-green-50", border: "border-green-200", bar: "bg-green-500", text: "text-green-700" };
+                          return (
+                            <div className={`${cfg.bg} border ${cfg.border} rounded-lg p-3`}>
+                              <p className="text-xs text-gray-500 mb-1">Prob. recursado</p>
+                              <p className={`text-2xl font-bold ${cfg.text}`}>{pct}%</p>
+                              <div className="w-full bg-white/70 rounded-full h-1 mt-1.5 overflow-hidden">
+                                <div className={`h-1 rounded-full ${cfg.bar}`} style={{ width: `${pct}%` }} />
+                              </div>
+                            </div>
+                          );
+                        })()}
+                        {predNota && predNota.nota_predicha !== null && (() => {
+                          const n = predNota.nota_predicha;
+                          const cfg =
+                            n >= 7 ? { bg: "bg-green-50", border: "border-green-200", bar: "bg-green-500", text: "text-green-700" }
+                            : n >= 4 ? { bg: "bg-amber-50", border: "border-amber-200", bar: "bg-amber-400", text: "text-amber-700" }
+                            : { bg: "bg-red-50", border: "border-red-200", bar: "bg-red-500", text: "text-red-700" };
+                          return (
+                            <div className={`${cfg.bg} border ${cfg.border} rounded-lg p-3`}>
+                              <p className="text-xs text-gray-500 mb-1">
+                                Próxima nota · {predNota.tipo_examen} {predNota.instancia}
+                              </p>
+                              <p className={`text-2xl font-bold ${cfg.text}`}>{n.toFixed(1)}</p>
+                              <div className="w-full bg-white/70 rounded-full h-1 mt-1.5 overflow-hidden">
+                                <div className={`h-1 rounded-full ${cfg.bar}`} style={{ width: `${Math.min((n / 10) * 100, 100)}%` }} />
+                              </div>
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             );
           })}
@@ -1228,69 +1650,78 @@ export default function AlumnoPerfil() {
 
       {tabActiva === "predicciones" && (
         <div className="space-y-6">
-          {/* ═══════════════════════════════════════════════════════════════ */}
           {/* PREDICCIÓN PRINCIPAL: ABANDONO */}
-          {/* ═══════════════════════════════════════════════════════════════ */}
-          {predicciones?.abandono && (
-            <div className="bg-white border border-gray-100 rounded-xl p-6">
-              <h2 className="text-lg font-semibold text-slate-900 mb-4">
-                Indicador de Riesgo General
-              </h2>
-              <div className="flex flex-col gap-4 rounded-lg border border-slate-200 bg-gradient-to-br from-slate-100 to-slate-100/50 p-4">
-                {predicciones.abandono.probabilidad !== null &&
-                predicciones.abandono.probabilidad !== undefined ? (
-                  <div className="space-y-3">
-                    <div>
-                      <p className="text-3xl font-bold text-slate-900">
-                        {Math.round(predicciones.abandono.probabilidad * 100)}%
-                      </p>
-                      <p className="text-base font-semibold text-slate-700">
-                        Riesgo de Abandono
-                      </p>
-                    </div>
-                    <div className="w-full bg-slate-200 rounded-full h-3 overflow-hidden">
-                      <div
-                        className={`h-3 rounded-full transition-all ${
-                          predicciones.abandono.probabilidad > 0.7
-                            ? "bg-red-500"
-                            : predicciones.abandono.probabilidad > 0.5
-                              ? "bg-amber-500"
-                              : "bg-green-500"
-                        }`}
-                        style={{
-                          width: `${Math.min(
-                            predicciones.abandono.probabilidad * 100,
-                            100,
-                          )}%`,
-                        }}
-                      />
-                    </div>
-                    <p className="text-sm text-slate-600 font-medium">
-                      Nivel:{" "}
-                      <span className="capitalize font-semibold text-base">
-                        {predicciones.abandono.nivel_riesgo === "alto"
-                          ? "🔴 Alto"
-                          : predicciones.abandono.nivel_riesgo === "medio"
-                            ? "🟡 Medio"
-                            : "🟢 Bajo"}
-                      </span>
+          {predicciones?.abandono && predicciones.abandono.probabilidad !== null ? (() => {
+            const prob = Math.round(predicciones.abandono.probabilidad * 100);
+            const nivel = predicciones.abandono.nivel_riesgo;
+            const config = {
+              alto: {
+                bg: "bg-red-50",
+                border: "border-red-200",
+                badge: "bg-red-100 text-red-700",
+                bar: "bg-red-500",
+                label: "🔴 Riesgo alto",
+                mensaje: "Este alumno necesita intervención inmediata. Considerá contactarlo esta semana para evaluar su situación.",
+              },
+              medio: {
+                bg: "bg-amber-50",
+                border: "border-amber-200",
+                badge: "bg-amber-100 text-amber-700",
+                bar: "bg-amber-400",
+                label: "🟡 Riesgo medio",
+                mensaje: "El alumno muestra señales de alerta. Revisá su carga académica y su historial de asistencia.",
+              },
+              bajo: {
+                bg: "bg-green-50",
+                border: "border-green-200",
+                badge: "bg-green-100 text-green-700",
+                bar: "bg-green-500",
+                label: "🟢 Riesgo bajo",
+                mensaje: "El alumno está en buen camino. Seguí monitoreando sus resultados periódicamente.",
+              },
+            };
+            const c = config[nivel] || config.bajo;
+
+            return (
+              <div className={`${c.bg} border ${c.border} rounded-xl p-6`}>
+                <div className="flex items-start justify-between mb-4">
+                  <div>
+                    <h2 className="text-base font-semibold text-gray-800">
+                      Riesgo de abandono
+                    </h2>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      Predicción generada con el historial académico completo
                     </p>
                   </div>
-                ) : (
-                  <p className="text-sm text-slate-600 italic py-3">
-                    No disponible
-                  </p>
-                )}
-              </div>
-            </div>
-          )}
+                  <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${c.badge}`}>
+                    {c.label}
+                  </span>
+                </div>
 
-          {/* ═══════════════════════════════════════════════════════════════ */}
+                <div className="flex items-end gap-4 mb-3">
+                  <p className="text-5xl font-bold text-gray-900">{prob}%</p>
+                  <p className="text-sm text-gray-500 pb-1">probabilidad</p>
+                </div>
+
+                <div className="w-full bg-white/70 rounded-full h-2.5 mb-4 overflow-hidden">
+                  <div
+                    className={`h-2.5 rounded-full transition-all ${c.bar}`}
+                    style={{ width: `${Math.min(prob, 100)}%` }}
+                  />
+                </div>
+
+                <p className="text-sm text-gray-600">{c.mensaje}</p>
+              </div>
+            );
+          })() : predicciones?.abandono ? (
+            <div className="bg-gray-50 border border-gray-200 rounded-xl p-6">
+              <p className="text-sm text-gray-400 italic">Predicción de abandono no disponible</p>
+            </div>
+          ) : null}
+
           {/* PREDICCIONES POR MATERIA */}
-          {/* ═══════════════════════════════════════════════════════════════ */}
           {notasPredecidas && notasPredecidas.length > 0 ? (
             (() => {
-              // Agrupar predicciones por materia
               const prediccionesPorMateria = {};
               notasPredecidas.forEach((nota) => {
                 if (!prediccionesPorMateria[nota.materia]) {
@@ -1308,131 +1739,61 @@ export default function AlumnoPerfil() {
               });
 
               return (
-                <div className="space-y-6">
+                <div className="space-y-4">
                   {Object.entries(prediccionesPorMateria).map(
                     ([codigoMateria, datos]) => (
                       <div
                         key={codigoMateria}
-                        className="bg-white border border-gray-100 rounded-xl p-6"
+                        className="bg-white border border-gray-100 rounded-xl p-5"
                       >
-                        <h2 className="text-lg font-semibold text-slate-900 mb-4">
+                        <h3 className="text-sm font-semibold text-gray-700 mb-3">
                           {codigoMateria} — {datos.nombre}
-                        </h2>
+                        </h3>
 
-                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                          {/* RECURSADO - Lado izquierdo */}
-                          {datos.recursado ? (
-                            <div className="flex flex-col gap-1 rounded-lg border border-slate-200 bg-gradient-to-br from-slate-100 to-slate-100/50 p-4 hover:shadow-sm transition-shadow">
-                              {datos.recursado.nota_predicha !== null &&
-                              datos.recursado.nota_predicha !== undefined ? (
-                                <div className="space-y-2">
-                                  <div>
-                                    <p className="text-2xl font-bold text-slate-900">
-                                      {Math.round(
-                                        datos.recursado.nota_predicha * 100,
-                                      )}
-                                      %
-                                    </p>
-                                    <p className="text-sm font-semibold text-slate-700">
-                                      Riesgo de recursado
-                                    </p>
-                                  </div>
-                                  <p className="text-xs text-slate-600">
-                                    Final pendiente
-                                  </p>
-                                  <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
-                                    <div
-                                      className={`h-2 rounded-full transition-all ${
-                                        datos.recursado.nota_predicha > 0.7
-                                          ? "bg-red-500"
-                                          : datos.recursado.nota_predicha > 0.5
-                                            ? "bg-amber-500"
-                                            : "bg-green-500"
-                                      }`}
-                                      style={{
-                                        width: `${Math.min(
-                                          datos.recursado.nota_predicha * 100,
-                                          100,
-                                        )}%`,
-                                      }}
-                                    />
-                                  </div>
-                                  <p className="text-xs text-slate-600 font-medium">
-                                    {datos.recursado.nota_predicha > 0.6
-                                      ? "⚠️ Alto riesgo"
-                                      : datos.recursado.nota_predicha > 0.4
-                                        ? "⚠️ Riesgo medio"
-                                        : "✅ Bajo riesgo"}
-                                  </p>
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                          {/* Riesgo de recursado */}
+                          {datos.recursado && datos.recursado.nota_predicha !== null ? (() => {
+                            const pct = Math.round(datos.recursado.nota_predicha * 100);
+                            const nivel =
+                              pct > 60 ? { bg: "bg-red-50", border: "border-red-200", bar: "bg-red-500", text: "text-red-700", label: "⚠ Alto riesgo de recursado" }
+                              : pct > 40 ? { bg: "bg-amber-50", border: "border-amber-200", bar: "bg-amber-400", text: "text-amber-700", label: "Riesgo moderado" }
+                              : { bg: "bg-green-50", border: "border-green-200", bar: "bg-green-500", text: "text-green-700", label: "Bajo riesgo" };
+                            return (
+                              <div className={`${nivel.bg} border ${nivel.border} rounded-lg p-4`}>
+                                <p className="text-xs text-gray-500 mb-1">Probabilidad de recursado</p>
+                                <p className={`text-3xl font-bold ${nivel.text}`}>{pct}%</p>
+                                <div className="w-full bg-white/70 rounded-full h-1.5 my-2 overflow-hidden">
+                                  <div className={`h-1.5 rounded-full ${nivel.bar}`} style={{ width: `${pct}%` }} />
                                 </div>
-                              ) : (
-                                <p className="text-xs text-slate-600 italic py-3">
-                                  No disponible
-                                </p>
-                              )}
-                            </div>
-                          ) : (
-                            <div />
-                          )}
+                                <p className={`text-xs font-medium ${nivel.text}`}>{nivel.label}</p>
+                              </div>
+                            );
+                          })() : null}
 
-                          {/* PRÓXIMA NOTA - Lado derecho */}
+                          {/* Próxima nota */}
                           <div className="space-y-3">
-                            {datos.notas.length > 0 ? (
-                              datos.notas.map((nota, idx) => (
-                                <div
-                                  key={idx}
-                                  className="flex flex-col gap-1 rounded-lg border border-slate-200 bg-gradient-to-br from-slate-100 to-slate-100/50 p-4 hover:shadow-sm transition-shadow"
-                                >
-                                  {nota.nota_predicha !== null &&
-                                  nota.nota_predicha !== undefined ? (
-                                    <div className="space-y-2">
-                                      <div>
-                                        <p className="text-2xl font-bold text-slate-900">
-                                          {nota.nota_predicha.toFixed(1)}
-                                        </p>
-                                        <p className="text-sm font-semibold text-slate-700">
-                                          Próxima nota
-                                        </p>
-                                      </div>
-                                      <p className="text-xs text-slate-600">
-                                        {nota.tipo_examen} {nota.instancia} ·
-                                        Año {nota.anio}
-                                      </p>
-                                      <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
-                                        <div
-                                          className={`h-2 rounded-full transition-all ${
-                                            nota.nota_predicha >= 8
-                                              ? "bg-green-500"
-                                              : nota.nota_predicha >= 6
-                                                ? "bg-blue-500"
-                                                : nota.nota_predicha >= 4
-                                                  ? "bg-amber-500"
-                                                  : "bg-red-500"
-                                          }`}
-                                          style={{
-                                            width: `${Math.min(
-                                              (nota.nota_predicha / 10) * 100,
-                                              100,
-                                            )}%`,
-                                          }}
-                                        />
-                                      </div>
-                                      <p className="text-xs text-slate-600 font-medium">
-                                        {nota.aprobaria
-                                          ? "✅ Aprobaría"
-                                          : "❌ Desaprobaría"}
-                                      </p>
-                                    </div>
-                                  ) : (
-                                    <p className="text-xs text-slate-600 italic py-3">
-                                      No disponible
-                                    </p>
-                                  )}
+                            {datos.notas.map((nota, idx) => {
+                              if (nota.nota_predicha === null || nota.nota_predicha === undefined) return null;
+                              const n = nota.nota_predicha;
+                              const colorNota =
+                                n >= 7 ? { bg: "bg-green-50", border: "border-green-200", text: "text-green-700", bar: "bg-green-500" }
+                                : n >= 4 ? { bg: "bg-amber-50", border: "border-amber-200", text: "text-amber-700", bar: "bg-amber-400" }
+                                : { bg: "bg-red-50", border: "border-red-200", text: "text-red-700", bar: "bg-red-500" };
+                              return (
+                                <div key={idx} className={`${colorNota.bg} border ${colorNota.border} rounded-lg p-4`}>
+                                  <p className="text-xs text-gray-500 mb-1">
+                                    Nota estimada · {nota.tipo_examen} {nota.instancia}
+                                  </p>
+                                  <p className={`text-3xl font-bold ${colorNota.text}`}>{n.toFixed(1)}</p>
+                                  <div className="w-full bg-white/70 rounded-full h-1.5 my-2 overflow-hidden">
+                                    <div className={`h-1.5 rounded-full ${colorNota.bar}`} style={{ width: `${Math.min((n / 10) * 100, 100)}%` }} />
+                                  </div>
+                                  <p className={`text-xs font-medium ${colorNota.text}`}>
+                                    {nota.aprobaria ? "✅ Aprobaría" : "❌ Desaprobaría"}
+                                  </p>
                                 </div>
-                              ))
-                            ) : (
-                              <div />
-                            )}
+                              );
+                            })}
                           </div>
                         </div>
                       </div>
@@ -1442,19 +1803,16 @@ export default function AlumnoPerfil() {
               );
             })()
           ) : loadingNotas ? (
-            <div className="bg-white border border-gray-100 rounded-xl p-6 flex items-center justify-center">
+            <div className="bg-white border border-gray-100 rounded-xl p-8 flex items-center justify-center">
               <div className="text-center">
-                <div className="animate-spin inline-block w-8 h-8 border-4 border-slate-200 border-t-slate-900 rounded-full mb-2"></div>
-                <p className="text-sm text-slate-600">
-                  Generando predicciones...
-                </p>
+                <div className="animate-spin inline-block w-8 h-8 border-4 border-gray-200 border-t-gray-700 rounded-full mb-3" />
+                <p className="text-sm text-gray-500">Generando predicciones...</p>
               </div>
             </div>
           ) : (
-            <div className="bg-white border border-gray-100 rounded-xl p-6 text-center">
-              <p className="text-sm text-slate-600">
-                El alumno no tiene materias en curso con exámenes pendientes
-                para predecir.
+            <div className="bg-gray-50 border border-gray-100 rounded-xl p-8 text-center">
+              <p className="text-sm text-gray-400">
+                No hay materias en curso con exámenes pendientes para predecir.
               </p>
             </div>
           )}

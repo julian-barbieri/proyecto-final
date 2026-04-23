@@ -569,7 +569,6 @@ function seedMisCursosCDU004() {
 
   insertExamen.run(alumno.id, am1.id, 2025, "Parcial", 1, 1, 7.5);
   insertExamen.run(alumno.id, am1.id, 2025, "Parcial", 2, 1, 6.0);
-  insertExamen.run(alumno.id, am1.id, 2025, "Recuperatorio", 1, 1, 5.0);
   insertExamen.run(alumno.id, am1.id, 2025, "Final", 1, 1, 4.5);
 
   insertExamen.run(alumno.id, am2.id, 2026, "Parcial", 1, 0, null);
@@ -798,19 +797,6 @@ function seedPrediccionesAutomaticasCDU009() {
       0,
       "04-11-2022",
       0.87,
-    );
-    insertExamen.run(
-      alumno1.id,
-      am1.id,
-      2022,
-      "Recuperatorio",
-      1,
-      0,
-      null,
-      1,
-      0,
-      "21-06-2022",
-      0.85,
     );
     insertExamen.run(
       alumno1.id,
@@ -2995,6 +2981,144 @@ async function seedAlumnosGenerales() {
   }
 }
 
+function fixCursadasSinExamenes() {
+  try {
+    const cursadasSinExamenes = db
+      .prepare(
+        `
+        SELECT c.alumno_id, c.materia_id, c.anio, c.estado
+        FROM cursadas c
+        WHERE c.estado IN ('aprobada', 'recursada')
+          AND NOT EXISTS (
+            SELECT 1 FROM examenes e
+            WHERE e.alumno_id = c.alumno_id
+              AND e.materia_id = c.materia_id
+              AND e.anio = c.anio
+          )
+      `,
+      )
+      .all();
+
+    if (cursadasSinExamenes.length === 0) {
+      console.log("✅ Todas las cursadas ya tienen exámenes. Nada que reparar.");
+      return;
+    }
+
+    const stmtInsert = db.prepare(
+      `INSERT OR IGNORE INTO examenes
+         (alumno_id, materia_id, anio, tipo, instancia, rendido, nota)
+       VALUES (?, ?, ?, ?, ?, 1, ?)`,
+    );
+
+    function rndFloat(min, max) {
+      return Math.round((Math.random() * (max - min) + min) * 10) / 10;
+    }
+
+    function gradeParcial() {
+      const r = Math.random();
+      if (r < 0.08) return rndFloat(1, 3.9);
+      if (r < 0.18) return rndFloat(4, 5);
+      if (r < 0.65) return rndFloat(5, 7.5);
+      if (r < 0.88) return rndFloat(7.5, 9);
+      return rndFloat(9, 10);
+    }
+
+    function gradeFinalNormal() {
+      const r = Math.random();
+      if (r < 0.18) return rndFloat(1, 3.9);
+      if (r < 0.32) return rndFloat(4, 5);
+      if (r < 0.72) return rndFloat(5, 7.5);
+      if (r < 0.90) return rndFloat(7.5, 9);
+      return rndFloat(9, 10);
+    }
+
+    function gradeFinalMustPass() {
+      const r = Math.random();
+      if (r < 0.12) return rndFloat(4, 4.9);
+      if (r < 0.55) return rndFloat(5, 7);
+      if (r < 0.85) return rndFloat(7, 9);
+      return rndFloat(9, 10);
+    }
+
+    function gradeRecuAprobada() {
+      // Recuperatorio cuando la cursada fue aprobada: debe tener chances de pasar
+      const r = Math.random();
+      if (r < 0.12) return rndFloat(1, 3.9);
+      if (r < 0.30) return rndFloat(4, 5);
+      if (r < 0.70) return rndFloat(5, 7.5);
+      if (r < 0.90) return rndFloat(7.5, 9);
+      return rndFloat(9, 10);
+    }
+
+    const processFix = db.transaction(() => {
+      let count = 0;
+      for (const { alumno_id, materia_id, anio, estado } of cursadasSinExamenes) {
+        // ── Parcial 1 ────────────────────────────────────────────────────
+        const p1 = gradeParcial();
+        stmtInsert.run(alumno_id, materia_id, anio, "Parcial", 1, p1);
+        if (p1 < 4) {
+          const r1 =
+            estado === "aprobada" ? gradeRecuAprobada() : gradeParcial();
+          stmtInsert.run(alumno_id, materia_id, anio, "Recuperatorio", 1, r1);
+        }
+
+        // ── Parcial 2 (presente en ~55 % de las materias) ───────────────
+        if (Math.random() < 0.55) {
+          const p2 = gradeParcial();
+          stmtInsert.run(alumno_id, materia_id, anio, "Parcial", 2, p2);
+          if (p2 < 4) {
+            const r2 =
+              estado === "aprobada" ? gradeRecuAprobada() : gradeParcial();
+            stmtInsert.run(
+              alumno_id,
+              materia_id,
+              anio,
+              "Recuperatorio",
+              2,
+              r2,
+            );
+          }
+        }
+
+        // ── Finales ──────────────────────────────────────────────────────
+        if (estado === "aprobada") {
+          const f1 = gradeFinalNormal();
+          stmtInsert.run(alumno_id, materia_id, anio, "Final", 1, f1);
+          if (f1 < 4) {
+            const f2 = gradeFinalNormal();
+            stmtInsert.run(alumno_id, materia_id, anio, "Final", 2, f2);
+            if (f2 < 4) {
+              // Tercera instancia: el alumno aprobó, así que debe pasar
+              const f3 = gradeFinalMustPass();
+              stmtInsert.run(alumno_id, materia_id, anio, "Final", 3, f3);
+            }
+          }
+        } else {
+          // recursada: 0-2 finales, todos desaprobados
+          if (Math.random() < 0.60) {
+            const f1 = rndFloat(1, 3.9);
+            stmtInsert.run(alumno_id, materia_id, anio, "Final", 1, f1);
+            if (Math.random() < 0.35) {
+              const f2 = rndFloat(1, 3.9);
+              stmtInsert.run(alumno_id, materia_id, anio, "Final", 2, f2);
+            }
+          }
+        }
+
+        count++;
+      }
+      return count;
+    });
+
+    const fixed = processFix();
+    console.log(
+      `✅ Exámenes generados para ${fixed} cursadas que no tenían registros.`,
+    );
+  } catch (error) {
+    console.error("❌ Error generando exámenes para cursadas:", error.message);
+  }
+}
+
 async function seedUsers() {
   const users = [
     {
@@ -3061,6 +3185,7 @@ async function seedUsers() {
   seedMateriasInscripcionesYContenido(); // crea AM1, AM2 y demás materias
   seedRestoCurriculumPlan();
   await seedAlumnosGenerales();         // crea 500 alumnos (necesita materias)
+  fixCursadasSinExamenes();             // genera exámenes para cursadas sin registros
   seedMateriasInscripcionesYContenido(); // segunda pasada: ahora encuentra alumnos y seedea contenido CDU002
   seedMensajeriaCDU003();
   seedMensajeriaCDU007();

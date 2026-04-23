@@ -4,6 +4,11 @@ import { useAuth } from "../context/AuthContext";
 import api from "../api/axios";
 import KpiCard from "../components/dashboard/KpiCard";
 import SeccionRendimiento from "../components/dashboard/SeccionRendimiento";
+import {
+  Users, BookOpen, RotateCcw, ClipboardList, AlertTriangle,
+  TrendingUp, Target, Clock, CheckCircle2, Zap,
+  BarChart3, Activity, PieChart, GraduationCap,
+} from "lucide-react";
 
 function SkeletonLoader() {
   return (
@@ -168,24 +173,7 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-      {/* Header personalizado */}
       <div>
-        <h1 className="text-2xl font-medium text-gray-900">
-          Buenos días,{" "}
-          {user.nombre_completo
-            ? user.nombre_completo.split(" ")[0]
-            : "Usuario"}
-        </h1>
-        <p className="text-sm text-gray-500 mt-1">
-          {new Date().toLocaleDateString("es-AR", {
-            weekday: "long",
-            year: "numeric",
-            month: "long",
-            day: "numeric",
-          })}
-          {" · "}Sistema de Predicciones Académicas
-        </p>
-
         {!ai_disponible && data && (
           <div className="mt-3 px-4 py-2 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
             ⚠ El servicio de predicciones ML no está disponible. Se muestran
@@ -258,6 +246,8 @@ function SeccionResumen({
   const [materiaAnioTasa, setMateriaAnioTasa] = useState("1");
   const [materiaAnioDistribucion, setMateriaAnioDistribucion] = useState("1");
   const [modalRiesgo, setModalRiesgo] = useState(null); // null | { titulo, alumnos }
+  const [modalAsistencia, setModalAsistencia] = useState(false);
+  const [modalEstancados, setModalEstancados] = useState(false);
 
   if (loading) {
     return <SkeletonLoader />;
@@ -284,6 +274,9 @@ function SeccionResumen({
     distribucion_por_materia,
     alertas,
     todos_en_riesgo,
+    alumnos_bajo_riesgo,
+    alumnos_asistencia_baja_lista,
+    estrategico,
     actividad_reciente,
   } = data;
 
@@ -346,7 +339,10 @@ function SeccionResumen({
           asistencia bajo el 75% — no podrán rendir finales si no mejoran.
         </>
       ),
-      accion: null,
+      accion: {
+        label: "Ver alumnos",
+        onClick: () => setModalAsistencia(true),
+      },
     },
     abandono.en_riesgo_medio > 0 && {
       nivel: "advertencia",
@@ -369,13 +365,27 @@ function SeccionResumen({
   ].filter(Boolean);
 
   return (
-    <div className="space-y-6">
-      {/* Modal alumnos en riesgo */}
+    <div className="space-y-8">
+      {/* Modales */}
       {modalRiesgo && (
         <ModalAlumnosRiesgo
           titulo={modalRiesgo.titulo}
           alumnos={modalRiesgo.alumnos}
           onClose={() => setModalRiesgo(null)}
+          navigate={navigate}
+        />
+      )}
+      {modalAsistencia && (
+        <ModalAsistenciaBaja
+          alumnos={alumnos_asistencia_baja_lista || []}
+          onClose={() => setModalAsistencia(false)}
+          navigate={navigate}
+        />
+      )}
+      {modalEstancados && (
+        <ModalEstancados
+          alumnos={estrategico?.alumnos_estancados_lista || []}
+          onClose={() => setModalEstancados(false)}
           navigate={navigate}
         />
       )}
@@ -385,292 +395,279 @@ function SeccionResumen({
         <PanelAccionesRequeridas acciones={acciones} />
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiCard
-          titulo="Total alumnos"
-          valor={kpis.total_alumnos}
-          subtitulo="registrados"
-          color="blue"
-          icono="👥"
-        />
-        <KpiCard
-          titulo="Cursando"
-          valor={kpis.cursando_ahora}
-          subtitulo="en cursada activa"
-          color="green"
-          icono="📖"
-        />
-        <KpiCard
-          titulo="Tasa de recursado"
-          valor={`${kpis.tasa_recursado_global}%`}
-          subtitulo="Promedio histórico"
-          color="amber"
-          icono="🔄"
-          tendencia={
-            kpis.tendencias?.tasa_aprobacion_parciales
-              ? {
-                  ...kpis.tendencias.tasa_aprobacion_parciales,
-                  sufijo: "% aprob. parciales",
-                  arriba_es_bueno: true,
-                }
-              : null
-          }
-        />
-        <KpiCard
-          titulo="Promedio de notas"
-          valor={kpis.promedio_notas_global}
-          subtitulo="en exámenes rendidos"
-          color="blue"
-          icono="🧾"
-          tendencia={
-            kpis.tendencias?.promedio_notas
-              ? {
-                  ...kpis.tendencias.promedio_notas,
-                  sufijo: " pts",
-                  arriba_es_bueno: true,
-                }
-              : null
-          }
-        />
+      {/* ── VISIÓN GENERAL ── */}
+      <div>
+        <SectionLabel>Visión general</SectionLabel>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+          <KpiCard
+            titulo="Total alumnos"
+            valor={kpis.total_alumnos}
+            subtitulo="registrados en el sistema"
+            color="blue"
+            icono={<Users className="w-5 h-5" />}
+          />
+          <KpiCard
+            titulo="Cursando ahora"
+            valor={kpis.cursando_ahora}
+            subtitulo="en cursada activa este año"
+            color="green"
+            icono={<BookOpen className="w-5 h-5" />}
+          />
+          <KpiCard
+            titulo="Tasa de recursado"
+            valor={`${kpis.tasa_recursado_global}%`}
+            subtitulo="promedio histórico"
+            color="amber"
+            icono={<RotateCcw className="w-5 h-5" />}
+            tendencia={
+              kpis.tendencias?.tasa_aprobacion_parciales
+                ? { ...kpis.tendencias.tasa_aprobacion_parciales, sufijo: "% aprob. parciales", arriba_es_bueno: true }
+                : null
+            }
+          />
+          <KpiCard
+            titulo="Promedio de notas"
+            valor={kpis.promedio_notas_global}
+            subtitulo="en exámenes rendidos"
+            color="blue"
+            icono={<ClipboardList className="w-5 h-5" />}
+            tendencia={
+              kpis.tendencias?.promedio_notas
+                ? { ...kpis.tendencias.promedio_notas, sufijo: " pts", arriba_es_bueno: true }
+                : null
+            }
+          />
+          <KpiCard
+            titulo="Alumnos estancados"
+            valor={estrategico?.alumnos_estancados ?? "—"}
+            subtitulo="sin aprobar nada en +1 año"
+            color="red"
+            icono={<Clock className="w-5 h-5" />}
+            onClick={estrategico?.alumnos_estancados > 0 ? () => setModalEstancados(true) : null}
+          />
+        </div>
       </div>
 
-      {/* SECCIÓN 2: Alertas + Distribución de riesgo */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Alertas de abandono */}
-        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-          <div className="bg-gradient-to-r from-red-50 to-red-50 px-6 py-4 border-b border-red-200">
-            <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-              🚨 Alumnos en riesgo de abandono
-              <span className="ml-auto inline-block bg-red-500 text-white text-xs font-bold px-3 py-1 rounded-full">
+      {/* ── RIESGO ACADÉMICO ── */}
+      <div>
+        <SectionLabel>Riesgo académico</SectionLabel>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Alertas de abandono */}
+          <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-3">
+              <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0" />
+              <h2 className="text-sm font-semibold text-gray-900">Alumnos en riesgo de abandono</h2>
+              <span className="ml-auto inline-flex items-center justify-center min-w-[1.5rem] h-6 px-2 rounded-full bg-red-500 text-white text-xs font-bold">
                 {abandono.en_riesgo_alto}
               </span>
-            </h2>
+            </div>
+            <div className="p-6 space-y-1">
+              {alertas.length > 0 ? (
+                alertas.map((alumno) => {
+                  const esAlto = alumno.nivel_riesgo === "alto";
+                  const pct = (alumno.probabilidad * 100).toFixed(0);
+                  return (
+                    <div key={alumno.id} className="flex items-center justify-between py-3 border-b border-gray-50 last:border-0">
+                      <div className="flex items-center gap-3">
+                        <span className={`w-2 h-2 rounded-full flex-shrink-0 ${esAlto ? "bg-red-500" : "bg-amber-400"}`} />
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">{alumno.nombre}</p>
+                          <p className="text-xs text-gray-400">Prob. abandono</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <div className="w-20 bg-gray-100 rounded-full h-1.5">
+                          <div
+                            className={`h-1.5 rounded-full ${esAlto ? "bg-red-500" : "bg-amber-400"}`}
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                        <span className={`text-xs font-semibold w-8 text-right ${esAlto ? "text-red-600" : "text-amber-600"}`}>
+                          {pct}%
+                        </span>
+                        <button
+                          onClick={() => navigate(`/alumnos/${alumno.id}`)}
+                          className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                        >
+                          Ver →
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <p className="text-sm text-gray-400 py-4 text-center">Sin alumnos en riesgo alto</p>
+              )}
+            </div>
           </div>
-          <div className="p-6 space-y-1">
-            {alertas.length > 0 ? (
-              alertas.map((alumno) => (
-                <div
-                  key={alumno.id}
-                  className="flex items-center justify-between py-3 border-b last:border-0"
-                >
-                  <div className="flex items-center gap-3">
-                    <span
-                      className={`text-lg ${
-                        alumno.nivel_riesgo === "alto"
-                          ? "text-red-500"
-                          : "text-amber-500"
-                      }`}
-                    >
-                      {alumno.nivel_riesgo === "alto" ? "🔴" : "🟡"}
-                    </span>
-                    <div>
-                      <p className="text-sm font-medium text-gray-900">
-                        {alumno.nombre}
-                      </p>
-                      <p className="text-xs text-gray-500">Prob. abandono</p>
+
+          {/* Distribución de riesgo */}
+          <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-3">
+              <PieChart className="w-5 h-5 text-blue-500 flex-shrink-0" />
+              <h2 className="text-sm font-semibold text-gray-900">Distribución de riesgo</h2>
+            </div>
+            <div className="p-6 space-y-3">
+              {[
+                {
+                  label: "Riesgo alto",
+                  count: abandono.en_riesgo_alto,
+                  bar: "bg-red-500",
+                  text: "text-red-700",
+                  hover: "hover:bg-red-50",
+                  alumnos: alumnosAlto,
+                  titulo: "Alumnos con riesgo alto de abandono",
+                },
+                {
+                  label: "Riesgo medio",
+                  count: abandono.en_riesgo_medio,
+                  bar: "bg-amber-400",
+                  text: "text-amber-700",
+                  hover: "hover:bg-amber-50",
+                  alumnos: alumnosMedio,
+                  titulo: "Alumnos con riesgo medio de abandono",
+                },
+                {
+                  label: "Sin riesgo",
+                  count: abandono.sin_riesgo,
+                  bar: "bg-green-500",
+                  text: "text-green-700",
+                  hover: "hover:bg-green-50",
+                  alumnos: alumnos_bajo_riesgo || [],
+                  titulo: "Alumnos sin riesgo de abandono",
+                },
+              ].map((barra) => {
+                const total = abandono.en_riesgo_alto + abandono.en_riesgo_medio + abandono.sin_riesgo;
+                const pct = total > 0 ? ((barra.count / total) * 100).toFixed(0) : 0;
+                return (
+                  <button
+                    key={barra.label}
+                    onClick={() => setModalRiesgo({ titulo: barra.titulo, alumnos: barra.alumnos })}
+                    className={`w-full text-left rounded-lg px-3 py-3 transition-colors ${barra.hover} group`}
+                  >
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-sm text-gray-600 group-hover:text-gray-900 transition-colors">{barra.label}</span>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-sm font-semibold ${barra.text}`}>
+                          {barra.count} <span className="font-normal text-gray-400">({pct}%)</span>
+                        </span>
+                        <span className="text-xs text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity">Ver →</span>
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="w-24 bg-gray-100 rounded-full h-2">
-                      <div
-                        className={`h-2 rounded-full ${
-                          alumno.nivel_riesgo === "alto"
-                            ? "bg-red-500"
-                            : "bg-amber-400"
-                        }`}
-                        style={{
-                          width: `${(alumno.probabilidad * 100).toFixed(0)}%`,
-                        }}
-                      />
+                    <div className="w-full bg-gray-100 rounded-full h-2">
+                      <div className={`${barra.bar} h-2 rounded-full transition-all`} style={{ width: `${pct}%` }} />
                     </div>
-                    <span className="text-sm font-medium w-10 text-right text-gray-900">
-                      {(alumno.probabilidad * 100).toFixed(0)}%
-                    </span>
-                    <button
-                      onClick={() => navigate(`/alumnos/${alumno.id}`)}
-                      className="text-xs text-blue-600 hover:underline"
-                    >
-                      Ver →
-                    </button>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <p className="text-sm text-gray-500 py-3">
-                Sin alumnos en riesgo alto
+                  </button>
+                );
+              })}
+              <p className="text-xs text-gray-500 pt-2 border-t border-gray-100 px-3">
+                <span className="font-semibold text-red-600">{abandono.tasa_riesgo_alto_pct}%</span> del total en riesgo alto — intervención recomendada en <strong>{abandono.en_riesgo_alto}</strong> caso/s.
               </p>
-            )}
-          </div>
-        </div>
-
-        {/* Distribución de riesgo */}
-        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-          <div className="bg-gradient-to-r from-blue-50 to-blue-50 px-6 py-4 border-b border-blue-200">
-            <h2 className="text-lg font-semibold text-gray-900">
-              Distribución de riesgo 🔵🟡🔴
-            </h2>
-          </div>
-          <div className="p-6 space-y-6">
-            {[
-              {
-                label: "Alto",
-                count: abandono.en_riesgo_alto,
-                color: "bg-red-500",
-                textColor: "text-red-700",
-              },
-              {
-                label: "Medio",
-                count: abandono.en_riesgo_medio,
-                color: "bg-amber-400",
-                textColor: "text-amber-700",
-              },
-              {
-                label: "Bajo",
-                count: abandono.sin_riesgo,
-                color: "bg-green-500",
-                textColor: "text-green-700",
-              },
-            ].map((barra) => {
-              const total =
-                abandono.en_riesgo_alto +
-                abandono.en_riesgo_medio +
-                abandono.sin_riesgo;
-              const pct =
-                total > 0 ? ((barra.count / total) * 100).toFixed(0) : 0;
-              return (
-                <div key={barra.label}>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-gray-700">
-                      {barra.label}
-                    </span>
-                    <span
-                      className={`text-sm font-semibold ${barra.textColor}`}
-                    >
-                      {barra.count} ({pct}%)
-                    </span>
-                  </div>
-                  <div className="w-full bg-gray-100 rounded-full h-3">
-                    <div
-                      className={`${barra.color} h-3 rounded-full`}
-                      style={{ width: `${pct}%` }}
-                    />
-                  </div>
-                </div>
-              );
-            })}
-
-            <p className="text-sm text-gray-600 mt-6 pt-4 border-t border-gray-200">
-              <strong className="text-red-600">
-                {abandono.tasa_riesgo_alto_pct}%
-              </strong>{" "}
-              de los alumnos tiene riesgo alto de abandonar. Se recomienda
-              intervención inmediata en{" "}
-              <strong>{abandono.en_riesgo_alto}</strong> caso/s.
-            </p>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* SECCIÓN 3: Métricas por materia + Distribución cursadas */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Tasa de recursado por materia */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <div className="mb-4 flex items-center justify-between gap-3 flex-wrap">
-            <h2 className="text-lg font-semibold text-gray-900">
-              Tasa de Recursado por Materia
-            </h2>
-            <FiltroAnioMateria
-              valor={materiaAnioTasa}
-              onChange={setMateriaAnioTasa}
+      {/* ── MÉTRICAS ESTRATÉGICAS ── */}
+      {estrategico && (
+        <div>
+          <SectionLabel>Métricas estratégicas</SectionLabel>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <KpiCard
+              titulo="Avance promedio del plan"
+              valor={`${estrategico.avance_plan_pct}%`}
+              subtitulo="materias aprobadas sobre el total"
+              color="blue"
+              icono={<Target className="w-5 h-5" />}
             />
-          </div>
-          <div className="space-y-6">
-            {por_materia && por_materia.length > 0 ? (
-              filtrarPorAnio(por_materia, materiaAnioTasa).map((materia) => (
-                <div key={materia.id}>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-gray-700">
-                      {materia.codigo} — {materia.nombre}
-                    </span>
-                    <span className="text-sm font-semibold text-gray-900">
-                      {materia.tasa_pct ?? "—"}%
-                    </span>
-                  </div>
-                  {materia.total_cursadas > 0 ? (
-                    <>
-                      <div className="w-full bg-gray-100 rounded-full h-2">
-                        <div
-                          className="bg-amber-400 h-2 rounded-full"
-                          style={{ width: `${materia.tasa_pct || 0}%` }}
-                        />
-                      </div>
-                      <p className="text-xs text-gray-500 mt-1">
-                        {materia.recursadas} de {materia.total_cursadas}{" "}
-                        cursadas terminaron en recursado
-                      </p>
-                    </>
-                  ) : (
-                    <p className="text-xs text-gray-400 italic">
-                      Sin datos suficientes
-                    </p>
-                  )}
-                </div>
-              ))
-            ) : (
-              <p className="text-sm text-gray-500">Sin datos de materias</p>
-            )}
+            <KpiCard
+              titulo="Aprob. en 1ra instancia"
+              valor={`${estrategico.tasa_primera_instancia}%`}
+              subtitulo="parciales aprobados al 1er intento"
+              color="green"
+              icono={<CheckCircle2 className="w-5 h-5" />}
+            />
+            <KpiCard
+              titulo="Predicciones este mes"
+              valor={estrategico.predicciones_este_mes}
+              subtitulo="consultas al sistema ML"
+              color="purple"
+              icono={<Zap className="w-5 h-5" />}
+            />
           </div>
         </div>
+      )}
 
-        {/* Distribución de cursadas por materia */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <div className="mb-4 flex items-center justify-between gap-3 flex-wrap">
-            <h2 className="text-lg font-semibold text-gray-900">
-              Alumnos por intento de cursada
-            </h2>
-            <FiltroAnioMateria
-              valor={materiaAnioDistribucion}
-              onChange={setMateriaAnioDistribucion}
-            />
+      {/* ── POR MATERIA ── */}
+      <div>
+        <SectionLabel>Por materia</SectionLabel>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Tasa de recursado por materia */}
+          <div className="bg-white rounded-lg border border-gray-200 p-6">
+            <div className="mb-4 flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-2">
+                <RotateCcw className="w-4 h-4 text-amber-500" />
+                <h2 className="text-sm font-semibold text-gray-900">Tasa de recursado por materia</h2>
+              </div>
+              <FiltroAnioMateria valor={materiaAnioTasa} onChange={setMateriaAnioTasa} />
+            </div>
+            <div className="space-y-5">
+              {por_materia && por_materia.length > 0 ? (
+                filtrarPorAnio(por_materia, materiaAnioTasa).map((materia) => (
+                  <div key={materia.id}>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-sm text-gray-700 truncate pr-2">{materia.codigo} — {materia.nombre}</span>
+                      <span className="text-sm font-semibold text-gray-900 flex-shrink-0">{materia.tasa_pct ?? "—"}%</span>
+                    </div>
+                    {materia.total_cursadas > 0 ? (
+                      <>
+                        <div className="w-full bg-gray-100 rounded-full h-2">
+                          <div className="bg-amber-400 h-2 rounded-full" style={{ width: `${materia.tasa_pct || 0}%` }} />
+                        </div>
+                        <p className="text-xs text-gray-400 mt-0.5">{materia.recursadas} de {materia.total_cursadas} cursadas</p>
+                      </>
+                    ) : (
+                      <p className="text-xs text-gray-400 italic">Sin datos suficientes</p>
+                    )}
+                  </div>
+                ))
+              ) : (
+                <p className="text-sm text-gray-400">Sin datos de materias</p>
+              )}
+            </div>
           </div>
-          <div className="space-y-8">
-            {distribucion_por_materia && distribucion_por_materia.length > 0 ? (
-              filtrarPorAnio(distribucion_por_materia, materiaAnioDistribucion).map(
-                (materia) => {
-                  const total =
-                    materia.primera_vez +
-                    materia.segunda_vez +
-                    materia.tercera_vez_o_mas;
+
+          {/* Distribución de cursadas por materia */}
+          <div className="bg-white rounded-lg border border-gray-200 p-6">
+            <div className="mb-4 flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-2">
+                <BarChart3 className="w-4 h-4 text-blue-500" />
+                <h2 className="text-sm font-semibold text-gray-900">Alumnos por intento de cursada</h2>
+              </div>
+              <FiltroAnioMateria valor={materiaAnioDistribucion} onChange={setMateriaAnioDistribucion} />
+            </div>
+            <div className="space-y-7">
+              {distribucion_por_materia && distribucion_por_materia.length > 0 ? (
+                filtrarPorAnio(distribucion_por_materia, materiaAnioDistribucion).map((materia) => {
+                  const total = materia.primera_vez + materia.segunda_vez + materia.tercera_vez_o_mas;
                   return (
                     <div key={materia.codigo}>
-                      <h3 className="text-sm font-medium text-gray-900 mb-3">
-                        {materia.codigo} — {materia.nombre}
-                      </h3>
-                      <div className="space-y-3">
+                      <h3 className="text-sm font-medium text-gray-800 mb-2">{materia.codigo} — {materia.nombre}</h3>
+                      <div className="space-y-2">
                         {[
-                          { label: "1ra vez", count: materia.primera_vez, icon: "📚" },
-                          { label: "2da vez", count: materia.segunda_vez, icon: "🔁" },
-                          { label: "3ra vez o más", count: materia.tercera_vez_o_mas, icon: "⏳" },
+                          { label: "1ra vez", count: materia.primera_vez, color: "bg-blue-500" },
+                          { label: "2da vez", count: materia.segunda_vez, color: "bg-amber-400" },
+                          { label: "3ra vez o más", count: materia.tercera_vez_o_mas, color: "bg-red-400" },
                         ].map((item) => {
-                          const pct =
-                            total > 0
-                              ? ((item.count / total) * 100).toFixed(0)
-                              : 0;
+                          const pct = total > 0 ? ((item.count / total) * 100).toFixed(0) : 0;
                           return (
                             <div key={item.label}>
                               <div className="flex items-center justify-between mb-1">
-                                <span className="text-xs font-medium text-gray-600">
-                                  {item.icon} {item.label}
-                                </span>
-                                <span className="text-xs font-semibold text-gray-700">
-                                  {item.count} ({pct}%)
-                                </span>
+                                <span className="text-xs text-gray-500">{item.label}</span>
+                                <span className="text-xs font-medium text-gray-700">{item.count} ({pct}%)</span>
                               </div>
-                              <div className="w-full bg-gray-100 rounded-full h-2">
-                                <div
-                                  className="bg-blue-500 h-2 rounded-full"
-                                  style={{ width: `${pct}%` }}
-                                />
+                              <div className="w-full bg-gray-100 rounded-full h-1.5">
+                                <div className={`${item.color} h-1.5 rounded-full`} style={{ width: `${pct}%` }} />
                               </div>
                             </div>
                           );
@@ -678,105 +675,95 @@ function SeccionResumen({
                       </div>
                     </div>
                   );
-                },
-              )
-            ) : (
-              <p className="text-sm text-gray-500">Sin datos de distribución</p>
-            )}
+                })
+              ) : (
+                <p className="text-sm text-gray-400">Sin datos de distribución</p>
+              )}
+            </div>
           </div>
         </div>
       </div>
 
-      {/* SECCIÓN 4: Actividad reciente */}
-      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-        <div className="bg-gradient-to-r from-purple-50 to-purple-50 px-6 py-4 border-b border-purple-200">
-          <h2 className="text-lg font-semibold text-gray-900">
-            🕐 Actividad reciente del AI
-          </h2>
-        </div>
-        <div className="p-6 space-y-4">
-          {actividad_reciente && actividad_reciente.length > 0 ? (
-            actividad_reciente.map((evento, i) => (
-              <div
-                key={i}
-                className="flex items-start gap-4 pb-4 border-b last:border-0"
-              >
-                <span className="text-2xl">{getTipoIcono(evento.tipo)}</span>
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-gray-900">
-                    {evento.descripcion}
-                  </p>
-                  <p className="text-xs text-gray-500 mt-1">
-                    {evento.alumno_nombre} • {formatearFecha(evento.timestamp)}
-                  </p>
-                </div>
-              </div>
-            ))
-          ) : (
-            <p className="text-sm text-gray-500 py-3">
-              Sin actividad registrada
-            </p>
-          )}
-        </div>
-      </div>
     </div>
   );
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-// Componente PanelAccionesRequeridas
+// Componente SectionLabel
 // ═════════════════════════════════════════════════════════════════════════════
+function SectionLabel({ children }) {
+  return (
+    <div className="flex items-center gap-3 mb-4">
+      <span className="text-xs font-semibold text-gray-400 uppercase tracking-widest whitespace-nowrap">
+        {children}
+      </span>
+      <div className="flex-1 border-t border-gray-100" />
+    </div>
+  );
+}
 
+// ═════════════════════════════════════════════════════════════════════════════
+// Componente PanelAccionesRequeridas — banner prominente
+// ═════════════════════════════════════════════════════════════════════════════
 const ESTILOS_NIVEL = {
   critico: {
-    contenedor: "bg-red-50 border-red-300",
-    icono: "text-red-500",
-    texto: "text-red-800",
-    boton: "bg-red-100 hover:bg-red-200 text-red-700 border-red-300",
+    card: "bg-red-50 border-red-200",
+    badge: "bg-red-500 text-white",
+    icon: "text-red-500",
+    texto: "text-red-900",
+    subtexto: "text-red-700",
+    boton: "bg-red-500 hover:bg-red-600 text-white",
   },
   advertencia: {
-    contenedor: "bg-amber-50 border-amber-300",
-    icono: "text-amber-500",
-    texto: "text-amber-800",
-    boton: "bg-amber-100 hover:bg-amber-200 text-amber-700 border-amber-300",
+    card: "bg-amber-50 border-amber-200",
+    badge: "bg-amber-400 text-white",
+    icon: "text-amber-500",
+    texto: "text-amber-900",
+    subtexto: "text-amber-700",
+    boton: "bg-amber-400 hover:bg-amber-500 text-white",
   },
   info: {
-    contenedor: "bg-blue-50 border-blue-300",
-    icono: "text-blue-500",
-    texto: "text-blue-800",
-    boton: "bg-blue-100 hover:bg-blue-200 text-blue-700 border-blue-300",
+    card: "bg-blue-50 border-blue-200",
+    badge: "bg-blue-500 text-white",
+    icon: "text-blue-500",
+    texto: "text-blue-900",
+    subtexto: "text-blue-700",
+    boton: "bg-blue-500 hover:bg-blue-600 text-white",
   },
 };
 
 function PanelAccionesRequeridas({ acciones }) {
   return (
-    <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-      <div className="px-5 py-3 border-b border-gray-200 flex items-center gap-2">
-        <span className="text-base font-semibold text-gray-900">
-          Acciones requeridas
-        </span>
-        <span className="ml-1 inline-flex items-center justify-center w-5 h-5 rounded-full bg-red-500 text-white text-xs font-bold">
+    <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+      {/* Header */}
+      <div className="flex items-center gap-3 px-5 py-3 bg-gray-50 border-b border-gray-200">
+        <AlertTriangle className="w-4 h-4 text-red-500" />
+        <span className="text-sm font-semibold text-gray-800">Acciones requeridas</span>
+        <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-red-500 text-white text-xs font-bold">
           {acciones.length}
         </span>
       </div>
-      <div className="divide-y divide-gray-100">
+      {/* Cards horizontales */}
+      <div className="p-4 flex flex-col sm:flex-row gap-3">
         {acciones.map((accion, i) => {
-          const estilos = ESTILOS_NIVEL[accion.nivel] || ESTILOS_NIVEL.info;
+          const e = ESTILOS_NIVEL[accion.nivel] || ESTILOS_NIVEL.info;
           return (
             <div
               key={i}
-              className={`flex items-center justify-between px-5 py-3 border-l-4 ${estilos.contenedor}`}
+              className={`flex-1 flex flex-col gap-3 rounded-lg border p-4 ${e.card}`}
             >
-              <div className="flex items-center gap-3">
-                <span className={`text-lg flex-shrink-0 ${estilos.icono}`}>
-                  {accion.icono}
+              <div className="flex items-start gap-3">
+                <span className={`mt-0.5 flex-shrink-0 ${e.icon}`}>
+                  {accion.nivel === "critico"
+                    ? <AlertTriangle className="w-5 h-5" />
+                    : <Clock className="w-5 h-5" />}
                 </span>
-                <p className={`text-sm ${estilos.texto}`}>{accion.texto}</p>
+                <p className={`text-sm leading-snug ${e.texto}`}>{accion.texto}</p>
               </div>
               {accion.accion && (
                 <button
                   onClick={accion.accion.onClick}
-                  className={`ml-4 flex-shrink-0 text-xs font-medium px-3 py-1 rounded border transition-colors ${estilos.boton}`}
+                  className={`self-start text-xs font-semibold px-3 py-1.5 rounded-md transition-colors ${e.boton}`}
                 >
                   {accion.accion.label} →
                 </button>
@@ -853,15 +840,18 @@ function ModalAlumnosRiesgo({ titulo, alumnos, onClose, navigate }) {
           ) : (
             alumnos.map((alumno) => {
               const pct = ((alumno.probabilidad || 0) * 100).toFixed(0);
-              const esAlto = alumno.nivel_riesgo === "alto";
+              const nivel = alumno.nivel_riesgo;
+              const colores = nivel === "alto"
+                ? { barra: "bg-red-500", texto: "text-red-600" }
+                : nivel === "medio"
+                  ? { barra: "bg-amber-400", texto: "text-amber-600" }
+                  : { barra: "bg-green-500", texto: "text-green-600" };
               return (
                 <div
                   key={alumno.id}
                   className="flex items-center gap-4 px-6 py-3 hover:bg-gray-50 transition-colors"
                 >
-                  <span className="text-lg flex-shrink-0">
-                    {esAlto ? "🔴" : "🟡"}
-                  </span>
+                  <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${colores.barra}`} />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-gray-900 truncate">
                       {alumno.nombre}
@@ -869,13 +859,11 @@ function ModalAlumnosRiesgo({ titulo, alumnos, onClose, navigate }) {
                     <div className="flex items-center gap-2 mt-1">
                       <div className="flex-1 bg-gray-100 rounded-full h-1.5">
                         <div
-                          className={`h-1.5 rounded-full ${esAlto ? "bg-red-500" : "bg-amber-400"}`}
+                          className={`h-1.5 rounded-full ${colores.barra}`}
                           style={{ width: `${pct}%` }}
                         />
                       </div>
-                      <span
-                        className={`text-xs font-semibold w-8 text-right ${esAlto ? "text-red-600" : "text-amber-600"}`}
-                      >
+                      <span className={`text-xs font-semibold w-8 text-right ${colores.texto}`}>
                         {pct}%
                       </span>
                     </div>
@@ -896,6 +884,157 @@ function ModalAlumnosRiesgo({ titulo, alumnos, onClose, navigate }) {
         </div>
 
         {/* Footer */}
+        <div className="px-6 py-3 border-t border-gray-200 flex justify-end">
+          <button
+            onClick={onClose}
+            className="text-sm px-4 py-1.5 rounded border border-gray-300 text-gray-600 hover:bg-gray-50"
+          >
+            Cerrar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Componente ModalAsistenciaBaja
+// ═════════════════════════════════════════════════════════════════════════════
+function ModalAsistenciaBaja({ alumnos, onClose, navigate }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[80vh] flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+          <h2 className="text-base font-semibold text-gray-900">
+            Alumnos con asistencia bajo el 75%
+          </h2>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 text-xl leading-none"
+          >
+            ×
+          </button>
+        </div>
+
+        {/* Lista */}
+        <div className="overflow-y-auto flex-1 divide-y divide-gray-100">
+          {alumnos.length === 0 ? (
+            <p className="p-6 text-sm text-gray-500 text-center">
+              Sin alumnos con baja asistencia.
+            </p>
+          ) : (
+            alumnos.map((alumno) => (
+              <div
+                key={alumno.id}
+                className="flex items-center gap-4 px-6 py-3 hover:bg-gray-50 transition-colors"
+              >
+                <span className="text-lg flex-shrink-0">⚠</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-900 truncate">
+                    {alumno.nombre_completo}
+                  </p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <div className="flex-1 bg-gray-100 rounded-full h-1.5">
+                      <div
+                        className="h-1.5 rounded-full bg-amber-400"
+                        style={{ width: `${alumno.asistencia_minima}%` }}
+                      />
+                    </div>
+                    <span className="text-xs font-semibold w-10 text-right text-amber-600">
+                      {alumno.asistencia_minima}%
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    {alumno.materias_afectadas} materia
+                    {alumno.materias_afectadas !== 1 ? "s" : ""} afectada
+                    {alumno.materias_afectadas !== 1 ? "s" : ""}
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    onClose();
+                    navigate(`/alumnos/${alumno.id}`);
+                  }}
+                  className="flex-shrink-0 text-xs text-blue-600 hover:text-blue-800 font-medium"
+                >
+                  Ver perfil →
+                </button>
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-3 border-t border-gray-200 flex justify-end">
+          <button
+            onClick={onClose}
+            className="text-sm px-4 py-1.5 rounded border border-gray-300 text-gray-600 hover:bg-gray-50"
+          >
+            Cerrar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Componente ModalEstancados
+// ═════════════════════════════════════════════════════════════════════════════
+function ModalEstancados({ alumnos, onClose, navigate }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[80vh] flex flex-col">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+          <h2 className="text-base font-semibold text-gray-900">
+            Alumnos sin aprobar en +1 año
+          </h2>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 text-xl leading-none"
+          >
+            ×
+          </button>
+        </div>
+
+        <div className="overflow-y-auto flex-1 divide-y divide-gray-100">
+          {alumnos.length === 0 ? (
+            <p className="p-6 text-sm text-gray-500 text-center">
+              Sin alumnos estancados.
+            </p>
+          ) : (
+            alumnos.map((alumno) => (
+              <div
+                key={alumno.id}
+                className="flex items-center gap-4 px-6 py-3 hover:bg-gray-50 transition-colors"
+              >
+                <Clock className="w-4 h-4 text-red-400 flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-900 truncate">
+                    {alumno.nombre_completo}
+                  </p>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    {alumno.ultimo_anio_aprobacion
+                      ? `Última aprobación: ${alumno.ultimo_anio_aprobacion}`
+                      : "Sin aprobaciones registradas"}{" "}
+                    · {alumno.materias_cursadas} materia{alumno.materias_cursadas !== 1 ? "s" : ""} cursada{alumno.materias_cursadas !== 1 ? "s" : ""}
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    onClose();
+                    navigate(`/alumnos/${alumno.id}`);
+                  }}
+                  className="flex-shrink-0 text-xs text-blue-600 hover:text-blue-800 font-medium"
+                >
+                  Ver perfil →
+                </button>
+              </div>
+            ))
+          )}
+        </div>
+
         <div className="px-6 py-3 border-t border-gray-200 flex justify-end">
           <button
             onClick={onClose}

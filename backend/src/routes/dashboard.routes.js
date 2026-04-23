@@ -120,6 +120,19 @@ router.get("/", async (req, res) => {
       )
       .get().cnt;
 
+    const alumnosAsistenciaBaja = db
+      .prepare(
+        `SELECT u.id, u.nombre_completo, u.email,
+                ROUND(MIN(c.asistencia) * 100, 1) AS asistencia_minima,
+                COUNT(c.id) AS materias_afectadas
+         FROM cursadas c
+         JOIN users u ON u.id = c.alumno_id
+         WHERE c.estado='cursando' AND c.asistencia < 0.75
+         GROUP BY u.id
+         ORDER BY asistencia_minima ASC`,
+      )
+      .all();
+
     // Alumnos cursando AM2 que NO tienen final AM1 aprobado → finales bloqueados
     const am1Id = db
       .prepare("SELECT id FROM materias WHERE codigo='AM1'")
@@ -202,7 +215,7 @@ router.get("/", async (req, res) => {
         FROM materias m
         LEFT JOIN cursadas c ON c.materia_id = m.id
         GROUP BY m.id
-        ORDER BY m.anio_carrera, m.codigo
+        ORDER BY tasa_pct DESC, m.anio_carrera, m.codigo
       `,
       )
       .all();
@@ -306,6 +319,133 @@ router.get("/", async (req, res) => {
       (p) => p.nivel_riesgo === "alto" || p.nivel_riesgo === "medio",
     );
 
+    const alumnosBajoRiesgo = prediccionesAbandono
+      .filter((p) => p.nivel_riesgo === "bajo" && p.probabilidad !== null)
+      .sort((a, b) => b.probabilidad - a.probabilidad);
+
+    // ──────── PASO 2b: Métricas estratégicas ────────
+
+    const totalMateriasCarrera =
+      db.prepare("SELECT COUNT(*) AS cnt FROM materias").get().cnt || 44;
+
+    const avancePlanPct =
+      db
+        .prepare(
+          `SELECT ROUND(AVG(aprobadas * 100.0 / ${totalMateriasCarrera}), 1) AS pct
+           FROM (
+             SELECT u.id, COUNT(DISTINCT e.materia_id) AS aprobadas
+             FROM users u
+             LEFT JOIN examenes e ON e.alumno_id = u.id AND e.nota >= 4 AND e.rendido = 1
+             WHERE u.role = 'alumno'
+             GROUP BY u.id
+           )`,
+        )
+        .get()?.pct || 0;
+
+    const alumnosEstancados = db
+      .prepare(
+        `SELECT COUNT(*) AS cnt FROM users u
+         WHERE u.role = 'alumno'
+         AND EXISTS (SELECT 1 FROM cursadas c WHERE c.alumno_id = u.id)
+         AND NOT EXISTS (
+           SELECT 1 FROM examenes e
+           WHERE e.alumno_id = u.id AND e.nota >= 4 AND e.rendido = 1 AND e.anio >= ?
+         )`,
+      )
+      .get(anioActual - 1).cnt;
+
+    const alumnosEstancadosLista = db
+      .prepare(
+        `SELECT u.id, u.nombre_completo, u.email,
+                MAX(e.anio) AS ultimo_anio_aprobacion,
+                COUNT(DISTINCT c.materia_id) AS materias_cursadas
+         FROM users u
+         JOIN cursadas c ON c.alumno_id = u.id
+         LEFT JOIN examenes e ON e.alumno_id = u.id AND e.nota >= 4 AND e.rendido = 1
+         WHERE u.role = 'alumno'
+         AND NOT EXISTS (
+           SELECT 1 FROM examenes e2
+           WHERE e2.alumno_id = u.id AND e2.nota >= 4 AND e2.rendido = 1 AND e2.anio >= ?
+         )
+         GROUP BY u.id
+         ORDER BY ultimo_anio_aprobacion ASC NULLS FIRST`,
+      )
+      .all(anioActual - 1);
+
+    const primeraInstanciaRow = db
+      .prepare(
+        `SELECT COUNT(*) AS total,
+                SUM(CASE WHEN e.nota >= 4 THEN 1 ELSE 0 END) AS aprobados
+         FROM (
+           SELECT MIN(rowid) AS rid FROM examenes
+           WHERE tipo = 'Parcial' AND rendido = 1
+           GROUP BY alumno_id, materia_id
+         ) primeros
+         JOIN examenes e ON e.rowid = primeros.rid`,
+      )
+      .get();
+    const tasaPrimeraInstancia =
+      primeraInstanciaRow.total > 0
+        ? parseFloat(
+            (
+              (primeraInstanciaRow.aprobados / primeraInstanciaRow.total) *
+              100
+            ).toFixed(1),
+          )
+        : 0;
+
+    const materiasCuelloBotella = db
+      .prepare(
+        `SELECT m.codigo, m.nombre, m.anio_carrera,
+                COUNT(*) AS total_finales,
+                SUM(CASE WHEN e.nota < 4 THEN 1 ELSE 0 END) AS aplazados,
+                ROUND(SUM(CASE WHEN e.nota < 4 THEN 1.0 ELSE 0 END) / COUNT(*) * 100, 1) AS tasa_aplazo_pct
+         FROM examenes e
+         JOIN materias m ON m.id = e.materia_id
+         WHERE e.tipo = 'Final' AND e.rendido = 1 AND e.nota IS NOT NULL
+         GROUP BY e.materia_id
+         HAVING COUNT(*) >= 3
+         ORDER BY tasa_aplazo_pct DESC
+         LIMIT 5`,
+      )
+      .all();
+
+    const promedioPorAnioCarrera = db
+      .prepare(
+        `SELECT m.anio_carrera, ROUND(AVG(e.nota), 2) AS promedio, COUNT(*) AS total_examenes
+         FROM examenes e
+         JOIN materias m ON m.id = e.materia_id
+         WHERE e.rendido = 1 AND e.nota IS NOT NULL
+         GROUP BY m.anio_carrera
+         ORDER BY m.anio_carrera`,
+      )
+      .all();
+
+    const inicioMes = new Date(anioActual, new Date().getMonth(), 1).toISOString();
+    const prediccionesEsteMes = db
+      .prepare(`SELECT COUNT(*) AS cnt FROM predictions_log WHERE created_at >= ?`)
+      .get(inicioMes).cnt;
+
+    const retencionPorCohorte = db
+      .prepare(
+        `SELECT cohorte, COUNT(*) AS total,
+                SUM(CASE WHEN activo = 1 THEN 1 ELSE 0 END) AS activos,
+                ROUND(SUM(CASE WHEN activo = 1 THEN 1.0 ELSE 0 END) / COUNT(*) * 100, 1) AS retencion_pct
+         FROM (
+           SELECT u.id,
+             MIN(c.anio) AS cohorte,
+             MAX(CASE WHEN c.estado IN ('cursando', 'aprobada') THEN 1 ELSE 0 END) AS activo
+           FROM users u
+           JOIN cursadas c ON c.alumno_id = u.id
+           WHERE u.role = 'alumno'
+           GROUP BY u.id
+         )
+         GROUP BY cohorte
+         ORDER BY cohorte DESC
+         LIMIT 5`,
+      )
+      .all();
+
     // ──────── PASO 3: Armar respuesta ────────
     res.json({
       kpis: {
@@ -336,6 +476,18 @@ router.get("/", async (req, res) => {
       distribucion_por_materia: distribucionPorMateria,
       alertas: alertasAbandono,
       todos_en_riesgo: todosEnRiesgo,
+      alumnos_bajo_riesgo: alumnosBajoRiesgo,
+      alumnos_asistencia_baja_lista: alumnosAsistenciaBaja,
+      estrategico: {
+        avance_plan_pct: avancePlanPct,
+        alumnos_estancados: alumnosEstancados,
+        alumnos_estancados_lista: alumnosEstancadosLista,
+        tasa_primera_instancia: tasaPrimeraInstancia,
+        predicciones_este_mes: prediccionesEsteMes,
+        materias_cuello_botella: materiasCuelloBotella,
+        promedio_por_anio_carrera: promedioPorAnioCarrera,
+        retencion_por_cohorte: retencionPorCohorte,
+      },
       actividad_reciente: ultimasPredicciones,
       ai_disponible: aiDisponible,
       calculado_en: new Date().toISOString(),
@@ -359,9 +511,9 @@ router.get("/rendimiento", (req, res) => {
       return res.status(422).json({ error: "El parámetro anio es requerido." });
     }
 
-    // ── Años disponibles (para el selector) ───────────────────────────────
+    // ── Años disponibles (solo años con exámenes efectivamente rendidos) ──
     const aniosDisponibles = db
-      .prepare("SELECT DISTINCT anio FROM examenes ORDER BY anio DESC")
+      .prepare("SELECT DISTINCT anio FROM examenes WHERE rendido = 1 ORDER BY anio DESC")
       .all()
       .map((r) => r.anio);
 
@@ -370,9 +522,9 @@ router.get("/rendimiento", (req, res) => {
       .prepare(
         `
       SELECT
-        m.id            AS materia_id,
-        m.codigo        AS materia_codigo,
-        m.nombre        AS materia_nombre,
+        m.id                                    AS materia_id,
+        CAST(COALESCE(m.codigo_plan, m.codigo) AS TEXT) AS materia_codigo,
+        m.nombre                                AS materia_nombre,
         e.tipo,
         e.instancia,
         COUNT(*)                                                      AS total_intentos,

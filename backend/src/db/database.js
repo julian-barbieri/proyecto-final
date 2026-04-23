@@ -703,4 +703,32 @@ safeAlterTable("ALTER TABLE cursadas ADD COLUMN cuatrimestre INTEGER DEFAULT 0")
 safeAlterTable("ALTER TABLE examenes ADD COLUMN tipo_materia TEXT DEFAULT 'C'");
 safeAlterTable("ALTER TABLE examenes ADD COLUMN cuatrimestre INTEGER DEFAULT 0");
 
+// Eliminar recuperatorios inválidos: un alumno no debería tener recuperatorio
+// de una instancia si ya aprobó (nota >= 4) el parcial de esa misma instancia.
+(function cleanupRecuperatoriosInvalidos() {
+  try {
+    const result = db.prepare(`
+      DELETE FROM examenes
+      WHERE tipo = 'Recuperatorio'
+        AND EXISTS (
+          SELECT 1 FROM examenes parcial
+          WHERE parcial.alumno_id  = examenes.alumno_id
+            AND parcial.materia_id = examenes.materia_id
+            AND parcial.anio       = examenes.anio
+            AND parcial.instancia  = examenes.instancia
+            AND parcial.tipo       = 'Parcial'
+            AND parcial.rendido    = 1
+            AND parcial.nota       >= 4
+        )
+    `).run();
+    if (result.changes > 0) {
+      console.log(
+        `✅ Limpieza recuperatorios: ${result.changes} registro/s eliminado/s.`,
+      );
+    }
+  } catch (error) {
+    console.warn("⚠️ No se pudo limpiar recuperatorios inválidos:", error.message);
+  }
+})();
+
 module.exports = db;

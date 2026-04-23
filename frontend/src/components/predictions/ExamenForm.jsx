@@ -33,6 +33,7 @@ const initialValues = {
   Edad: "20",
   TipoExamen: "Parcial",
   Tipo: "C",
+  AproboUltimoParcial: "",
 };
 
 // payloadFields exactamente en el orden/nombres de feature_names_in_ del modelo examen
@@ -77,6 +78,26 @@ const posicionFlujoMap = {
   Final: { 1: 5, 2: 6, 3: 7 },
 };
 
+// Determina cuál es el próximo examen a predecir cuando el tipo es Parcial.
+// Annual + instancia 1 aprobado → Parcial 2; cuatrimestral o instancia 2 aprobado → Final 1;
+// desaprobado → Recuperatorio de la misma instancia.
+function getNextExam(tipoExamen, instancia, aproboStr, tipo) {
+  if (tipoExamen !== "Parcial") return null;
+  const n = Number(instancia);
+  const aprobo = aproboStr === "true";
+  if (aprobo) {
+    if (tipo === "A" && n === 1) return { tipoExamen: "Parcial", instancia: "2" };
+    return { tipoExamen: "Final", instancia: "1" };
+  }
+  return { tipoExamen: "Recuperatorio", instancia: String(n) };
+}
+
+function formatNextExamLabel(nextExam) {
+  if (!nextExam) return "";
+  const nombres = { Parcial: "Parcial", Recuperatorio: "Recuperatorio", Final: "Final" };
+  return `${nombres[nextExam.tipoExamen]} — Instancia ${nextExam.instancia}`;
+}
+
 function isEmptyValue(value) {
   return value === "" || value === null || value === undefined;
 }
@@ -93,13 +114,23 @@ function getMaxCantParcialesAprobados(tipoExamen, instancia) {
 }
 
 function buildPayload(formValues) {
+  const nextExam = getNextExam(
+    formValues.TipoExamen,
+    formValues.Instancia,
+    formValues.AproboUltimoParcial,
+    formValues.Tipo,
+  );
+  const targetTipoExamen = nextExam ? nextExam.tipoExamen : formValues.TipoExamen;
+  const targetInstancia = nextExam ? Number(nextExam.instancia) : Number(formValues.Instancia || 1);
+  const targetPosicionFlujo = posicionFlujoMap[targetTipoExamen]?.[targetInstancia] ?? 1;
+
   return Object.fromEntries(
     payloadFields.map((key) => {
-      // Los campos OHE se envían como string
-      if (key === "TipoExamen") return [key, formValues.TipoExamen];
+      if (key === "TipoExamen") return [key, targetTipoExamen];
       if (key === "Tipo") return [key, formValues.Tipo];
-      // AñoCarrera tiene tilde — viene de formValues.AnoCarrera (sin tilde en el form)
       if (key === "AñoCarrera") return [key, Number(formValues.AnoCarrera || 1)];
+      if (key === "Instancia") return [key, targetInstancia];
+      if (key === "PosicionFlujo") return [key, targetPosicionFlujo];
       return [key, Number(formValues[key])];
     }),
   );
@@ -126,6 +157,15 @@ export default function ExamenForm({
     formValues.TipoExamen,
     formValues.Instancia,
   );
+  const nextExamPreview =
+    formValues.TipoExamen === "Parcial" && formValues.AproboUltimoParcial !== ""
+      ? getNextExam(
+          formValues.TipoExamen,
+          formValues.Instancia,
+          formValues.AproboUltimoParcial,
+          formValues.Tipo,
+        )
+      : null;
 
   useEffect(() => {
     api
@@ -190,6 +230,19 @@ export default function ExamenForm({
           type: "select",
           options: [],
         },
+        ...(formValues.TipoExamen === "Parcial"
+          ? [
+              {
+                name: "AproboUltimoParcial",
+                label: "¿Aprobó este parcial?",
+                type: "select",
+                options: [
+                  { label: "Sí, aprobó", value: "true" },
+                  { label: "No, desaprobó", value: "false" },
+                ],
+              },
+            ]
+          : []),
         {
           name: "Anio",
           label: "Año",
@@ -385,7 +438,7 @@ export default function ExamenForm({
         },
       ],
     }),
-    [materias],
+    [materias, formValues.TipoExamen],
   );
 
   const validateForm = (values) => {
@@ -404,6 +457,10 @@ export default function ExamenForm({
           return [formKey, "Este campo es obligatorio"];
         }),
     );
+
+    if (values.TipoExamen === "Parcial" && isEmptyValue(values.AproboUltimoParcial)) {
+      validationErrors.AproboUltimoParcial = "Indicá si el alumno aprobó o no este parcial.";
+    }
 
     const cant = Number(values.CantParcialesAprobados || 0);
     if (cant > 2) {
@@ -430,7 +487,10 @@ export default function ExamenForm({
     const { name, value } = event.target;
     setFormValues((prev) => {
       const nextValues = { ...prev, [name]: value };
-      if (name === "TipoExamen") nextValues.Instancia = "1";
+      if (name === "TipoExamen") {
+        nextValues.Instancia = "1";
+        nextValues.AproboUltimoParcial = "";
+      }
       return updateDerivedFields(nextValues);
     });
     setErrors((prev) => {
@@ -464,7 +524,13 @@ export default function ExamenForm({
     try {
       const payload = buildPayload(formValues);
       const response = await api.post("/api/predict/examen", [payload]);
-      onResult?.(response.data?.[0]);
+      const nextExam = getNextExam(
+        formValues.TipoExamen,
+        formValues.Instancia,
+        formValues.AproboUltimoParcial,
+        formValues.Tipo,
+      );
+      onResult?.({ ...response.data?.[0], _nextExam: nextExam });
     } catch (error) {
       const message = !error?.response
         ? "No se pudo conectar con el backend. Verificá que esté corriendo en http://localhost:3001"
@@ -560,8 +626,16 @@ export default function ExamenForm({
       <div>
         <h2 className="text-xl font-semibold text-slate-900">Predicción de nota de examen</h2>
         <p className="mt-1 text-sm text-slate-600">
-          Cargá los datos del examen y del alumno para estimar la nota esperada.
+          {formValues.TipoExamen === "Parcial"
+            ? "Ingresá el resultado del parcial y los datos del alumno. El sistema determinará automáticamente la próxima instancia a predecir."
+            : "Cargá los datos del examen y del alumno para estimar la nota esperada."}
         </p>
+        {nextExamPreview && (
+          <div className="mt-3 inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-700">
+            <span className="h-2 w-2 rounded-full bg-blue-500" />
+            Se predecirá: {formatNextExamLabel(nextExamPreview)}
+          </div>
+        )}
       </div>
 
       {renderSection(

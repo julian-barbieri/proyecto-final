@@ -50,7 +50,7 @@ router.get(
       const cursadas = db
         .prepare(
           `
-        SELECT c.*, m.codigo AS materia_codigo, m.nombre AS materia_nombre
+        SELECT c.*, m.codigo AS materia_codigo, m.nombre AS materia_nombre, m.tipo AS materia_tipo
         FROM cursadas c
         JOIN materias m ON c.materia_id = m.id
         WHERE c.alumno_id = ?
@@ -229,30 +229,80 @@ router.get(
           );
           predicciones.proximas_notas = [];
 
+          // Determina el próximo examen según el historial y el tipo de materia (A=anual, C=cuatrimestral).
+          // Respeta la regla académica: aprobar Parcial N habilita Final (cuatrimestral) o Parcial N+1 (anual),
+          // en lugar de pasar por Recuperatorio N innecesariamente.
+          function getProximoExamen(examenes, materiaType) {
+            const passed = (tipo, inst) =>
+              examenes.some(
+                (e) =>
+                  e.tipo === tipo &&
+                  e.instancia === inst &&
+                  e.rendido === 1 &&
+                  (e.nota ?? 0) >= 4,
+              );
+            const taken = (tipo, inst) =>
+              examenes.some(
+                (e) => e.tipo === tipo && e.instancia === inst && e.rendido === 1,
+              );
+
+            if (!taken("Parcial", 1)) return { tipo: "Parcial", inst: 1 };
+
+            if (passed("Parcial", 1)) {
+              if (materiaType === "A") {
+                if (!taken("Parcial", 2)) return { tipo: "Parcial", inst: 2 };
+                if (passed("Parcial", 2)) {
+                  for (const inst of [1, 2, 3]) {
+                    if (!taken("Final", inst)) return { tipo: "Final", inst };
+                  }
+                } else {
+                  if (!taken("Recuperatorio", 2)) return { tipo: "Recuperatorio", inst: 2 };
+                  if (passed("Recuperatorio", 2)) {
+                    for (const inst of [1, 2, 3]) {
+                      if (!taken("Final", inst)) return { tipo: "Final", inst };
+                    }
+                  }
+                }
+              } else {
+                for (const inst of [1, 2, 3]) {
+                  if (!taken("Final", inst)) return { tipo: "Final", inst };
+                }
+              }
+            } else {
+              if (!taken("Recuperatorio", 1)) return { tipo: "Recuperatorio", inst: 1 };
+              if (passed("Recuperatorio", 1)) {
+                if (materiaType === "A") {
+                  if (!taken("Parcial", 2)) return { tipo: "Parcial", inst: 2 };
+                  if (passed("Parcial", 2)) {
+                    for (const inst of [1, 2, 3]) {
+                      if (!taken("Final", inst)) return { tipo: "Final", inst };
+                    }
+                  } else {
+                    if (!taken("Recuperatorio", 2)) return { tipo: "Recuperatorio", inst: 2 };
+                    if (passed("Recuperatorio", 2)) {
+                      for (const inst of [1, 2, 3]) {
+                        if (!taken("Final", inst)) return { tipo: "Final", inst };
+                      }
+                    }
+                  }
+                } else {
+                  for (const inst of [1, 2, 3]) {
+                    if (!taken("Final", inst)) return { tipo: "Final", inst };
+                  }
+                }
+              }
+            }
+
+            return null;
+          }
+
           for (const cursadaActiva of cursadasActivas) {
             try {
               const exCursadaActiva = cursadaActiva.examenes || [];
 
-              // Orden del flujo académico: P1 → R1 → P2 → R2 → F1 → F2 → F3
-              const flujo = [
-                { tipo: "Parcial", inst: 1 },
-                { tipo: "Recuperatorio", inst: 1 },
-                { tipo: "Parcial", inst: 2 },
-                { tipo: "Recuperatorio", inst: 2 },
-                { tipo: "Final", inst: 1 },
-                { tipo: "Final", inst: 2 },
-                { tipo: "Final", inst: 3 },
-              ];
-
-              // Encontrar el primer examen que aún no fue rendido
-              const proximoExamen = flujo.find(
-                (f) =>
-                  !exCursadaActiva.some(
-                    (e) =>
-                      e.tipo === f.tipo &&
-                      e.instancia === f.inst &&
-                      e.rendido === 1,
-                  ),
+              const proximoExamen = getProximoExamen(
+                exCursadaActiva,
+                cursadaActiva.materia_tipo ?? "C",
               );
 
               if (proximoExamen) {
@@ -442,6 +492,73 @@ router.patch(
         error: "Error al actualizar los datos del alumno",
         details: error.message,
       });
+    }
+  },
+);
+
+// ═══════════════════════════════════════════════════════════════════════════
+// POST /api/gestion-alumnos/alumnos/:alumnoId/simular
+// Devuelve la predicción de abandono con un valor de ayuda_financiera
+// diferente al actual, sin guardar en BD ni en predictions_log.
+// ═══════════════════════════════════════════════════════════════════════════
+
+router.post(
+  "/alumnos/:alumnoId/simular",
+  authenticate,
+  authorize("admin", "coordinador"),
+  async (req, res) => {
+    try {
+      const { alumnoId } = req.params;
+      const id = parseInt(alumnoId);
+      const { ayuda_financiera } = req.body;
+
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "ID de alumno inválido." });
+      }
+
+      if (![0, 1].includes(parseInt(ayuda_financiera))) {
+        return res
+          .status(422)
+          .json({ error: "ayuda_financiera debe ser 0 o 1." });
+      }
+
+      const {
+        calcularVariablesAbandono,
+      } = require("../services/prediction-variables.service");
+      const AI_URL = process.env.AI_SERVICE_URL || "http://localhost:8000";
+
+      const vars = calcularVariablesAbandono(id);
+      const body = { ...vars };
+      delete body._meta;
+
+      body.AyudaFinanciera = parseInt(ayuda_financiera);
+
+      if (!body.PromedioColegio_x) {
+        body.PromedioColegio_x = body.PromedioColegio;
+        body.PromedioColegio_y = body.PromedioColegio;
+        delete body.PromedioColegio;
+      }
+
+      const resp = await axios.post(`${AI_URL}/predict/alumno`, [body], {
+        timeout: 8000,
+      });
+
+      const resultado = resp.data[0];
+      const prob = resultado.probabilidad;
+
+      res.json({
+        probabilidad: prob,
+        abandona: resultado.Abandona,
+        nivel_riesgo: prob >= 0.6 ? "alto" : prob >= 0.3 ? "medio" : "bajo",
+      });
+    } catch (error) {
+      console.error("Error en simulación:", error.message);
+      if (error.code === "ECONNREFUSED") {
+        return res
+          .status(503)
+          .json({ error: "El servicio de IA no está disponible." });
+      }
+      res.status(500).json({ error: "Error al simular la predicción." });
     }
   },
 );
