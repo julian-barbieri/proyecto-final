@@ -249,6 +249,31 @@ function SeccionResumen({
   const [modalAsistencia, setModalAsistencia] = useState(false);
   const [modalEstancados, setModalEstancados] = useState(false);
 
+  const [anioCursada, setAnioCursada] = useState(new Date().getFullYear());
+  const [aniosCursadaDisponibles, setAniosCursadaDisponibles] = useState([new Date().getFullYear()]);
+  const [dataPorMateria, setDataPorMateria] = useState(null);
+  const [dataDistribucion, setDataDistribucion] = useState(null);
+  const [loadingAnio, setLoadingAnio] = useState(false);
+
+  useEffect(() => {
+    const fetchPorMateria = async () => {
+      try {
+        setLoadingAnio(true);
+        const resp = await api.get(`/api/dashboard/por-materia?anio_cursada=${anioCursada}`);
+        setDataPorMateria(resp.data.por_materia);
+        setDataDistribucion(resp.data.distribucion);
+        setAniosCursadaDisponibles(resp.data.anios_disponibles);
+      } catch (err) {
+        console.error("Error cargando datos por materia:", err);
+        setDataPorMateria([]);
+        setDataDistribucion([]);
+      } finally {
+        setLoadingAnio(false);
+      }
+    };
+    fetchPorMateria();
+  }, [anioCursada]);
+
   if (loading) {
     return <SkeletonLoader />;
   }
@@ -609,11 +634,28 @@ function SeccionResumen({
                 <RotateCcw className="w-4 h-4 text-amber-500" />
                 <h2 className="text-sm font-semibold text-gray-900">Tasa de recursado por materia</h2>
               </div>
-              <FiltroAnioMateria valor={materiaAnioTasa} onChange={setMateriaAnioTasa} />
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex items-center gap-1">
+                  <span className="text-xs text-gray-500">Materia:</span>
+                  <FiltroAnioMateria valor={materiaAnioTasa} onChange={setMateriaAnioTasa} />
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="text-xs text-gray-500">Año de cursada:</span>
+                  <FiltroAnioCursada
+                    valor={anioCursada}
+                    onChange={setAnioCursada}
+                    aniosDisponibles={aniosCursadaDisponibles}
+                  />
+                </div>
+              </div>
             </div>
             <div className="space-y-5">
-              {por_materia && por_materia.length > 0 ? (
-                filtrarPorAnio(por_materia, materiaAnioTasa).map((materia) => (
+              {loadingAnio ? (
+                <div className="py-6 flex justify-center">
+                  <div className="w-5 h-5 rounded-full border-2 border-amber-400 border-t-transparent animate-spin" />
+                </div>
+              ) : dataPorMateria && dataPorMateria.length > 0 ? (
+                filtrarPorAnio(dataPorMateria, materiaAnioTasa).map((materia) => (
                   <div key={materia.id}>
                     <div className="flex items-center justify-between mb-1.5">
                       <span className="text-sm text-gray-700 truncate pr-2">{materia.codigo} — {materia.nombre}</span>
@@ -632,7 +674,7 @@ function SeccionResumen({
                   </div>
                 ))
               ) : (
-                <p className="text-sm text-gray-400">Sin datos de materias</p>
+                <p className="text-sm text-gray-400">Sin datos de materias para {anioCursada}</p>
               )}
             </div>
           </div>
@@ -644,11 +686,28 @@ function SeccionResumen({
                 <BarChart3 className="w-4 h-4 text-blue-500" />
                 <h2 className="text-sm font-semibold text-gray-900">Alumnos por intento de cursada</h2>
               </div>
-              <FiltroAnioMateria valor={materiaAnioDistribucion} onChange={setMateriaAnioDistribucion} />
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex items-center gap-1">
+                  <span className="text-xs text-gray-500">Materia:</span>
+                  <FiltroAnioMateria valor={materiaAnioDistribucion} onChange={setMateriaAnioDistribucion} />
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="text-xs text-gray-500">Año de cursada:</span>
+                  <FiltroAnioCursada
+                    valor={anioCursada}
+                    onChange={setAnioCursada}
+                    aniosDisponibles={aniosCursadaDisponibles}
+                  />
+                </div>
+              </div>
             </div>
             <div className="space-y-7">
-              {distribucion_por_materia && distribucion_por_materia.length > 0 ? (
-                filtrarPorAnio(distribucion_por_materia, materiaAnioDistribucion).map((materia) => {
+              {loadingAnio ? (
+                <div className="py-6 flex justify-center">
+                  <div className="w-5 h-5 rounded-full border-2 border-blue-400 border-t-transparent animate-spin" />
+                </div>
+              ) : dataDistribucion && dataDistribucion.length > 0 ? (
+                filtrarPorAnio(dataDistribucion, materiaAnioDistribucion).map((materia) => {
                   const total = materia.primera_vez + materia.segunda_vez + materia.tercera_vez_o_mas;
                   return (
                     <div key={materia.codigo}>
@@ -677,7 +736,7 @@ function SeccionResumen({
                   );
                 })
               ) : (
-                <p className="text-sm text-gray-400">Sin datos de distribución</p>
+                <p className="text-sm text-gray-400">Sin datos de distribución para {anioCursada}</p>
               )}
             </div>
           </div>
@@ -807,6 +866,25 @@ function FiltroAnioMateria({ valor, onChange }) {
       {ANIOS_CARRERA.map((a) => (
         <option key={a.value} value={a.value}>
           {a.label}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Componente FiltroAnioCursada — año calendario en que se cursó la materia
+// ═════════════════════════════════════════════════════════════════════════════
+function FiltroAnioCursada({ valor, onChange, aniosDisponibles }) {
+  return (
+    <select
+      value={valor}
+      onChange={(e) => onChange(Number(e.target.value))}
+      className="border border-gray-200 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+    >
+      {aniosDisponibles.map((anio) => (
+        <option key={anio} value={anio}>
+          {anio}
         </option>
       ))}
     </select>

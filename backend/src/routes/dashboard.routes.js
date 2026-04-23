@@ -502,6 +502,67 @@ router.get("/", async (req, res) => {
 });
 
 // ═════════════════════════════════════════════════════════════════════════════
+// ENDPOINT - Tasa de recursado y distribución por materia filtrado por año de cursada
+// ═════════════════════════════════════════════════════════════════════════════
+router.get("/por-materia", (req, res) => {
+  try {
+    const anio = parseInt(req.query.anio_cursada);
+    if (!anio || isNaN(anio)) {
+      return res.status(422).json({ error: "El parámetro anio_cursada es requerido." });
+    }
+
+    const aniosDisponibles = db
+      .prepare("SELECT DISTINCT anio FROM cursadas ORDER BY anio DESC")
+      .all()
+      .map((r) => r.anio);
+
+    const porMateria = db
+      .prepare(
+        `SELECT m.id, m.codigo, m.nombre, COALESCE(m.anio_carrera, 1) AS anio_carrera,
+           COUNT(c.id) AS total_cursadas,
+           SUM(CASE WHEN c.estado='recursada' THEN 1 ELSE 0 END) AS recursadas,
+           ROUND(SUM(CASE WHEN c.estado='recursada' THEN 1.0 ELSE 0 END) / COUNT(c.id) * 100, 1) AS tasa_pct
+         FROM materias m
+         JOIN cursadas c ON c.materia_id = m.id
+         WHERE c.anio = ?
+         GROUP BY m.id
+         ORDER BY tasa_pct DESC, m.anio_carrera, m.codigo`,
+      )
+      .all(anio);
+
+    const distribucion = db
+      .prepare(
+        `SELECT m.id, m.codigo, m.nombre, COALESCE(m.anio_carrera, 1) AS anio_carrera,
+           COUNT(CASE WHEN total_veces = 1 THEN 1 END) AS primera_vez,
+           COUNT(CASE WHEN total_veces = 2 THEN 1 END) AS segunda_vez,
+           COUNT(CASE WHEN total_veces >= 3 THEN 1 END) AS tercera_vez_o_mas
+         FROM (
+           SELECT c.materia_id, c.alumno_id,
+             (SELECT COUNT(*) FROM cursadas c2
+              WHERE c2.materia_id = c.materia_id AND c2.alumno_id = c.alumno_id) AS total_veces
+           FROM cursadas c
+           WHERE c.anio = ?
+           GROUP BY c.materia_id, c.alumno_id
+         ) sub
+         JOIN materias m ON sub.materia_id = m.id
+         GROUP BY sub.materia_id
+         ORDER BY m.anio_carrera, m.codigo`,
+      )
+      .all(anio);
+
+    res.json({
+      anio,
+      anios_disponibles: aniosDisponibles,
+      por_materia: porMateria,
+      distribucion,
+    });
+  } catch (error) {
+    console.error("Error en /api/dashboard/por-materia:", error);
+    res.status(500).json({ error: "Error al cargar datos por materia", details: error.message });
+  }
+});
+
+// ═════════════════════════════════════════════════════════════════════════════
 // ENDPOINT CDU015 - Rendimiento por examen
 // ═════════════════════════════════════════════════════════════════════════════
 router.get("/rendimiento", (req, res) => {
