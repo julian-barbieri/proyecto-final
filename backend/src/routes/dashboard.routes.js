@@ -670,4 +670,78 @@ router.get("/rendimiento", (req, res) => {
   }
 });
 
+// ═════════════════════════════════════════════════════════════════════════════
+// ENDPOINT - Datos históricos por año para una materia
+// ═════════════════════════════════════════════════════════════════════════════
+router.get("/historico", (req, res) => {
+  try {
+    const materiaId = parseInt(req.query.materia_id);
+    if (!materiaId || isNaN(materiaId)) {
+      return res.status(422).json({ error: "El parámetro materia_id es requerido." });
+    }
+
+    const materia = db
+      .prepare("SELECT id, codigo, nombre FROM materias WHERE id = ?")
+      .get(materiaId);
+    if (!materia) {
+      return res.status(404).json({ error: "Materia no encontrada." });
+    }
+
+    const porAnioCursadas = db
+      .prepare(
+        `SELECT
+           c.anio,
+           COUNT(c.id) AS total_cursadas,
+           SUM(CASE WHEN c.estado = 'recursada' THEN 1 ELSE 0 END) AS recursadas,
+           ROUND(SUM(CASE WHEN c.estado = 'recursada' THEN 1.0 ELSE 0 END) / COUNT(c.id) * 100, 1) AS tasa_pct,
+           COUNT(CASE WHEN sub.total_veces = 1 THEN 1 END) AS primera_vez,
+           COUNT(CASE WHEN sub.total_veces = 2 THEN 1 END) AS segunda_vez,
+           COUNT(CASE WHEN sub.total_veces >= 3 THEN 1 END) AS tercera_vez_o_mas
+         FROM cursadas c
+         JOIN (
+           SELECT alumno_id, COUNT(*) AS total_veces
+           FROM cursadas
+           WHERE materia_id = ?
+           GROUP BY alumno_id
+         ) sub ON sub.alumno_id = c.alumno_id
+         WHERE c.materia_id = ?
+         GROUP BY c.anio
+         ORDER BY c.anio`,
+      )
+      .all(materiaId, materiaId);
+
+    const porAnioExamenes = db
+      .prepare(
+        `SELECT
+           e.anio,
+           e.tipo,
+           e.instancia,
+           COUNT(*) AS total_intentos,
+           SUM(CASE WHEN e.rendido = 1 THEN 1 ELSE 0 END) AS total_rendidos,
+           SUM(CASE WHEN e.ausente = 1 THEN 1 ELSE 0 END) AS total_ausentes,
+           SUM(CASE WHEN e.rendido = 1 AND e.nota >= 4 THEN 1 ELSE 0 END) AS total_aprobados,
+           ROUND(AVG(CASE WHEN e.rendido = 1 AND e.nota IS NOT NULL THEN e.nota END), 2) AS promedio_nota,
+           ROUND(SUM(CASE WHEN e.rendido = 1 AND e.nota >= 4 THEN 1.0 ELSE 0 END) / NULLIF(COUNT(*), 0) * 100, 1) AS pct_aprobados,
+           ROUND(SUM(CASE WHEN e.ausente = 1 THEN 1.0 ELSE 0 END) / NULLIF(COUNT(*), 0) * 100, 1) AS pct_ausentes
+         FROM examenes e
+         JOIN users u ON e.alumno_id = u.id
+         WHERE e.materia_id = ? AND u.role = 'alumno'
+         GROUP BY e.anio, e.tipo, e.instancia
+         ORDER BY e.anio,
+           CASE e.tipo WHEN 'Parcial' THEN 1 WHEN 'Recuperatorio' THEN 2 WHEN 'Final' THEN 3 END,
+           e.instancia`,
+      )
+      .all(materiaId);
+
+    res.json({
+      materia,
+      por_anio_cursadas: porAnioCursadas,
+      por_anio_examenes: porAnioExamenes,
+    });
+  } catch (error) {
+    console.error("Error en /api/dashboard/historico:", error);
+    res.status(500).json({ error: "Error al cargar datos históricos", details: error.message });
+  }
+});
+
 module.exports = router;

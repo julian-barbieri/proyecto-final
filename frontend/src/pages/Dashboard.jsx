@@ -4,9 +4,10 @@ import { useAuth } from "../context/AuthContext";
 import api from "../api/axios";
 import KpiCard from "../components/dashboard/KpiCard";
 import SeccionRendimiento from "../components/dashboard/SeccionRendimiento";
+import GraficoHistoricoMateria from "../components/dashboard/GraficoHistoricoMateria";
 import {
   Users, BookOpen, RotateCcw, ClipboardList, AlertTriangle,
-  TrendingUp, Target, Clock, CheckCircle2, Zap,
+  TrendingUp, Clock,
   BarChart3, Activity, PieChart, GraduationCap,
 } from "lucide-react";
 
@@ -55,7 +56,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Estados para la tab de rendimiento
+  // Estados para la tab de rendimiento por examen
   const [anioSeleccionado, setAnioSeleccionado] = useState(
     new Date().getFullYear(),
   );
@@ -63,6 +64,14 @@ export default function Dashboard() {
   const [loadingRend, setLoadingRend] = useState(false);
   const [aniosDisponibles, setAniosDisponibles] = useState([]);
   const [materiaSeleccionada, setMateriaSeleccionada] = useState(null);
+
+  // Estados para la tab de rendimiento por materia
+  const [anioCursada, setAnioCursada] = useState(new Date().getFullYear());
+  const [materiaSeleccionadaMaterias, setMateriaSeleccionadaMaterias] = useState(null);
+  const [aniosCursadaDisponibles, setAniosCursadaDisponibles] = useState([new Date().getFullYear()]);
+  const [dataPorMateria, setDataPorMateria] = useState(null);
+  const [dataDistribucion, setDataDistribucion] = useState(null);
+  const [loadingAnio, setLoadingAnio] = useState(false);
 
   useEffect(() => {
     const cargarDashboard = async () => {
@@ -82,7 +91,29 @@ export default function Dashboard() {
     cargarDashboard();
   }, []);
 
-  // Cargar datos de rendimiento cuando cambia la tab o el año
+  // Cargar datos de rendimiento por materia cuando cambia la tab o el año
+  useEffect(() => {
+    if (tabActiva !== "materias") return;
+
+    const fetchPorMateria = async () => {
+      try {
+        setLoadingAnio(true);
+        const resp = await api.get(`/api/dashboard/por-materia?anio_cursada=${anioCursada}`);
+        setDataPorMateria(resp.data.por_materia);
+        setDataDistribucion(resp.data.distribucion);
+        setAniosCursadaDisponibles(resp.data.anios_disponibles);
+      } catch (err) {
+        console.error("Error cargando datos por materia:", err);
+        setDataPorMateria([]);
+        setDataDistribucion([]);
+      } finally {
+        setLoadingAnio(false);
+      }
+    };
+    fetchPorMateria();
+  }, [tabActiva, anioCursada]);
+
+  // Cargar datos de rendimiento por examen cuando cambia la tab o el año
   useEffect(() => {
     if (tabActiva !== "rendimiento") return;
 
@@ -187,6 +218,7 @@ export default function Dashboard() {
         <div className="flex gap-8">
           {[
             { key: "resumen", label: "Resumen general" },
+            { key: "materias", label: "Rendimiento por materia" },
             { key: "rendimiento", label: "Rendimiento por examen" },
           ].map((tab) => (
             <button
@@ -213,6 +245,19 @@ export default function Dashboard() {
           navigate={navigate}
           user={user}
           ai_disponible={data?.ai_disponible}
+        />
+      )}
+
+      {tabActiva === "materias" && (
+        <SeccionRendimientoMaterias
+          dataPorMateria={dataPorMateria}
+          dataDistribucion={dataDistribucion}
+          loading={loadingAnio}
+          anioCursada={anioCursada}
+          aniosCursadaDisponibles={aniosCursadaDisponibles}
+          materiaSeleccionada={materiaSeleccionadaMaterias}
+          onAnioCursadaChange={(anio) => { setAnioCursada(anio); setMateriaSeleccionadaMaterias(null); }}
+          onMateriaChange={setMateriaSeleccionadaMaterias}
         />
       )}
 
@@ -243,36 +288,9 @@ function SeccionResumen({
   user,
   ai_disponible,
 }) {
-  const [materiaAnioTasa, setMateriaAnioTasa] = useState("1");
-  const [materiaAnioDistribucion, setMateriaAnioDistribucion] = useState("1");
   const [modalRiesgo, setModalRiesgo] = useState(null); // null | { titulo, alumnos }
   const [modalAsistencia, setModalAsistencia] = useState(false);
   const [modalEstancados, setModalEstancados] = useState(false);
-
-  const [anioCursada, setAnioCursada] = useState(new Date().getFullYear());
-  const [aniosCursadaDisponibles, setAniosCursadaDisponibles] = useState([new Date().getFullYear()]);
-  const [dataPorMateria, setDataPorMateria] = useState(null);
-  const [dataDistribucion, setDataDistribucion] = useState(null);
-  const [loadingAnio, setLoadingAnio] = useState(false);
-
-  useEffect(() => {
-    const fetchPorMateria = async () => {
-      try {
-        setLoadingAnio(true);
-        const resp = await api.get(`/api/dashboard/por-materia?anio_cursada=${anioCursada}`);
-        setDataPorMateria(resp.data.por_materia);
-        setDataDistribucion(resp.data.distribucion);
-        setAniosCursadaDisponibles(resp.data.anios_disponibles);
-      } catch (err) {
-        console.error("Error cargando datos por materia:", err);
-        setDataPorMateria([]);
-        setDataDistribucion([]);
-      } finally {
-        setLoadingAnio(false);
-      }
-    };
-    fetchPorMateria();
-  }, [anioCursada]);
 
   if (loading) {
     return <SkeletonLoader />;
@@ -593,156 +611,161 @@ function SeccionResumen({
         </div>
       </div>
 
-      {/* ── MÉTRICAS ESTRATÉGICAS ── */}
-      {estrategico && (
-        <div>
-          <SectionLabel>Métricas estratégicas</SectionLabel>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <KpiCard
-              titulo="Avance promedio del plan"
-              valor={`${estrategico.avance_plan_pct}%`}
-              subtitulo="materias aprobadas sobre el total"
-              color="blue"
-              icono={<Target className="w-5 h-5" />}
-            />
-            <KpiCard
-              titulo="Aprob. en 1ra instancia"
-              valor={`${estrategico.tasa_primera_instancia}%`}
-              subtitulo="parciales aprobados al 1er intento"
-              color="green"
-              icono={<CheckCircle2 className="w-5 h-5" />}
-            />
-            <KpiCard
-              titulo="Predicciones este mes"
-              valor={estrategico.predicciones_este_mes}
-              subtitulo="consultas al sistema ML"
-              color="purple"
-              icono={<Zap className="w-5 h-5" />}
-            />
-          </div>
+    </div>
+  );
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Componente SeccionRendimientoMaterias
+// ═════════════════════════════════════════════════════════════════════════════
+function SeccionRendimientoMaterias({
+  dataPorMateria,
+  dataDistribucion,
+  loading,
+  anioCursada,
+  aniosCursadaDisponibles,
+  materiaSeleccionada,
+  onAnioCursadaChange,
+  onMateriaChange,
+}) {
+  const todasLasMaterias = mergeMateriaData(dataPorMateria, dataDistribucion);
+
+  if (materiaSeleccionada === null && todasLasMaterias.length > 0 && !loading) {
+    onMateriaChange(todasLasMaterias[0].id);
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Filtros + leyenda */}
+      <div className="flex items-center gap-6 flex-wrap">
+        {/* Año académico */}
+        <div className="flex items-center gap-3">
+          <label className="text-sm font-medium text-gray-600">Año académico:</label>
+          <select
+            value={anioCursada}
+            onChange={(e) => onAnioCursadaChange(Number(e.target.value))}
+            className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            {aniosCursadaDisponibles.map((anio) => (
+              <option key={anio} value={anio}>{anio}</option>
+            ))}
+          </select>
         </div>
-      )}
 
-      {/* ── POR MATERIA ── */}
-      <div>
-        <SectionLabel>Por materia</SectionLabel>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Tasa de recursado por materia */}
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <div className="mb-4 flex items-center justify-between gap-3 flex-wrap">
-              <div className="flex items-center gap-2">
-                <RotateCcw className="w-4 h-4 text-amber-500" />
-                <h2 className="text-sm font-semibold text-gray-900">Tasa de recursado por materia</h2>
-              </div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <div className="flex items-center gap-1">
-                  <span className="text-xs text-gray-500">Materia:</span>
-                  <FiltroAnioMateria valor={materiaAnioTasa} onChange={setMateriaAnioTasa} />
-                </div>
-                <div className="flex items-center gap-1">
-                  <span className="text-xs text-gray-500">Año de cursada:</span>
-                  <FiltroAnioCursada
-                    valor={anioCursada}
-                    onChange={setAnioCursada}
-                    aniosDisponibles={aniosCursadaDisponibles}
-                  />
-                </div>
-              </div>
-            </div>
-            <div className="space-y-5">
-              {loadingAnio ? (
-                <div className="py-6 flex justify-center">
-                  <div className="w-5 h-5 rounded-full border-2 border-amber-400 border-t-transparent animate-spin" />
-                </div>
-              ) : dataPorMateria && dataPorMateria.length > 0 ? (
-                filtrarPorAnio(dataPorMateria, materiaAnioTasa).map((materia) => (
-                  <div key={materia.id}>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <span className="text-sm text-gray-700 truncate pr-2">{materia.codigo} — {materia.nombre}</span>
-                      <span className="text-sm font-semibold text-gray-900 flex-shrink-0">{materia.tasa_pct ?? "—"}%</span>
-                    </div>
-                    {materia.total_cursadas > 0 ? (
-                      <>
-                        <div className="w-full bg-gray-100 rounded-full h-2">
-                          <div className="bg-amber-400 h-2 rounded-full" style={{ width: `${materia.tasa_pct || 0}%` }} />
-                        </div>
-                        <p className="text-xs text-gray-400 mt-0.5">{materia.recursadas} de {materia.total_cursadas} cursadas</p>
-                      </>
-                    ) : (
-                      <p className="text-xs text-gray-400 italic">Sin datos suficientes</p>
-                    )}
-                  </div>
-                ))
-              ) : (
-                <p className="text-sm text-gray-400">Sin datos de materias para {anioCursada}</p>
-              )}
-            </div>
+        {/* Dropdown de materia */}
+        {todasLasMaterias.length > 0 && (
+          <div className="flex items-center gap-3">
+            <label className="text-sm font-medium text-gray-600">Materia:</label>
+            <select
+              value={materiaSeleccionada || ""}
+              onChange={(e) => onMateriaChange(parseInt(e.target.value))}
+              className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {todasLasMaterias.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.codigo} - {m.nombre}
+                </option>
+              ))}
+            </select>
           </div>
+        )}
 
-          {/* Distribución de cursadas por materia */}
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <div className="mb-4 flex items-center justify-between gap-3 flex-wrap">
-              <div className="flex items-center gap-2">
-                <BarChart3 className="w-4 h-4 text-blue-500" />
-                <h2 className="text-sm font-semibold text-gray-900">Alumnos por intento de cursada</h2>
-              </div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <div className="flex items-center gap-1">
-                  <span className="text-xs text-gray-500">Materia:</span>
-                  <FiltroAnioMateria valor={materiaAnioDistribucion} onChange={setMateriaAnioDistribucion} />
-                </div>
-                <div className="flex items-center gap-1">
-                  <span className="text-xs text-gray-500">Año de cursada:</span>
-                  <FiltroAnioCursada
-                    valor={anioCursada}
-                    onChange={setAnioCursada}
-                    aniosDisponibles={aniosCursadaDisponibles}
-                  />
-                </div>
-              </div>
-            </div>
-            <div className="space-y-7">
-              {loadingAnio ? (
-                <div className="py-6 flex justify-center">
-                  <div className="w-5 h-5 rounded-full border-2 border-blue-400 border-t-transparent animate-spin" />
-                </div>
-              ) : dataDistribucion && dataDistribucion.length > 0 ? (
-                filtrarPorAnio(dataDistribucion, materiaAnioDistribucion).map((materia) => {
-                  const total = materia.primera_vez + materia.segunda_vez + materia.tercera_vez_o_mas;
-                  return (
-                    <div key={materia.codigo}>
-                      <h3 className="text-sm font-medium text-gray-800 mb-2">{materia.codigo} — {materia.nombre}</h3>
-                      <div className="space-y-2">
-                        {[
-                          { label: "1ra vez", count: materia.primera_vez, color: "bg-blue-500" },
-                          { label: "2da vez", count: materia.segunda_vez, color: "bg-amber-400" },
-                          { label: "3ra vez o más", count: materia.tercera_vez_o_mas, color: "bg-red-400" },
-                        ].map((item) => {
-                          const pct = total > 0 ? ((item.count / total) * 100).toFixed(0) : 0;
-                          return (
-                            <div key={item.label}>
-                              <div className="flex items-center justify-between mb-1">
-                                <span className="text-xs text-gray-500">{item.label}</span>
-                                <span className="text-xs font-medium text-gray-700">{item.count} ({pct}%)</span>
-                              </div>
-                              <div className="w-full bg-gray-100 rounded-full h-1.5">
-                                <div className={`${item.color} h-1.5 rounded-full`} style={{ width: `${pct}%` }} />
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  );
-                })
-              ) : (
-                <p className="text-sm text-gray-400">Sin datos de distribución para {anioCursada}</p>
-              )}
-            </div>
-          </div>
+        <div className="flex items-center gap-3 ml-auto">
+          {[
+            { dot: "bg-green-500", label: "Baja (<20%)" },
+            { dot: "bg-amber-400", label: "Media (20–40%)" },
+            { dot: "bg-red-500", label: "Alta (>40%)" },
+          ].map((s) => (
+            <span key={s.label} className="flex items-center gap-1 text-xs text-gray-500">
+              <span className={`w-2 h-2 rounded-full flex-shrink-0 ${s.dot}`} />
+              {s.label}
+            </span>
+          ))}
         </div>
       </div>
 
+      {loading ? (
+        <div className="py-8 flex justify-center">
+          <div className="w-6 h-6 rounded-full border-2 border-blue-400 border-t-transparent animate-spin" />
+        </div>
+      ) : (() => {
+        const materiasUnificadas = todasLasMaterias
+          .filter((m) => !materiaSeleccionada || m.id === materiaSeleccionada)
+          .sort((a, b) => (b.tasa_pct || 0) - (a.tasa_pct || 0));
+
+        return materiasUnificadas.length === 0 ? (
+          <p className="text-sm text-gray-400 py-6 text-center">
+            {`Sin datos de materias para ${anioCursada}`}
+          </p>
+        ) : (
+          <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+            <div className="divide-y divide-gray-100">
+              {materiasUnificadas.map((materia) => {
+                const tasa = materia.tasa_pct || 0;
+                const semaforo =
+                  tasa >= 40
+                    ? { dot: "bg-red-500", bar: "bg-red-500", text: "text-red-600" }
+                    : tasa >= 20
+                    ? { dot: "bg-amber-400", bar: "bg-amber-400", text: "text-amber-700" }
+                    : { dot: "bg-green-500", bar: "bg-green-500", text: "text-green-700" };
+                const totalIntentos =
+                  (materia.primera_vez || 0) +
+                  (materia.segunda_vez || 0) +
+                  (materia.tercera_vez_o_mas || 0);
+
+                return (
+                  <div key={materia.id} className="px-5 py-4 hover:bg-gray-50 transition-colors">
+                    <div className="flex items-start gap-3">
+                      <span className={`mt-2 w-2.5 h-2.5 rounded-full flex-shrink-0 ${semaforo.dot}`} />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-2 mb-2">
+                          <div className="min-w-0">
+                            <span className="text-xs font-mono text-gray-400">{materia.codigo}</span>
+                            <p className="text-sm font-semibold text-gray-900 leading-snug">{materia.nombre}</p>
+                          </div>
+                          <div className="flex-shrink-0 text-right">
+                            <p className={`text-xl font-bold leading-none ${semaforo.text}`}>{tasa}%</p>
+                            <p className="text-xs text-gray-400 mt-0.5">de recursado</p>
+                          </div>
+                        </div>
+
+                        {materia.total_cursadas > 0 ? (
+                          <>
+                            <div className="w-full bg-gray-100 rounded-full h-2 mb-1">
+                              <div
+                                className={`${semaforo.bar} h-2 rounded-full`}
+                                style={{ width: `${Math.min(tasa, 100)}%` }}
+                              />
+                            </div>
+                            <p className="text-xs text-gray-500 mb-3">
+                              {materia.recursadas} de {materia.total_cursadas} cursadas fueron repetidas
+                            </p>
+                          </>
+                        ) : (
+                          <p className="text-xs text-gray-400 italic mb-3">Sin datos suficientes</p>
+                        )}
+
+                        {totalIntentos > 0 && (
+                          <div>
+                            <p className="text-xs text-gray-400 mb-2">Distribución por intento:</p>
+                            <BarChartIntentos
+                              primera={materia.primera_vez || 0}
+                              segunda={materia.segunda_vez || 0}
+                              tercera={materia.tercera_vez_o_mas || 0}
+                            />
+                          </div>
+                        )}
+
+                        <GraficoHistoricoMateria materiaId={materia.id} />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
@@ -836,60 +859,82 @@ function PanelAccionesRequeridas({ acciones }) {
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-// Helper: filtrar materias por año de carrera
-// "all" muestra todas; "1".."5" filtra por anio_carrera
+// Componente BarChartIntentos — gráfico de barras verticales por intento
 // ═════════════════════════════════════════════════════════════════════════════
-function filtrarPorAnio(lista, anio) {
-  if (!anio || anio === "all") return lista;
-  return lista.filter((m) => String(m.anio_carrera) === String(anio));
-}
+function BarChartIntentos({ primera, segunda, tercera }) {
+  const total = primera + segunda + tercera || 1;
+  const barras = [
+    {
+      label: "1ra vez",
+      count: primera,
+      color: "#22c55e",
+      bg: "bg-green-500",
+      text: "text-green-600",
+    },
+    {
+      label: "2da vez",
+      count: segunda,
+      color: "#f59e0b",
+      bg: "bg-amber-400",
+      text: "text-amber-600",
+    },
+    {
+      label: "3ra vez+",
+      count: tercera,
+      color: "#ef4444",
+      bg: "bg-red-500",
+      text: "text-red-500",
+    },
+  ];
+  const maxVal = Math.max(...barras.map((b) => b.count), 1);
+  const CHART_H = 100;
 
-// ═════════════════════════════════════════════════════════════════════════════
-// Componente FiltroAnioMateria
-// ═════════════════════════════════════════════════════════════════════════════
-const ANIOS_CARRERA = [
-  { value: "1", label: "1er año" },
-  { value: "2", label: "2do año" },
-  { value: "3", label: "3er año" },
-  { value: "4", label: "4to año" },
-  { value: "5", label: "5to año" },
-  { value: "all", label: "Todas" },
-];
-
-function FiltroAnioMateria({ valor, onChange }) {
   return (
-    <select
-      value={valor}
-      onChange={(e) => onChange(e.target.value)}
-      className="border border-gray-200 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
-    >
-      {ANIOS_CARRERA.map((a) => (
-        <option key={a.value} value={a.value}>
-          {a.label}
-        </option>
-      ))}
-    </select>
+    <div className="bg-white border border-gray-100 rounded-xl p-5 mt-1">
+      {/* Barras */}
+      <div className="flex items-end gap-3" style={{ height: CHART_H }}>
+        {barras.map((b) => {
+          const pct = Math.round((b.count / total) * 100);
+          const barH = Math.max(Math.round((b.count / maxVal) * CHART_H), b.count > 0 ? 6 : 2);
+          return (
+            <div key={b.label} className="flex flex-col items-center gap-1 flex-1 group">
+              {/* Etiqueta superior */}
+              <div className="flex flex-col items-center opacity-0 group-hover:opacity-100 transition-opacity duration-150 mb-0.5">
+                <span className={`text-xs font-bold ${b.text}`}>{b.count}</span>
+                <span className="text-[10px] text-gray-400">{pct}%</span>
+              </div>
+              {/* Barra */}
+              <div className="w-full flex items-end" style={{ height: CHART_H }}>
+                <div
+                  className="w-full rounded-t-sm transition-all duration-300"
+                  style={{ height: barH, backgroundColor: b.color }}
+                  title={`${b.count} alumnos (${pct}%)`}
+                />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Leyenda */}
+      <div className="flex items-center gap-4 mt-3 pt-3 border-t border-gray-100">
+        {barras.map((b) => (
+          <span key={b.label} className="flex items-center gap-1 text-xs text-gray-500">
+            <span className={`w-3 h-3 rounded-sm inline-block flex-shrink-0 ${b.bg}`} />
+            {b.label}
+          </span>
+        ))}
+      </div>
+    </div>
   );
 }
 
-// ═════════════════════════════════════════════════════════════════════════════
-// Componente FiltroAnioCursada — año calendario en que se cursó la materia
-// ═════════════════════════════════════════════════════════════════════════════
-function FiltroAnioCursada({ valor, onChange, aniosDisponibles }) {
-  return (
-    <select
-      value={valor}
-      onChange={(e) => onChange(Number(e.target.value))}
-      className="border border-gray-200 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
-    >
-      {aniosDisponibles.map((anio) => (
-        <option key={anio} value={anio}>
-          {anio}
-        </option>
-      ))}
-    </select>
-  );
+function mergeMateriaData(porMateria, distribucion) {
+  if (!porMateria) return [];
+  const distMap = Object.fromEntries((distribucion || []).map((d) => [d.codigo, d]));
+  return porMateria.map((m) => ({ ...m, ...(distMap[m.codigo] || {}) }));
 }
+
 
 // ═════════════════════════════════════════════════════════════════════════════
 // Componente ModalAlumnosRiesgo

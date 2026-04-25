@@ -1,4 +1,5 @@
 import GraficoRendimientoMateria from "./GraficoRendimientoMateria";
+import GraficoHistoricoExamen from "./GraficoHistoricoExamen";
 
 function SkeletonLoader() {
   return (
@@ -115,10 +116,10 @@ export default function SeccionRendimiento({
         /* Un gráfico por materia filtrada */
         <div className="space-y-8">
           {dataFiltrada.map((materia) => (
-            <GraficoRendimientoMateria
-              key={materia.materia_id}
-              materia={materia}
-            />
+            <div key={materia.materia_id}>
+              <GraficoRendimientoMateria materia={materia} />
+              <GraficoHistoricoExamen materiaId={materia.materia_id} />
+            </div>
           ))}
         </div>
       )}
