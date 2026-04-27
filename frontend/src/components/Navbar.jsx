@@ -14,7 +14,7 @@ export default function Navbar() {
   }, [location.pathname]);
 
   useEffect(() => {
-    if (!["alumno", "docente", "coordinador"].includes(user?.role)) {
+    if (!["alumno", "coordinador"].includes(user?.role)) {
       setUnreadMessages(0);
       return;
     }
@@ -51,7 +51,6 @@ export default function Navbar() {
         { to: "/", label: "Dashboard" },
         { to: "/gestion-materias", label: "Gestión de materias" },
         { to: "/panel-predicciones", label: "Panel de Predicciones" },
-        { to: "/gestion-contenido", label: "Contenido" },
         ...(role === "coordinador"
           ? [{ to: "/mensajes", label: "Mensajes" }]
           : []),
@@ -60,11 +59,7 @@ export default function Navbar() {
 
     if (role === "docente") {
       return [
-        { to: "/", label: "Dashboard" },
-        { to: "/mis-materias", label: "Mis materias" },
-        { to: "/gestion-notas", label: "Notas" },
-        { to: "/contenido-docente", label: "Contenido" },
-        { to: "/mensajes", label: "Mensajes" },
+        { to: "/panel-predicciones", label: "Panel de Predicciones" },
       ];
     }
 
@@ -73,7 +68,6 @@ export default function Navbar() {
         { to: "/", label: "Dashboard" },
         { to: "/mis-cursos", label: "Mis cursos" },
         { to: "/mis-notas", label: "Mis notas" },
-        { to: "/contenido", label: "Contenido" },
         { to: "/mensajes", label: "Mensajes" },
         { to: "/inscripcion", label: "Inscripción" },
       ];

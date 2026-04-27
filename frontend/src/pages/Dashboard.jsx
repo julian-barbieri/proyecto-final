@@ -630,9 +630,11 @@ function SeccionRendimientoMaterias({
 }) {
   const todasLasMaterias = mergeMateriaData(dataPorMateria, dataDistribucion);
 
-  if (materiaSeleccionada === null && todasLasMaterias.length > 0 && !loading) {
-    onMateriaChange(todasLasMaterias[0].id);
-  }
+  useEffect(() => {
+    if (materiaSeleccionada === null && todasLasMaterias.length > 0 && !loading) {
+      onMateriaChange(todasLasMaterias[0].id);
+    }
+  }, [materiaSeleccionada, todasLasMaterias.length, loading]);
 
   return (
     <div className="space-y-6">

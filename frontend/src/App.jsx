@@ -1,11 +1,9 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import PageLayout from "./components/PageLayout";
 import ProtectedRoute from "./components/ProtectedRoute";
+import { useAuth } from "./context/AuthContext";
 import AuthCallback from "./pages/AuthCallback";
-import Contenido from "./pages/Contenido";
-import ContenidoDocente from "./pages/ContenidoDocente";
 import Dashboard from "./pages/Dashboard";
-import GestionContenido from "./pages/GestionContenido";
 import PanelPredicciones from "./pages/PanelPredicciones";
 import GestionMaterias from "./pages/GestionMaterias";
 import GestionNotas from "./pages/GestionNotas";
@@ -20,6 +18,19 @@ import NotFound from "./pages/NotFound";
 import Predicciones from "./pages/Predicciones";
 import AlumnoPerfil from "./pages/AlumnoPerfil";
 
+function DashboardRoute() {
+  const { user } = useAuth();
+  if (user?.role === "docente") return <Navigate to="/panel-predicciones" replace />;
+  return (
+    <PageLayout
+      title="Dashboard"
+      subtitle="Resumen general del sistema y últimas predicciones registradas."
+    >
+      <Dashboard />
+    </PageLayout>
+  );
+}
+
 export default function App() {
   return (
     <Routes>
@@ -30,12 +41,7 @@ export default function App() {
         path="/"
         element={
           <ProtectedRoute>
-            <PageLayout
-              title="Dashboard"
-              subtitle="Resumen general del sistema y últimas predicciones registradas."
-            >
-              <Dashboard />
-            </PageLayout>
+            <DashboardRoute />
           </ProtectedRoute>
         }
       />
@@ -55,37 +61,9 @@ export default function App() {
       />
 
       <Route
-        path="/contenido"
-        element={
-          <ProtectedRoute allowedRoles={["alumno"]}>
-            <PageLayout
-              title="Contenido"
-              subtitle="Material académico publicado por tus tutores"
-            >
-              <Contenido />
-            </PageLayout>
-          </ProtectedRoute>
-        }
-      />
-
-      <Route
-        path="/contenido-docente"
-        element={
-          <ProtectedRoute allowedRoles={["docente"]}>
-            <PageLayout
-              title="Contenido"
-              subtitle="Visualización y gestión de contenido académico"
-            >
-              <ContenidoDocente />
-            </PageLayout>
-          </ProtectedRoute>
-        }
-      />
-
-      <Route
         path="/mensajes"
         element={
-          <ProtectedRoute allowedRoles={["alumno", "docente", "coordinador"]}>
+          <ProtectedRoute allowedRoles={["alumno", "coordinador"]}>
             <PageLayout
               title="Mensajes"
               subtitle="Comunicación entre alumnos, docentes y coordinadores"
@@ -111,23 +89,9 @@ export default function App() {
       />
 
       <Route
-        path="/gestion-contenido"
-        element={
-          <ProtectedRoute allowedRoles={["admin", "coordinador"]}>
-            <PageLayout
-              title="Gestión de contenido"
-              subtitle="Organizá archivos académicos por materia y carpetas"
-            >
-              <GestionContenido />
-            </PageLayout>
-          </ProtectedRoute>
-        }
-      />
-
-      <Route
         path="/panel-predicciones"
         element={
-          <ProtectedRoute allowedRoles={["admin", "coordinador"]}>
+          <ProtectedRoute allowedRoles={["admin", "coordinador", "docente"]}>
             <PageLayout
               title="Panel de Predicciones"
               subtitle="Monitorea riesgo de abandono y accede a predicciones detalladas"
@@ -222,7 +186,7 @@ export default function App() {
       <Route
         path="/alumnos/:alumnoId"
         element={
-          <ProtectedRoute allowedRoles={["admin", "coordinador"]}>
+          <ProtectedRoute allowedRoles={["admin", "coordinador", "docente"]}>
             <PageLayout
               title="Perfil del Alumno"
               subtitle="Información completa del estudiante y su desempeño académico"

@@ -18,85 +18,98 @@ function toPositiveInt(value) {
   return parsed;
 }
 
-router.use(authorize("admin", "coordinador"));
+router.use(authorize("admin", "coordinador", "docente"));
+
+const MATERIAS_QUERY = `
+  SELECT
+    m.id,
+    m.codigo,
+    m.nombre,
+    (
+      SELECT COUNT(DISTINCT u.id)
+      FROM users u
+      JOIN cursadas c ON c.alumno_id = u.id AND c.materia_id = m.id
+      WHERE u.role = 'alumno'
+        AND (
+          EXISTS (
+            SELECT 1
+            FROM cursadas cc
+            WHERE cc.alumno_id = u.id
+              AND cc.materia_id = m.id
+              AND cc.estado = 'cursando'
+          )
+          OR (
+            EXISTS (
+              SELECT 1
+              FROM cursadas cr
+              WHERE cr.alumno_id = u.id
+                AND cr.materia_id = m.id
+                AND cr.estado = 'recursada'
+            )
+            AND NOT EXISTS (
+              SELECT 1
+              FROM cursadas ca
+              WHERE ca.alumno_id = u.id
+                AND ca.materia_id = m.id
+                AND ca.estado = 'aprobada'
+            )
+            AND NOT EXISTS (
+              SELECT 1
+              FROM cursadas cc2
+              WHERE cc2.alumno_id = u.id
+                AND cc2.materia_id = m.id
+                AND cc2.estado = 'cursando'
+            )
+          )
+          OR (
+            EXISTS (
+              SELECT 1
+              FROM cursadas cap
+              WHERE cap.alumno_id = u.id
+                AND cap.materia_id = m.id
+                AND cap.estado = 'aprobada'
+            )
+            AND NOT EXISTS (
+              SELECT 1
+              FROM examenes e
+              WHERE e.alumno_id = u.id
+                AND e.materia_id = m.id
+                AND e.tipo = 'Final'
+                AND e.rendido = 1
+                AND e.nota >= 4
+            )
+            AND NOT EXISTS (
+              SELECT 1
+              FROM cursadas cc3
+              WHERE cc3.alumno_id = u.id
+                AND cc3.materia_id = m.id
+                AND cc3.estado = 'cursando'
+            )
+          )
+        )
+    ) AS total_relevantes
+  FROM materias m
+`;
 
 // GET /api/panel-predicciones/materias
 router.get("/materias", (req, res) => {
-  const rows = db
-    .prepare(
-      `
-      SELECT
-        m.id,
-        m.codigo,
-        m.nombre,
-        (
-          SELECT COUNT(DISTINCT u.id)
-          FROM users u
-          JOIN cursadas c ON c.alumno_id = u.id AND c.materia_id = m.id
-          WHERE u.role = 'alumno'
-            AND (
-              EXISTS (
-                SELECT 1
-                FROM cursadas cc
-                WHERE cc.alumno_id = u.id
-                  AND cc.materia_id = m.id
-                  AND cc.estado = 'cursando'
-              )
-              OR (
-                EXISTS (
-                  SELECT 1
-                  FROM cursadas cr
-                  WHERE cr.alumno_id = u.id
-                    AND cr.materia_id = m.id
-                    AND cr.estado = 'recursada'
-                )
-                AND NOT EXISTS (
-                  SELECT 1
-                  FROM cursadas ca
-                  WHERE ca.alumno_id = u.id
-                    AND ca.materia_id = m.id
-                    AND ca.estado = 'aprobada'
-                )
-                AND NOT EXISTS (
-                  SELECT 1
-                  FROM cursadas cc2
-                  WHERE cc2.alumno_id = u.id
-                    AND cc2.materia_id = m.id
-                    AND cc2.estado = 'cursando'
-                )
-              )
-              OR (
-                EXISTS (
-                  SELECT 1
-                  FROM cursadas cap
-                  WHERE cap.alumno_id = u.id
-                    AND cap.materia_id = m.id
-                    AND cap.estado = 'aprobada'
-                )
-                AND NOT EXISTS (
-                  SELECT 1
-                  FROM examenes e
-                  WHERE e.alumno_id = u.id
-                    AND e.materia_id = m.id
-                    AND e.tipo = 'Final'
-                    AND e.rendido = 1
-                    AND e.nota >= 4
-                )
-                AND NOT EXISTS (
-                  SELECT 1
-                  FROM cursadas cc3
-                  WHERE cc3.alumno_id = u.id
-                    AND cc3.materia_id = m.id
-                    AND cc3.estado = 'cursando'
-                )
-              )
-            )
-        ) AS total_relevantes
-      FROM materias m
-      ORDER BY m.id ASC
-    `,
-    )
-    .all();
+  let rows;
+
+  if (req.user.role === "docente") {
+    rows = db
+      .prepare(
+        `${MATERIAS_QUERY}
+        WHERE m.id IN (
+          SELECT materia_id FROM docente_materia WHERE docente_id = ? AND activo = 1
+        )
+        ORDER BY m.id ASC`,
+      )
+      .all(req.user.id);
+  } else {
+    rows = db
+      .prepare(`${MATERIAS_QUERY} ORDER BY m.id ASC`)
+      .all();
+  }
 
   return res.status(200).json(rows);
 });
@@ -107,6 +120,19 @@ router.get("/alumnos/:alumnoId", (req, res) => {
 
   if (!alumnoId) {
     return res.status(400).json({ error: "Alumno inválido." });
+  }
+
+  if (req.user.role === "docente") {
+    const tieneAcceso = db
+      .prepare(
+        `SELECT 1 FROM docente_materia dm
+         JOIN cursadas c ON c.materia_id = dm.materia_id AND c.alumno_id = ?
+         WHERE dm.docente_id = ? AND dm.activo = 1 LIMIT 1`,
+      )
+      .get(alumnoId, req.user.id);
+    if (!tieneAcceso) {
+      return res.status(403).json({ error: "No tenés acceso a este alumno." });
+    }
   }
 
   const alumno = db
@@ -248,6 +274,15 @@ router.get("/materias/:materiaId/panel-predicciones", async (req, res) => {
     return res.status(400).json({ error: "Materia inválida." });
   }
 
+  if (req.user.role === "docente") {
+    const asignada = db
+      .prepare("SELECT 1 FROM docente_materia WHERE docente_id = ? AND materia_id = ? AND activo = 1 LIMIT 1")
+      .get(req.user.id, materiaId);
+    if (!asignada) {
+      return res.status(403).json({ error: "No tenés acceso a esta materia." });
+    }
+  }
+
   const materia = db
     .prepare("SELECT id, codigo, nombre FROM materias WHERE id = ? LIMIT 1")
     .get(materiaId);
@@ -301,6 +336,15 @@ router.get("/materias/:materiaId/predicciones", async (req, res) => {
 
   if (!materiaId) {
     return res.status(400).json({ error: "Materia inválida." });
+  }
+
+  if (req.user.role === "docente") {
+    const asignada = db
+      .prepare("SELECT 1 FROM docente_materia WHERE docente_id = ? AND materia_id = ? AND activo = 1 LIMIT 1")
+      .get(req.user.id, materiaId);
+    if (!asignada) {
+      return res.status(403).json({ error: "No tenés acceso a esta materia." });
+    }
   }
 
   const page = Math.max(1, parseInt(req.query.page) || 1);

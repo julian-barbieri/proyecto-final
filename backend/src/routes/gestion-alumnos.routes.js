@@ -13,7 +13,7 @@ const axios = require("axios");
 router.get(
   "/alumnos/:alumnoId",
   authenticate,
-  authorize("admin", "coordinador"),
+  authorize("admin", "coordinador", "docente"),
   async (req, res) => {
     try {
       const { alumnoId } = req.params;

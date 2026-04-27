@@ -13,12 +13,10 @@ const { passport, configurePassport } = require("./config/passport");
 const authRoutes = require("./routes/auth.routes");
 const predictRoutes = require("./routes/predict.routes");
 const historyRoutes = require("./routes/history.routes");
-const contenidoRoutes = require("./routes/contenido.routes");
 const mensajesRoutes = require("./routes/mensajes.routes");
 const misCursosRoutes = require("./routes/miscursos.routes");
 const gestionMateriasRoutes = require("./routes/gestion-materias.routes");
 const gestionAlumnosRoutes = require("./routes/gestion-alumnos.routes");
-const gestionContenidoRoutes = require("./routes/gestion-contenido.routes");
 const panelPrediccionesRoutes = require("./routes/panel-predicciones.routes");
 const dashboardRoutes = require("./routes/dashboard.routes");
 const notasRoutes = require("./routes/notas.routes");
@@ -66,26 +64,19 @@ app.get("/health", (req, res) => {
 app.use("/api/auth", authRoutes);
 app.use("/api/predict", predictRoutes);
 app.use("/api/history", historyRoutes);
-app.use("/api/contenido", authenticate, contenidoRoutes);
 app.use("/api/mensajes", authenticate, mensajesRoutes);
 app.use("/api/mis-cursos", authenticate, authorize("alumno"), misCursosRoutes);
 app.use("/api/gestion", authenticate, gestionMateriasRoutes);
 app.use(
-  "/api/gestion-contenido",
-  authenticate,
-  authorize("admin", "coordinador"),
-  gestionContenidoRoutes,
-);
-app.use(
   "/api/gestion-alumnos",
   authenticate,
-  authorize("admin", "coordinador"),
+  authorize("admin", "coordinador", "docente"),
   gestionAlumnosRoutes,
 );
 app.use(
   "/api/panel-predicciones",
   authenticate,
-  authorize("admin", "coordinador"),
+  authorize("admin", "coordinador", "docente"),
   panelPrediccionesRoutes,
 );
 app.use(

@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import GraficoRendimientoMateria from "./GraficoRendimientoMateria";
 import GraficoHistoricoExamen from "./GraficoHistoricoExamen";
 
@@ -39,13 +40,11 @@ export default function SeccionRendimiento({
   }));
 
   // Auto-seleccionar primera materia si no hay seleccionada
-  if (
-    materiaSeleccionada === null &&
-    materiasDisponibles.length > 0 &&
-    !loading
-  ) {
-    onMateriaChange(materiasDisponibles[0].id);
-  }
+  useEffect(() => {
+    if (materiaSeleccionada === null && materiasDisponibles.length > 0 && !loading) {
+      onMateriaChange(materiasDisponibles[0].id);
+    }
+  }, [materiaSeleccionada, materiasDisponibles.length, loading]);
 
   // Filtrar data según materia seleccionada
   const dataFiltrada =

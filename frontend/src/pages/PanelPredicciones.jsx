@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../api/axios";
 import LoadingSpinner from "../components/LoadingSpinner";
+import { useAuth } from "../context/AuthContext";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -55,6 +56,15 @@ function getRiskLevel(prediccion) {
   const max = Math.max(abandono ?? 0, recursado ?? 0);
   if (max > 0.7) return "alto";
   if (max > 0.5) return "medio";
+  return "bajo";
+}
+
+function getRecursadoRiskLevel(prediccion) {
+  if (!prediccion) return "sin_datos";
+  const prob = prediccion.recursado?.probabilidad;
+  if (prob == null) return "sin_datos";
+  if (prob > 0.7) return "alto";
+  if (prob > 0.5) return "medio";
   return "bajo";
 }
 
@@ -148,7 +158,7 @@ function SortIcon({ column, sortBy, sortDir }) {
 
 // ─── Tabla de alumnos ─────────────────────────────────────────────────────────
 
-function TablaAlumnos({ alumnos, predicciones, loadingPredicciones, onViewDetail }) {
+function TablaAlumnos({ alumnos, predicciones, loadingPredicciones, onViewDetail, userRole, getRiskFn }) {
   const [sortBy,  setSortBy]  = useState("riesgo");
   const [sortDir, setSortDir] = useState("desc");
 
@@ -180,7 +190,7 @@ function TablaAlumnos({ alumnos, predicciones, loadingPredicciones, onViewDetail
         case "abandono":   valA = predA?.abandono?.probabilidad ?? -1; valB = predB?.abandono?.probabilidad ?? -1; break;
         case "recursado":  valA = predA?.recursado?.probabilidad ?? -1; valB = predB?.recursado?.probabilidad ?? -1; break;
         case "nota":       valA = predA?.nota?.nota ?? -1;            valB = predB?.nota?.nota ?? -1;            break;
-        default:           valA = RISK_ORDER[getRiskLevel(predA)] ?? 0; valB = RISK_ORDER[getRiskLevel(predB)] ?? 0;
+        default:           valA = RISK_ORDER[getRiskFn(predA)] ?? 0; valB = RISK_ORDER[getRiskFn(predB)] ?? 0;
       }
       return sortDir === "asc" ? valA - valB : valB - valA;
     });
@@ -203,9 +213,11 @@ function TablaAlumnos({ alumnos, predicciones, loadingPredicciones, onViewDetail
             <th className={thClass} onClick={() => handleSort("veces")}>
               Cursada <SortIcon column="veces" sortBy={sortBy} sortDir={sortDir} />
             </th>
-            <th className={thClass} onClick={() => handleSort("abandono")}>
-              Riesgo abandono <SortIcon column="abandono" sortBy={sortBy} sortDir={sortDir} />
-            </th>
+            {userRole !== "docente" && (
+              <th className={thClass} onClick={() => handleSort("abandono")}>
+                Riesgo abandono <SortIcon column="abandono" sortBy={sortBy} sortDir={sortDir} />
+              </th>
+            )}
             <th className={thClass} onClick={() => handleSort("recursado")}>
               Riesgo recursado <SortIcon column="recursado" sortBy={sortBy} sortDir={sortDir} />
             </th>
@@ -219,7 +231,7 @@ function TablaAlumnos({ alumnos, predicciones, loadingPredicciones, onViewDetail
           {sorted.map((alumno) => {
             const pred     = predicciones[alumno.id];
             const loading  = loadingPredicciones && !pred;
-            const level    = getRiskLevel(pred);
+            const level    = getRiskFn(pred);
             const rowBg    = level === "alto"
               ? "bg-red-50/60 hover:bg-red-50"
               : "hover:bg-slate-50/80";
@@ -244,9 +256,11 @@ function TablaAlumnos({ alumnos, predicciones, loadingPredicciones, onViewDetail
                   </span>
                 </td>
                 {/* Abandono */}
-                <td className="px-4 py-3">
-                  <ProbCel value={pred?.abandono?.probabilidad} loading={loading} />
-                </td>
+                {userRole !== "docente" && (
+                  <td className="px-4 py-3">
+                    <ProbCel value={pred?.abandono?.probabilidad} loading={loading} />
+                  </td>
+                )}
                 {/* Recursado */}
                 <td className="px-4 py-3">
                   <ProbCel value={pred?.recursado?.probabilidad} loading={loading} />
@@ -288,6 +302,7 @@ const FILTROS_RIESGO = [
 
 export default function PanelPredicciones() {
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   const [materias,            setMaterias]            = useState([]);
   const [materiaActiva,       setMateriaActiva]       = useState(null);
@@ -300,6 +315,7 @@ export default function PanelPredicciones() {
   const [filtroRiesgo,        setFiltroRiesgo]        = useState("todos");
 
   const activeMateriaRef = useRef(null);
+  const getRiskFn = user?.role === "docente" ? getRecursadoRiskLevel : getRiskLevel;
 
   useEffect(() => {
     let active = true;
@@ -382,11 +398,11 @@ export default function PanelPredicciones() {
   const kpis = useMemo(() => {
     const counts = { alto: 0, medio: 0, bajo: 0, sin_datos: 0 };
     for (const a of alumnosConPred) {
-      const level = getRiskLevel(a.prediccion);
+      const level = getRiskFn(a.prediccion);
       counts[level] = (counts[level] ?? 0) + 1;
     }
     return counts;
-  }, [alumnosConPred]);
+  }, [alumnosConPred, getRiskFn]);
 
   // Filtrado por nombre + riesgo
   const alumnosFiltrados = useMemo(() => {
@@ -397,10 +413,10 @@ export default function PanelPredicciones() {
       );
     }
     if (filtroRiesgo !== "todos") {
-      lista = lista.filter((a) => getRiskLevel(a.prediccion) === filtroRiesgo);
+      lista = lista.filter((a) => getRiskFn(a.prediccion) === filtroRiesgo);
     }
     return lista;
-  }, [alumnosConPred, busqueda, filtroRiesgo]);
+  }, [alumnosConPred, busqueda, filtroRiesgo, getRiskFn]);
 
   return (
     <div className="space-y-5">
@@ -447,15 +463,15 @@ export default function PanelPredicciones() {
             <p className="text-2xl font-bold text-slate-900">{datos.resumen.total}</p>
           </article>
           <article className="rounded-xl border border-red-200 bg-red-50 px-4 py-3">
-            <p className="text-xs text-red-600">Alto riesgo</p>
+            <p className="text-xs text-red-600">{user?.role === "docente" ? "Alto riesgo de recursar" : "Alto riesgo"}</p>
             <p className="text-2xl font-bold text-red-700">{loadingPredicciones ? "…" : kpis.alto}</p>
           </article>
           <article className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
-            <p className="text-xs text-amber-600">Medio riesgo</p>
+            <p className="text-xs text-amber-600">{user?.role === "docente" ? "Medio riesgo de recursar" : "Medio riesgo"}</p>
             <p className="text-2xl font-bold text-amber-700">{loadingPredicciones ? "…" : kpis.medio}</p>
           </article>
           <article className="rounded-xl border border-green-200 bg-green-50 px-4 py-3">
-            <p className="text-xs text-green-600">Bajo riesgo</p>
+            <p className="text-xs text-green-600">{user?.role === "docente" ? "Bajo riesgo de recursar" : "Bajo riesgo"}</p>
             <p className="text-2xl font-bold text-green-700">{loadingPredicciones ? "…" : kpis.bajo}</p>
           </article>
           <article className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 flex items-center gap-2">
@@ -517,6 +533,8 @@ export default function PanelPredicciones() {
                   predicciones={predicciones}
                   loadingPredicciones={loadingPredicciones}
                   onViewDetail={(id) => navigate(`/alumnos/${id}`)}
+                  userRole={user?.role}
+                  getRiskFn={getRiskFn}
                 />
               ) : (
                 <p className="text-sm text-slate-500 rounded-xl border border-slate-200 bg-white p-4">
