@@ -1,9 +1,9 @@
-const Anthropic = require('@anthropic-ai/sdk');
+const { GoogleGenAI } = require('@google/genai');
 const db = require('../db/database');
 const { calcularVariablesAbandono } = require('./prediction-variables.service');
 const { precalcularPrediccionesCompletas } = require('./panel-predicciones.service');
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 function getNivelRiesgo(prob) {
   if (prob >= 0.7) return 'ALTO';
@@ -171,13 +171,12 @@ async function generarSugerencia(alumnoId, materiaId) {
 
   const prompt = generarPrompt(datos, predicciones);
 
-  const message = await client.messages.create({
-    model: 'claude-haiku-4-5-20251001',
-    max_tokens: 512,
-    messages: [{ role: 'user', content: prompt }],
+  const response = await ai.models.generateContent({
+    model: 'gemini-2.5-flash-lite',
+    contents: prompt,
   });
 
-  return message.content[0]?.text ?? null;
+  return response.text ?? null;
 }
 
 module.exports = { getNivelRiesgo, generarPrompt, obtenerDatosAlumno, generarSugerencia };
