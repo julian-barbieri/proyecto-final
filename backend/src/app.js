@@ -20,6 +20,7 @@ const gestionAlumnosRoutes = require("./routes/gestion-alumnos.routes");
 const panelPrediccionesRoutes = require("./routes/panel-predicciones.routes");
 const dashboardRoutes = require("./routes/dashboard.routes");
 const notasRoutes = require("./routes/notas.routes");
+const sugerenciasRoutes = require("./routes/sugerencias.routes");
 const { authenticate, authorize } = require("./middleware/auth.middleware");
 
 const app = express();
@@ -86,6 +87,7 @@ app.use(
   dashboardRoutes,
 );
 app.use("/api/notas", authenticate, notasRoutes);
+app.use("/api/sugerencias", sugerenciasRoutes);
 
 seedUsers()
   .then(() => {
