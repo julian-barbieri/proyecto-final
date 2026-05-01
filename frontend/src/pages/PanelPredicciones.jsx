@@ -210,7 +210,7 @@ function SortIcon({ column, sortBy, sortDir }) {
 
 // ─── Tabla de alumnos ─────────────────────────────────────────────────────────
 
-function TablaAlumnos({ alumnos, predicciones, loadingPredicciones, onViewDetail, userRole, getRiskFn }) {
+function TablaAlumnos({ alumnos, predicciones, loadingPredicciones, onViewDetail, onVerSugerencias, userRole, getRiskFn }) {
   const [sortBy,  setSortBy]  = useState("riesgo");
   const [sortDir, setSortDir] = useState("desc");
 
@@ -323,13 +323,22 @@ function TablaAlumnos({ alumnos, predicciones, loadingPredicciones, onViewDetail
                 </td>
                 {/* Acción */}
                 <td className="px-4 py-3 text-right">
-                  <button
-                    type="button"
-                    onClick={() => onViewDetail(alumno.id)}
-                    className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 transition-colors whitespace-nowrap"
-                  >
-                    Ver detalles →
-                  </button>
+                  <div className="flex items-center justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => onVerSugerencias(alumno.id)}
+                      className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:border-blue-400 hover:text-blue-700 transition-colors whitespace-nowrap"
+                    >
+                      Sugerencias ✨
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onViewDetail(alumno.id)}
+                      className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 transition-colors whitespace-nowrap"
+                    >
+                      Ver detalles →
+                    </button>
+                  </div>
                 </td>
               </tr>
             );
@@ -611,6 +620,7 @@ export default function PanelPredicciones() {
                   predicciones={predicciones}
                   loadingPredicciones={loadingPredicciones}
                   onViewDetail={(id) => navigate(`/alumnos/${id}`)}
+                  onVerSugerencias={handleVerSugerencias}
                   userRole={user?.role}
                   getRiskFn={getRiskFn}
                 />
