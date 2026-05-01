@@ -149,6 +149,58 @@ function AsistenciaCel({ value }) {
   );
 }
 
+// ─── Modal de sugerencias IA ──────────────────────────────────────────────────
+
+function ModalSugerencia({ alumnoNombre, estado, onClose, onRetry }) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="relative w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl">
+        <button
+          type="button"
+          onClick={onClose}
+          className="absolute right-4 top-4 text-slate-400 hover:text-slate-600 text-lg leading-none"
+        >
+          ✕
+        </button>
+
+        <h2 className="mb-1 text-base font-semibold text-slate-900">
+          Sugerencias para {alumnoNombre}
+        </h2>
+        <p className="mb-4 text-xs text-slate-400">Generado por IA · Solo orientativo</p>
+
+        {estado.status === 'loading' && (
+          <div className="flex items-center gap-3 py-6">
+            <div className="h-5 w-5 animate-spin rounded-full border-2 border-blue-500 border-t-transparent flex-shrink-0" />
+            <p className="text-sm text-slate-600">Analizando perfil del alumno...</p>
+          </div>
+        )}
+
+        {estado.status === 'success' && (
+          <p className="text-sm leading-relaxed text-slate-700 whitespace-pre-wrap">
+            {estado.texto}
+          </p>
+        )}
+
+        {estado.status === 'error' && (
+          <div className="space-y-3">
+            <p className="text-sm text-red-600">{estado.texto}</p>
+            <button
+              type="button"
+              onClick={onRetry}
+              className="rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-700 transition-colors"
+            >
+              Reintentar
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Ícono de ordenamiento ────────────────────────────────────────────────────
 
 function SortIcon({ column, sortBy, sortDir }) {
@@ -313,6 +365,8 @@ export default function PanelPredicciones() {
   const [error,               setError]               = useState("");
   const [busqueda,            setBusqueda]            = useState("");
   const [filtroRiesgo,        setFiltroRiesgo]        = useState("todos");
+  const [sugerencias,         setSugerencias]         = useState({});
+  const [modalAlumnoId,       setModalAlumnoId]       = useState(null);
 
   const activeMateriaRef = useRef(null);
   const getRiskFn = user?.role === "docente" ? getRecursadoRiskLevel : getRiskLevel;
@@ -384,6 +438,30 @@ export default function PanelPredicciones() {
         setLoading(false);
       }
     }
+  };
+
+  const handleVerSugerencias = async (alumnoId) => {
+    setModalAlumnoId(alumnoId);
+    if (sugerencias[alumnoId]?.status === 'success') return;
+
+    setSugerencias((prev) => ({ ...prev, [alumnoId]: { status: 'loading', texto: '' } }));
+    try {
+      const resp = await api.get(`/api/sugerencias/${alumnoId}?materiaId=${materiaActiva.id}`);
+      setSugerencias((prev) => ({
+        ...prev,
+        [alumnoId]: { status: 'success', texto: resp.data.sugerencia },
+      }));
+    } catch (err) {
+      setSugerencias((prev) => ({
+        ...prev,
+        [alumnoId]: { status: 'error', texto: err.message || 'No se pudo generar la sugerencia.' },
+      }));
+    }
+  };
+
+  const handleRetrySugerencia = (alumnoId) => {
+    setSugerencias((prev) => ({ ...prev, [alumnoId]: undefined }));
+    handleVerSugerencias(alumnoId);
   };
 
   // Alumnos con predicciones mergeadas
@@ -549,6 +627,17 @@ export default function PanelPredicciones() {
           )}
         </section>
       ) : null}
+
+      {modalAlumnoId && sugerencias[modalAlumnoId] && (
+        <ModalSugerencia
+          alumnoNombre={
+            datos?.cursando?.find((a) => a.id === modalAlumnoId)?.nombre_completo ?? 'Alumno'
+          }
+          estado={sugerencias[modalAlumnoId]}
+          onClose={() => setModalAlumnoId(null)}
+          onRetry={() => handleRetrySugerencia(modalAlumnoId)}
+        />
+      )}
     </div>
   );
 }
