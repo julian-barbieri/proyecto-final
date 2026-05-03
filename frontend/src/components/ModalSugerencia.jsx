@@ -39,6 +39,7 @@ export default function ModalSugerencia({ alumnoNombre, estado, onClose, onRetry
         <button
           type="button"
           onClick={onClose}
+          aria-label="Cerrar"
           className="absolute right-4 top-4 text-slate-400 hover:text-slate-600 text-lg leading-none"
         >
           ✕

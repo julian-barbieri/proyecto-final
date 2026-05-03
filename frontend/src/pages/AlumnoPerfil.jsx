@@ -989,7 +989,8 @@ export default function AlumnoPerfil() {
                 <button
                   type="button"
                   onClick={handleVerSugerencias}
-                  className="flex-shrink-0 flex items-center gap-1.5 rounded-lg bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-700 hover:bg-blue-100 transition-colors"
+                  disabled={sugerenciaEstado?.status === 'loading'}
+                  className="flex-shrink-0 flex items-center gap-1.5 rounded-lg bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-700 hover:bg-blue-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   ✨ Sugerencias
                 </button>
@@ -1634,7 +1635,7 @@ export default function AlumnoPerfil() {
 
       {sugerenciaEstado && (
         <ModalSugerencia
-          alumnoNombre={alumno?.nombre_completo}
+          alumnoNombre={alumno.nombre_completo}
           estado={sugerenciaEstado}
           onClose={() => setSugerenciaEstado(null)}
           onRetry={handleVerSugerencias}
