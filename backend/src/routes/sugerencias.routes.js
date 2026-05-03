@@ -38,7 +38,21 @@ router.get(
       return res.status(400).json({ error: 'alumnoId y materiaId son requeridos.' });
     }
 
-    const rol = req.user.role;
+    const { role: rol, id: userId } = req.user;
+
+    if (rol === 'docente') {
+      const db = require('../db/database');
+      const tieneAcceso = db
+        .prepare(
+          `SELECT 1 FROM docente_materia dm
+           JOIN cursadas c ON c.materia_id = dm.materia_id AND c.alumno_id = ?
+           WHERE dm.docente_id = ? AND dm.activo = 1 LIMIT 1`,
+        )
+        .get(alumnoId, userId);
+      if (!tieneAcceso) {
+        return res.status(403).json({ error: 'No tenés acceso a este alumno.' });
+      }
+    }
     const cacheRol = rol === 'docente' ? 'docente' : 'full';
     const cacheKey = `${alumnoId}_${materiaId}_${cacheRol}`;
     const cached = getCached(cacheKey);

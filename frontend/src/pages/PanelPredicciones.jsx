@@ -155,7 +155,7 @@ function SugerenciaContent({ texto }) {
   const lines = texto.split('\n').map((l) => l.trim()).filter(Boolean);
   const resumenLine = lines.find((l) => l.startsWith('**Resumen:**'));
   const bullets = lines
-    .filter((l) => /^[•\-*–◦]/.test(l))
+    .filter((l) => /^[•\-*–◦]/.test(l) && !l.startsWith('**Resumen:**'))
     .map((l) => l.replace(/^[•\-*–◦]\s*/, ''));
   const resumen = resumenLine ? resumenLine.replace(/^\*\*Resumen:\*\*\s*/, '') : null;
 
