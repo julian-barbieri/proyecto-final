@@ -36,8 +36,8 @@ function generarPrompt(datos, predicciones, rol) {
 
   const lineaAbandono = rol !== 'docente'
     ? (probAbandono != null
-        ? `- Probabilidad de abandono: ${Math.round(probAbandono * 100)}% (riesgo ${getNivelRiesgo(probAbandono)})\n`
-        : '- Probabilidad de abandono: no disponible\n')
+        ? `- Probabilidad de abandono: ${Math.round(probAbandono * 100)}% (riesgo ${getNivelRiesgo(probAbandono)})`
+        : '- Probabilidad de abandono: no disponible')
     : '';
 
   const lineaRecursado = probRecursado != null
@@ -62,8 +62,7 @@ Materia: ${materia.nombre}
 Año de ingreso: ${alumno.anio_ingreso ?? 'desconocido'}
 
 PREDICCIONES:
-${lineaAbandono}${lineaRecursado}
-${lineaNota}
+${[lineaAbandono, lineaRecursado, lineaNota].filter(Boolean).join('\n')}
 
 VARIABLES CLAVE:
 - Asistencia actual: ${asistenciaPct}%
