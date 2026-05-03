@@ -167,3 +167,63 @@ describe('generarPromptGlobal', () => {
     expect(prompt).toContain('80 palabras');
   });
 });
+
+describe('generarSugerencia', () => {
+  beforeEach(() => {
+    jest.resetModules();
+
+    jest.mock('@google/genai', () => ({
+      GoogleGenAI: jest.fn().mockImplementation(() => ({
+        models: {
+          generateContent: jest.fn().mockResolvedValue({ text: 'Sugerencia generada' }),
+        },
+      })),
+    }));
+
+    jest.mock('./panel-predicciones.service', () => ({
+      precalcularPrediccionesCompletas: jest.fn().mockResolvedValue({
+        1: { abandono: { probabilidad: 0.8 } },
+      }),
+    }));
+
+    jest.mock('../db/database', () => ({
+      prepare: jest.fn().mockReturnValue({
+        get: jest.fn().mockReturnValue({
+          id: 1,
+          nombre_completo: 'Test Alumno',
+          anio_ingreso: 2022,
+          promedio_colegio: 7,
+          ayuda_financiera: 0,
+          colegio_tecnico: 0,
+        }),
+        all: jest.fn().mockReturnValue([]),
+      }),
+    }));
+  });
+
+  test('returns null when alumno not found (global mode)', async () => {
+    const db = require('../db/database');
+    db.prepare.mockReturnValueOnce({ get: jest.fn().mockReturnValue(null) });
+    const { generarSugerencia } = require('./sugerencias.service');
+    const result = await generarSugerencia(1, null, 'admin');
+    expect(result).toBeNull();
+  });
+
+  test('calls generarPromptGlobal path when materiaId is null', async () => {
+    const { generarSugerencia } = require('./sugerencias.service');
+    const result = await generarSugerencia(1, null, 'admin');
+    expect(result).toBe('Sugerencia generada');
+  });
+
+  test('calls per-materia path when materiaId is provided', async () => {
+    const db = require('../db/database');
+    // First call returns alumno, second returns materia
+    db.prepare
+      .mockReturnValueOnce({ get: jest.fn().mockReturnValue({ id: 1, nombre_completo: 'Test Alumno', anio_ingreso: 2022, promedio_colegio: 7 }) })
+      .mockReturnValueOnce({ get: jest.fn().mockReturnValue({ nombre: 'Análisis I' }) })
+      .mockReturnValue({ get: jest.fn().mockReturnValue({ cnt: 0 }), all: jest.fn().mockReturnValue([]) });
+    const { generarSugerencia } = require('./sugerencias.service');
+    const result = await generarSugerencia(1, 5, 'docente');
+    expect(result).toBe('Sugerencia generada');
+  });
+});

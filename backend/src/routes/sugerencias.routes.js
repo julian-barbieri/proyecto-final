@@ -1,6 +1,7 @@
 const express = require('express');
 const { authenticate, authorize } = require('../middleware/auth.middleware');
 const { generarSugerencia } = require('../services/sugerencias.service');
+const db = require('../db/database');
 
 const router = express.Router();
 
@@ -44,7 +45,6 @@ router.get(
       if (!materiaId) {
         return res.status(403).json({ error: 'Docentes deben especificar una materia.' });
       }
-      const db = require('../db/database');
       const tieneAcceso = db
         .prepare(
           `SELECT 1 FROM docente_materia dm
