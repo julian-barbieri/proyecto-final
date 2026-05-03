@@ -149,6 +149,39 @@ function AsistenciaCel({ value }) {
   );
 }
 
+// ─── Contenido de sugerencias ─────────────────────────────────────────────────
+
+function SugerenciaContent({ texto }) {
+  const lines = texto.split('\n').map((l) => l.trim()).filter(Boolean);
+  const resumenLine = lines.find((l) => l.startsWith('**Resumen:**'));
+  const bullets = lines
+    .filter((l) => l.startsWith('•'))
+    .map((l) => l.replace(/^•\s*/, ''));
+  const resumen = resumenLine ? resumenLine.replace(/^\*\*Resumen:\*\*\s*/, '') : null;
+
+  if (bullets.length > 0) {
+    return (
+      <div className="space-y-3">
+        {resumen && (
+          <p className="text-sm font-semibold text-slate-800">{resumen}</p>
+        )}
+        <ul className="space-y-1.5 pl-1">
+          {bullets.map((b, i) => (
+            <li key={i} className="flex items-start gap-2 text-sm text-slate-700">
+              <span className="mt-0.5 text-blue-500 flex-shrink-0">•</span>
+              <span>{b}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  }
+
+  return (
+    <p className="text-sm leading-relaxed text-slate-700 whitespace-pre-wrap">{texto}</p>
+  );
+}
+
 // ─── Modal de sugerencias IA ──────────────────────────────────────────────────
 
 function ModalSugerencia({ alumnoNombre, estado, onClose, onRetry }) {
@@ -179,9 +212,7 @@ function ModalSugerencia({ alumnoNombre, estado, onClose, onRetry }) {
         )}
 
         {estado.status === 'success' && (
-          <p className="text-sm leading-relaxed text-slate-700 whitespace-pre-wrap">
-            {estado.texto}
-          </p>
+          <SugerenciaContent texto={estado.texto} />
         )}
 
         {estado.status === 'error' && (
