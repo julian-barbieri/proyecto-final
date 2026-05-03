@@ -140,6 +140,13 @@ describe('generarPromptGlobal', () => {
     expect(prompt).toContain('ALTO');
   });
 
+  test('incluye abandono cuando rol es coordinador', () => {
+    const { generarPromptGlobal } = require('./sugerencias.service');
+    const prompt = generarPromptGlobal(datosGlobalMock, prediccionesMock, 'coordinador');
+    expect(prompt).toContain('72%');
+    expect(prompt).toContain('ALTO');
+  });
+
   test('NO incluye abandono cuando rol es docente', () => {
     const { generarPromptGlobal } = require('./sugerencias.service');
     const prompt = generarPromptGlobal(datosGlobalMock, prediccionesMock, 'docente');

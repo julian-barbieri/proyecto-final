@@ -210,12 +210,19 @@ function obtenerDatosAlumnoGlobal(alumnoId) {
       ? todasCursadas.reduce((s, c) => s + Number(c.asistencia || 0), 0) / todasCursadas.length
       : null;
 
+  const historialCursadas = db
+    .prepare(
+      `SELECT c.estado, c.anio, m.nombre AS materia_nombre
+       FROM cursadas c JOIN materias m ON m.id = c.materia_id
+       WHERE c.alumno_id = ?
+       ORDER BY c.anio DESC
+       LIMIT 10`,
+    )
+    .all(alumnoId);
+
   const historialTexto =
-    todasCursadas.length > 0
-      ? todasCursadas
-          .slice(0, 10)
-          .map((c) => `- ${c.anio}: ${c.materia_nombre} (${c.estado})`)
-          .join('\n')
+    historialCursadas.length > 0
+      ? historialCursadas.map((c) => `- ${c.anio}: ${c.materia_nombre} (${c.estado})`).join('\n')
       : 'Sin historial registrado';
 
   return {
@@ -227,7 +234,9 @@ function obtenerDatosAlumnoGlobal(alumnoId) {
       cursando: cursando.length,
       abandonadas: abandonadas.length,
       promedio_notas: promedio_notas != null ? Number(promedio_notas.toFixed(2)) : null,
-      asistencia_promedio,
+      asistencia_promedio: asistencia_promedio != null
+        ? Number(asistencia_promedio.toFixed(4))
+        : null,
     },
     materiasEnCurso: cursando.map((c) => ({ nombre: c.materia_nombre })),
     historialTexto,
