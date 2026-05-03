@@ -34,13 +34,16 @@ router.get(
     const alumnoId = toPositiveInt(req.params.alumnoId);
     const materiaId = toPositiveInt(req.query.materiaId);
 
-    if (!alumnoId || !materiaId) {
-      return res.status(400).json({ error: 'alumnoId y materiaId son requeridos.' });
+    if (!alumnoId) {
+      return res.status(400).json({ error: 'alumnoId es requerido.' });
     }
 
     const { role: rol, id: userId } = req.user;
 
     if (rol === 'docente') {
+      if (!materiaId) {
+        return res.status(403).json({ error: 'Docentes deben especificar una materia.' });
+      }
       const db = require('../db/database');
       const tieneAcceso = db
         .prepare(
@@ -53,13 +56,14 @@ router.get(
         return res.status(403).json({ error: 'No tenés acceso a este alumno.' });
       }
     }
+
     const cacheRol = rol === 'docente' ? 'docente' : 'full';
-    const cacheKey = `${alumnoId}_${materiaId}_${cacheRol}`;
+    const cacheKey = `${alumnoId}_${materiaId ?? 'global'}_${cacheRol}`;
     const cached = getCached(cacheKey);
     if (cached) return res.status(200).json({ sugerencia: cached });
 
     try {
-      const sugerencia = await generarSugerencia(alumnoId, materiaId, rol);
+      const sugerencia = await generarSugerencia(alumnoId, materiaId ?? null, rol);
       if (!sugerencia) {
         return res.status(404).json({ error: 'No hay suficiente información para generar sugerencias.' });
       }

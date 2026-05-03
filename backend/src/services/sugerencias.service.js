@@ -301,6 +301,21 @@ ${historialTexto}`;
 }
 
 async function generarSugerencia(alumnoId, materiaId, rol) {
+  if (materiaId == null) {
+    const datos = obtenerDatosAlumnoGlobal(alumnoId);
+    if (!datos) return null;
+
+    const prediccionesMap = await precalcularPrediccionesCompletas([alumnoId], null);
+    const predicciones = prediccionesMap[alumnoId] || {};
+
+    const prompt = generarPromptGlobal(datos, predicciones, rol);
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash-lite',
+      contents: prompt,
+    });
+    return response.text ?? null;
+  }
+
   const datos = obtenerDatosAlumno(alumnoId, materiaId);
   if (!datos) return null;
 
@@ -308,12 +323,10 @@ async function generarSugerencia(alumnoId, materiaId, rol) {
   const predicciones = prediccionesMap[alumnoId] || {};
 
   const prompt = generarPrompt(datos, predicciones, rol);
-
   const response = await ai.models.generateContent({
     model: 'gemini-2.5-flash-lite',
     contents: prompt,
   });
-
   return response.text ?? null;
 }
 
