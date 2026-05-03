@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import api from "../api/axios";
+import ModalSugerencia from "../components/ModalSugerencia";
 
 function SkeletonLoader() {
   return (
@@ -197,6 +198,17 @@ export default function AlumnoPerfil() {
   const [notasPredecidas, setNotasPredecidas] = useState([]);
   const [loadingNotas, setLoadingNotas] = useState(false);
   const [busquedaAcademica, setBusquedaAcademica] = useState("");
+  const [sugerenciaEstado, setSugerenciaEstado] = useState(null);
+
+  const handleVerSugerencias = async () => {
+    setSugerenciaEstado({ status: 'loading', texto: null });
+    try {
+      const res = await api.get(`/api/sugerencias/${alumnoId}`);
+      setSugerenciaEstado({ status: 'success', texto: res.data.sugerencia });
+    } catch {
+      setSugerenciaEstado({ status: 'error', texto: 'No se pudieron cargar las sugerencias.' });
+    }
+  };
 
   // Estados para edición de campos
   const [editando, setEditando] = useState(false);
@@ -969,9 +981,20 @@ export default function AlumnoPerfil() {
           </div>
 
           <div className="flex-1 min-w-0">
-            <h1 className="text-xl font-medium text-gray-900">
-              {alumno.nombre_completo}
-            </h1>
+            <div className="flex items-center justify-between gap-3">
+              <h1 className="text-xl font-medium text-gray-900">
+                {alumno.nombre_completo}
+              </h1>
+              {!isDocente && (
+                <button
+                  type="button"
+                  onClick={handleVerSugerencias}
+                  className="flex-shrink-0 flex items-center gap-1.5 rounded-lg bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-700 hover:bg-blue-100 transition-colors"
+                >
+                  ✨ Sugerencias
+                </button>
+              )}
+            </div>
             <p className="text-sm text-gray-500 mt-0.5">{alumno.email}</p>
             <p className="text-sm text-gray-500 mt-0.5">
               {alumno.genero} · {alumno.edad} años · Ingresó en{" "}
@@ -1609,6 +1632,14 @@ export default function AlumnoPerfil() {
         </div>
       )}
 
+      {sugerenciaEstado && (
+        <ModalSugerencia
+          alumnoNombre={alumno?.nombre_completo}
+          estado={sugerenciaEstado}
+          onClose={() => setSugerenciaEstado(null)}
+          onRetry={handleVerSugerencias}
+        />
+      )}
     </div>
   );
 }
