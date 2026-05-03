@@ -155,8 +155,8 @@ function SugerenciaContent({ texto }) {
   const lines = texto.split('\n').map((l) => l.trim()).filter(Boolean);
   const resumenLine = lines.find((l) => l.startsWith('**Resumen:**'));
   const bullets = lines
-    .filter((l) => l.startsWith('•'))
-    .map((l) => l.replace(/^•\s*/, ''));
+    .filter((l) => /^[•\-*–◦]/.test(l))
+    .map((l) => l.replace(/^[•\-*–◦]\s*/, ''));
   const resumen = resumenLine ? resumenLine.replace(/^\*\*Resumen:\*\*\s*/, '') : null;
 
   if (bullets.length > 0) {
@@ -489,7 +489,7 @@ export default function PanelPredicciones() {
       const resp = await api.get(`/api/sugerencias/${alumnoId}?materiaId=${materiaActiva.id}`);
       setSugerencias((prev) => ({
         ...prev,
-        [alumnoId]: { status: 'success', texto: resp.data.sugerencia },
+        [alumnoId]: { status: 'success', texto: resp.data.sugerencia ?? '' },
       }));
     } catch (err) {
       setSugerencias((prev) => ({
