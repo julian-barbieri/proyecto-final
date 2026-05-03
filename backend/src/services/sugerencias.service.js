@@ -34,7 +34,8 @@ function generarPrompt(datos, predicciones, rol) {
     ? ultimosExamenes.map((e) => `- ${e.anio} ${e.materia_nombre}: ${e.tipo} → ${e.nota}`).join('\n')
     : 'Sin exámenes registrados';
 
-  const lineaAbandono = rol !== 'docente'
+  const showAbandono = rol === 'admin' || rol === 'coordinador';
+  const lineaAbandono = showAbandono
     ? (probAbandono != null
         ? `- Probabilidad de abandono: ${Math.round(probAbandono * 100)}% (riesgo ${getNivelRiesgo(probAbandono)})`
         : '- Probabilidad de abandono: no disponible')
