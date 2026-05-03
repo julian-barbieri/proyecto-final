@@ -11,7 +11,7 @@ function getNivelRiesgo(prob) {
   return 'BAJO';
 }
 
-function generarPrompt(datos, predicciones) {
+function generarPrompt(datos, predicciones, rol) {
   const {
     alumno, materia, vars, cursadaActual,
     vecesCursada, parcialesRendidos, totalParciales,
@@ -34,9 +34,11 @@ function generarPrompt(datos, predicciones) {
     ? ultimosExamenes.map((e) => `- ${e.anio} ${e.materia_nombre}: ${e.tipo} → ${e.nota}`).join('\n')
     : 'Sin exámenes registrados';
 
-  const lineaAbandono = probAbandono != null
-    ? `- Probabilidad de abandono: ${Math.round(probAbandono * 100)}% (riesgo ${getNivelRiesgo(probAbandono)})`
-    : '- Probabilidad de abandono: no disponible';
+  const lineaAbandono = rol !== 'docente'
+    ? (probAbandono != null
+        ? `- Probabilidad de abandono: ${Math.round(probAbandono * 100)}% (riesgo ${getNivelRiesgo(probAbandono)})\n`
+        : '- Probabilidad de abandono: no disponible\n')
+    : '';
 
   const lineaRecursado = probRecursado != null
     ? `- Probabilidad de recursado: ${Math.round(probRecursado * 100)}% (riesgo ${getNivelRiesgo(probRecursado)})`
@@ -47,7 +49,12 @@ function generarPrompt(datos, predicciones) {
     : '- Nota esperada: no disponible';
 
   return `Sos un asistente académico que ayuda a docentes universitarios.
-Analizá la siguiente información de un alumno y redactá UN párrafo narrativo (150-200 palabras) dirigido al docente/coordinador, explicando la situación del alumno y qué acciones concretas se recomiendan. Sé específico, usa los datos provistos.
+Analizá la siguiente información de un alumno y respondé SOLO con este formato exacto, sin explicaciones adicionales:
+**Resumen:** [una oración que describa la situación del alumno]
+• [acción concreta 1]
+• [acción concreta 2]
+• [acción concreta 3 — opcional]
+Máximo 80 palabras en total.
 
 --- DATOS DEL ALUMNO ---
 Nombre: ${alumno.nombre_completo}
@@ -55,8 +62,7 @@ Materia: ${materia.nombre}
 Año de ingreso: ${alumno.anio_ingreso ?? 'desconocido'}
 
 PREDICCIONES:
-${lineaAbandono}
-${lineaRecursado}
+${lineaAbandono}${lineaRecursado}
 ${lineaNota}
 
 VARIABLES CLAVE:
