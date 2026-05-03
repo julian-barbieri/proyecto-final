@@ -168,6 +168,129 @@ function obtenerDatosAlumno(alumnoId, materiaId) {
   };
 }
 
+function obtenerDatosAlumnoGlobal(alumnoId) {
+  const alumno = db
+    .prepare(
+      `SELECT id, COALESCE(nombre_completo, username) AS nombre_completo,
+              anio_ingreso, promedio_colegio, ayuda_financiera, colegio_tecnico
+       FROM users WHERE id = ? AND role = 'alumno' LIMIT 1`,
+    )
+    .get(alumnoId);
+
+  if (!alumno) return null;
+
+  const todasCursadas = db
+    .prepare(
+      `SELECT c.estado, c.asistencia, c.anio, m.nombre AS materia_nombre
+       FROM cursadas c JOIN materias m ON m.id = c.materia_id
+       WHERE c.alumno_id = ?
+       ORDER BY c.anio DESC`,
+    )
+    .all(alumnoId);
+
+  const aprobadas = todasCursadas.filter((c) => c.estado === 'aprobada');
+  const recursadas = todasCursadas.filter((c) => c.estado === 'recursada');
+  const cursando = todasCursadas.filter((c) => c.estado === 'cursando');
+  const abandonadas = todasCursadas.filter((c) => c.estado === 'abandonada');
+
+  const examenesConNota = db
+    .prepare(
+      `SELECT e.nota FROM examenes e
+       WHERE e.alumno_id = ? AND e.rendido = 1 AND e.nota IS NOT NULL`,
+    )
+    .all(alumnoId);
+
+  const promedio_notas =
+    examenesConNota.length > 0
+      ? examenesConNota.reduce((s, e) => s + Number(e.nota), 0) / examenesConNota.length
+      : null;
+
+  const asistencia_promedio =
+    todasCursadas.length > 0
+      ? todasCursadas.reduce((s, c) => s + Number(c.asistencia || 0), 0) / todasCursadas.length
+      : null;
+
+  const historialTexto =
+    todasCursadas.length > 0
+      ? todasCursadas
+          .slice(0, 10)
+          .map((c) => `- ${c.anio}: ${c.materia_nombre} (${c.estado})`)
+          .join('\n')
+      : 'Sin historial registrado';
+
+  return {
+    alumno,
+    indicadores: {
+      total_cursadas: todasCursadas.length,
+      aprobadas: aprobadas.length,
+      recursadas: recursadas.length,
+      cursando: cursando.length,
+      abandonadas: abandonadas.length,
+      promedio_notas: promedio_notas != null ? Number(promedio_notas.toFixed(2)) : null,
+      asistencia_promedio,
+    },
+    materiasEnCurso: cursando.map((c) => ({ nombre: c.materia_nombre })),
+    historialTexto,
+  };
+}
+
+function generarPromptGlobal(datos, predicciones, rol) {
+  const { alumno, indicadores, materiasEnCurso, historialTexto } = datos;
+
+  const probAbandono = predicciones?.abandono?.probabilidad ?? null;
+  const showAbandono = rol === 'admin' || rol === 'coordinador';
+
+  const lineaAbandono = showAbandono
+    ? (probAbandono != null
+        ? `- Probabilidad de abandono: ${Math.round(probAbandono * 100)}% (riesgo ${getNivelRiesgo(probAbandono)})`
+        : '- Probabilidad de abandono: no disponible')
+    : '';
+
+  const materiasEnCursoTexto =
+    materiasEnCurso.length > 0
+      ? materiasEnCurso.map((m) => `- ${m.nombre}`).join('\n')
+      : 'Ninguna';
+
+  const promedioTexto =
+    indicadores.promedio_notas != null
+      ? indicadores.promedio_notas.toFixed(2)
+      : 'no disponible';
+
+  const asistenciaTexto =
+    indicadores.asistencia_promedio != null
+      ? `${Math.round(indicadores.asistencia_promedio * 100)}%`
+      : 'no disponible';
+
+  return `Sos un asistente académico que ayuda a coordinadores universitarios.
+Analizá la siguiente información general de un alumno y respondé SOLO con este formato exacto, sin explicaciones adicionales:
+**Resumen:** [una oración que describa la situación global del alumno]
+• [acción concreta 1]
+• [acción concreta 2]
+• [acción concreta 3 — opcional]
+Máximo 80 palabras en total.
+
+--- DATOS DEL ALUMNO ---
+Nombre: ${alumno.nombre_completo}
+Año de ingreso: ${alumno.anio_ingreso ?? 'desconocido'}
+Promedio colegio: ${alumno.promedio_colegio ?? 'desconocido'}
+Ayuda financiera: ${alumno.ayuda_financiera ? 'sí' : 'no'}
+
+INDICADORES GLOBALES:
+- Total materias cursadas: ${indicadores.total_cursadas}
+- Aprobadas: ${indicadores.aprobadas} | Recursadas: ${indicadores.recursadas} | Abandonadas: ${indicadores.abandonadas} | En curso: ${indicadores.cursando}
+- Promedio de notas: ${promedioTexto}
+- Asistencia promedio: ${asistenciaTexto}
+
+MATERIAS EN CURSO:
+${materiasEnCursoTexto}
+
+PREDICCIONES:
+${[lineaAbandono].filter(Boolean).join('\n') || '- Sin predicciones disponibles'}
+
+HISTORIAL (últimas 10 cursadas):
+${historialTexto}`;
+}
+
 async function generarSugerencia(alumnoId, materiaId, rol) {
   const datos = obtenerDatosAlumno(alumnoId, materiaId);
   if (!datos) return null;
@@ -185,4 +308,11 @@ async function generarSugerencia(alumnoId, materiaId, rol) {
   return response.text ?? null;
 }
 
-module.exports = { getNivelRiesgo, generarPrompt, obtenerDatosAlumno, generarSugerencia };
+module.exports = {
+  getNivelRiesgo,
+  generarPrompt,
+  obtenerDatosAlumno,
+  obtenerDatosAlumnoGlobal,
+  generarPromptGlobal,
+  generarSugerencia,
+};

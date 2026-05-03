@@ -101,3 +101,62 @@ describe('generarPrompt', () => {
     expect(prompt).toContain('no disponible');
   });
 });
+
+describe('generarPromptGlobal', () => {
+  const datosGlobalMock = {
+    alumno: {
+      nombre_completo: 'Ana García',
+      anio_ingreso: 2022,
+      promedio_colegio: 7.5,
+      ayuda_financiera: 1,
+    },
+    indicadores: {
+      total_cursadas: 5,
+      aprobadas: 2,
+      recursadas: 2,
+      cursando: 1,
+      abandonadas: 0,
+      promedio_notas: 5.8,
+      asistencia_promedio: 0.74,
+    },
+    materiasEnCurso: [{ nombre: 'Análisis II' }, { nombre: 'Física I' }],
+    historialTexto: '- Análisis I (aprobada)\n- Álgebra (recursada)',
+  };
+
+  const prediccionesMock = {
+    abandono: { probabilidad: 0.72 },
+  };
+
+  test('incluye el nombre del alumno', () => {
+    const { generarPromptGlobal } = require('./sugerencias.service');
+    const prompt = generarPromptGlobal(datosGlobalMock, prediccionesMock, 'admin');
+    expect(prompt).toContain('Ana García');
+  });
+
+  test('incluye abandono cuando rol es admin', () => {
+    const { generarPromptGlobal } = require('./sugerencias.service');
+    const prompt = generarPromptGlobal(datosGlobalMock, prediccionesMock, 'admin');
+    expect(prompt).toContain('72%');
+    expect(prompt).toContain('ALTO');
+  });
+
+  test('NO incluye abandono cuando rol es docente', () => {
+    const { generarPromptGlobal } = require('./sugerencias.service');
+    const prompt = generarPromptGlobal(datosGlobalMock, prediccionesMock, 'docente');
+    expect(prompt).not.toContain('Probabilidad de abandono');
+  });
+
+  test('incluye materias en curso', () => {
+    const { generarPromptGlobal } = require('./sugerencias.service');
+    const prompt = generarPromptGlobal(datosGlobalMock, prediccionesMock, 'admin');
+    expect(prompt).toContain('Análisis II');
+    expect(prompt).toContain('Física I');
+  });
+
+  test('incluye instrucción de formato con Resumen y bullets', () => {
+    const { generarPromptGlobal } = require('./sugerencias.service');
+    const prompt = generarPromptGlobal(datosGlobalMock, prediccionesMock, 'admin');
+    expect(prompt).toContain('**Resumen:**');
+    expect(prompt).toContain('80 palabras');
+  });
+});
