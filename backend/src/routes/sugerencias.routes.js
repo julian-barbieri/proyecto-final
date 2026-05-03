@@ -38,12 +38,14 @@ router.get(
       return res.status(400).json({ error: 'alumnoId y materiaId son requeridos.' });
     }
 
-    const cacheKey = `${alumnoId}_${materiaId}`;
+    const rol = req.user.role;
+    const cacheRol = rol === 'docente' ? 'docente' : 'full';
+    const cacheKey = `${alumnoId}_${materiaId}_${cacheRol}`;
     const cached = getCached(cacheKey);
     if (cached) return res.status(200).json({ sugerencia: cached });
 
     try {
-      const sugerencia = await generarSugerencia(alumnoId, materiaId);
+      const sugerencia = await generarSugerencia(alumnoId, materiaId, rol);
       if (!sugerencia) {
         return res.status(404).json({ error: 'No hay suficiente información para generar sugerencias.' });
       }

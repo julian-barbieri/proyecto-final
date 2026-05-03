@@ -167,14 +167,14 @@ function obtenerDatosAlumno(alumnoId, materiaId) {
   };
 }
 
-async function generarSugerencia(alumnoId, materiaId) {
+async function generarSugerencia(alumnoId, materiaId, rol) {
   const datos = obtenerDatosAlumno(alumnoId, materiaId);
   if (!datos) return null;
 
   const prediccionesMap = await precalcularPrediccionesCompletas([alumnoId], materiaId);
   const predicciones = prediccionesMap[alumnoId] || {};
 
-  const prompt = generarPrompt(datos, predicciones);
+  const prompt = generarPrompt(datos, predicciones, rol);
 
   const response = await ai.models.generateContent({
     model: 'gemini-2.5-flash-lite',
