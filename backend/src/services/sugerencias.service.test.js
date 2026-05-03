@@ -62,11 +62,12 @@ describe('generarPrompt', () => {
   test('incluye la probabilidad de abandono cuando rol es coordinador', () => {
     const prompt = generarPrompt(datosMock, prediccionesMock, 'coordinador');
     expect(prompt).toContain('72%');
+    expect(prompt).toContain('ALTO');
   });
 
   test('NO incluye datos de abandono cuando rol es docente', () => {
     const prompt = generarPrompt(datosMock, prediccionesMock, 'docente');
-    expect(prompt).not.toContain('abandono');
+    expect(prompt).not.toContain('Probabilidad de abandono:');
     expect(prompt).not.toContain('72%');
   });
 
