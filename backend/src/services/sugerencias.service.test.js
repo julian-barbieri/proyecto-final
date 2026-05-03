@@ -44,41 +44,59 @@ describe('generarPrompt', () => {
   };
 
   test('incluye el nombre del alumno en el prompt', () => {
-    const prompt = generarPrompt(datosMock, prediccionesMock);
+    const prompt = generarPrompt(datosMock, prediccionesMock, 'admin');
     expect(prompt).toContain('Ana García');
   });
 
   test('incluye el nombre de la materia', () => {
-    const prompt = generarPrompt(datosMock, prediccionesMock);
+    const prompt = generarPrompt(datosMock, prediccionesMock, 'admin');
     expect(prompt).toContain('Análisis Matemático I');
   });
 
-  test('incluye la probabilidad de abandono formateada como porcentaje', () => {
-    const prompt = generarPrompt(datosMock, prediccionesMock);
+  test('incluye la probabilidad de abandono cuando rol es admin', () => {
+    const prompt = generarPrompt(datosMock, prediccionesMock, 'admin');
     expect(prompt).toContain('72%');
     expect(prompt).toContain('ALTO');
   });
 
+  test('incluye la probabilidad de abandono cuando rol es coordinador', () => {
+    const prompt = generarPrompt(datosMock, prediccionesMock, 'coordinador');
+    expect(prompt).toContain('72%');
+  });
+
+  test('NO incluye datos de abandono cuando rol es docente', () => {
+    const prompt = generarPrompt(datosMock, prediccionesMock, 'docente');
+    expect(prompt).not.toContain('abandono');
+    expect(prompt).not.toContain('72%');
+  });
+
   test('incluye la probabilidad de recursado', () => {
-    const prompt = generarPrompt(datosMock, prediccionesMock);
+    const prompt = generarPrompt(datosMock, prediccionesMock, 'admin');
     expect(prompt).toContain('45%');
     expect(prompt).toContain('BAJO');
   });
 
   test('incluye la nota esperada', () => {
-    const prompt = generarPrompt(datosMock, prediccionesMock);
+    const prompt = generarPrompt(datosMock, prediccionesMock, 'admin');
     expect(prompt).toContain('5.2');
   });
 
   test('incluye los parciales rendidos', () => {
-    const prompt = generarPrompt(datosMock, prediccionesMock);
+    const prompt = generarPrompt(datosMock, prediccionesMock, 'admin');
     expect(prompt).toContain('1');
     expect(prompt).toContain('2');
   });
 
-  test('funciona sin predicciones de abandono', () => {
+  test('incluye instrucción de formato con Resumen y bullets', () => {
+    const prompt = generarPrompt(datosMock, prediccionesMock, 'admin');
+    expect(prompt).toContain('**Resumen:**');
+    expect(prompt).toContain('•');
+    expect(prompt).toContain('80 palabras');
+  });
+
+  test('admin sin datos de abandono muestra no disponible', () => {
     const sinAbandono = { ...prediccionesMock, abandono: null };
-    const prompt = generarPrompt(datosMock, sinAbandono);
+    const prompt = generarPrompt(datosMock, sinAbandono, 'admin');
     expect(prompt).toContain('no disponible');
   });
 });
