@@ -213,9 +213,25 @@ docker-compose.override.yml
 # CLAUDE
 # ==========================================
 
+# ==========================================
+# CLAUDE - Agent Customization & Skills
+# ==========================================
+/.agent
+
+# Local agent settings (do NOT commit)
 /.claude/settings.local.json
-CLAUDE.md
+
+# Agent customization files (version control)
+/.claude/instructions.md
+/.claude/prompt.md
+/.claude/.agent.md
+
+# Skills library (version control - commit all skills)
+/.claude/skills/**
+
+# Superpowers documentation
 /docs/superpowers
+CLAUDE.md
 
 # ==========================================
 # Graphify
