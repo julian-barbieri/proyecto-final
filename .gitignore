@@ -215,6 +215,7 @@ docker-compose.override.yml
 
 /.claude/settings.local.json
 CLAUDE.md
+/docs/superpowers
 
 # ==========================================
 # Graphify

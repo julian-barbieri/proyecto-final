@@ -3137,7 +3137,7 @@ async function seedUsers() {
       username: "docente1",
       password: "docente123",
       role: "docente",
-      nombre_completo: "Segundo Docente",
+      nombre_completo: "Juan Perez",
     },
     {
       username: "coordinador",
