@@ -1,5 +1,10 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import {
+  ChevronLeft, ChevronRight, Search, Sparkles,
+  Check, X, Pencil, Zap, AlertTriangle, Wallet,
+  BarChart2,
+} from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import api from "../api/axios";
 import ModalSugerencia from "../components/ModalSugerencia";
@@ -89,7 +94,11 @@ function AcordeonCursada({ cursada }) {
             }`}
           >
             {(cursada.asistencia * 100).toFixed(0)}% asist.
-            {cursada.asistencia < 0.75 && " ⚠"}
+            {cursada.asistencia < 0.75 && (
+              <span className="ml-1 inline-flex items-center gap-0.5 text-amber-600 font-medium">
+                <AlertTriangle className="w-3 h-3" aria-hidden="true" />
+              </span>
+            )}
           </span>
           {promedioNota !== null && (
             <span
@@ -198,6 +207,7 @@ export default function AlumnoPerfil() {
   const [notasPredecidas, setNotasPredecidas] = useState([]);
   const [loadingNotas, setLoadingNotas] = useState(false);
   const [busquedaAcademica, setBusquedaAcademica] = useState("");
+  const [soloCursando, setSoloCursando] = useState(false);
   const [sugerenciaEstado, setSugerenciaEstado] = useState(null);
 
   const handleVerSugerencias = async () => {
@@ -964,13 +974,20 @@ export default function AlumnoPerfil() {
 
   return (
     <div className="p-6 bg-white rounded-lg">
-      {/* Botón volver */}
-      <button
-        onClick={() => navigate(-1)}
-        className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 mb-6 transition-colors"
-      >
-        ← Volver
-      </button>
+      {/* Breadcrumb de navegación contextual — reemplaza el simple "← Volver" */}
+      <nav aria-label="Navegación" className="mb-5 flex items-center gap-1 text-sm">
+        <button
+          onClick={() => navigate(-1)}
+          className="inline-flex items-center gap-1 text-brand-600 hover:text-brand-800 font-medium transition-colors cursor-pointer"
+        >
+          <ChevronLeft className="w-4 h-4" aria-hidden="true" />
+          Panel de Predicciones
+        </button>
+        <ChevronRight className="w-3.5 h-3.5 text-slate-400" aria-hidden="true" />
+        <span className="text-slate-500 truncate max-w-[200px]">
+          {alumno?.nombre_completo || "Perfil del Alumno"}
+        </span>
+      </nav>
 
       {/* Header del perfil */}
       <div className="bg-white border border-gray-100 rounded-xl p-6 mb-6">
@@ -990,9 +1007,10 @@ export default function AlumnoPerfil() {
                   type="button"
                   onClick={handleVerSugerencias}
                   disabled={sugerenciaEstado?.status === 'loading'}
-                  className="flex-shrink-0 flex items-center gap-1.5 rounded-lg bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-700 hover:bg-blue-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex-shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-brand-50 px-3 py-1.5 text-sm font-medium text-brand-700 hover:bg-brand-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  ✨ Sugerencias
+                  <Sparkles className="w-4 h-4" aria-hidden="true" />
+                  Sugerencias
                 </button>
               )}
             </div>
@@ -1005,21 +1023,24 @@ export default function AlumnoPerfil() {
             {/* Chips de estado rápido */}
             <div className="flex flex-wrap gap-2 mt-3">
               {/* Semáforo de riesgo */}
+              {/* Chip de riesgo: punto SVG de color semántico, sin emojis */}
               {predicciones.abandono && (
                 <span
-                  className={`text-xs px-2.5 py-1 rounded-full font-medium ${
+                  className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full font-medium ${
                     predicciones.abandono.nivel_riesgo === "alto"
-                      ? "bg-red-100 text-red-700"
+                      ? "bg-red-50 text-red-700"
                       : predicciones.abandono.nivel_riesgo === "medio"
-                        ? "bg-amber-100 text-amber-700"
-                        : "bg-green-100 text-green-700"
+                        ? "bg-amber-50 text-amber-700"
+                        : "bg-green-50 text-green-700"
                   }`}
                 >
-                  {predicciones.abandono.nivel_riesgo === "alto"
-                    ? "🔴"
-                    : predicciones.abandono.nivel_riesgo === "medio"
-                      ? "🟡"
-                      : "🟢"}{" "}
+                  <span
+                    className={`inline-block w-2 h-2 rounded-full flex-shrink-0 ${
+                      predicciones.abandono.nivel_riesgo === "alto" ? "bg-risk-high" :
+                      predicciones.abandono.nivel_riesgo === "medio" ? "bg-risk-medium" : "bg-risk-low"
+                    }`}
+                    aria-hidden="true"
+                  />
                   Riesgo {predicciones.abandono.nivel_riesgo} de abandono
                 </span>
               )}
@@ -1027,22 +1048,24 @@ export default function AlumnoPerfil() {
               {/* Promedio global */}
               {indicadores.promedio_nota_global !== null && (
                 <span
-                  className={`text-xs px-2.5 py-1 rounded-full font-medium ${
+                  className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full font-medium ${
                     indicadores.promedio_nota_global >= 6
-                      ? "bg-green-100 text-green-700"
+                      ? "bg-green-50 text-green-700"
                       : indicadores.promedio_nota_global >= 4
-                        ? "bg-amber-100 text-amber-700"
-                        : "bg-red-100 text-red-700"
+                        ? "bg-amber-50 text-amber-700"
+                        : "bg-red-50 text-red-700"
                   }`}
                 >
-                  📊 Promedio {indicadores.promedio_nota_global}
+                  <BarChart2 className="w-3.5 h-3.5" aria-hidden="true" />
+                  Promedio {indicadores.promedio_nota_global}
                 </span>
               )}
 
               {/* Ayuda financiera */}
               {alumno.ayuda_financiera === 1 && (
-                <span className="text-xs px-2.5 py-1 rounded-full bg-purple-100 text-purple-700 font-medium">
-                  💰 Ayuda financiera
+                <span className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full bg-purple-50 text-purple-700 font-medium">
+                  <Wallet className="w-3.5 h-3.5" aria-hidden="true" />
+                  Ayuda financiera
                 </span>
               )}
             </div>
@@ -1063,8 +1086,8 @@ export default function AlumnoPerfil() {
                 onClick={() => setTabActiva(tab.key)}
                 className={`py-3 px-1 font-medium text-sm border-b-2 transition-colors ${
                   tabActiva === tab.key
-                    ? "border-blue-500 text-blue-600"
-                    : "border-transparent text-gray-600 hover:text-gray-900"
+                    ? "border-brand-500 text-brand-600"
+                    : "border-transparent text-slate-500 hover:text-slate-800"
                 }`}
               >
                 {tab.label}
@@ -1118,9 +1141,10 @@ export default function AlumnoPerfil() {
               {!editando ? (
                 <button
                   onClick={() => setEditando(true)}
-                  className="text-xs text-blue-600 hover:underline"
+                  className="inline-flex items-center gap-1 text-xs text-brand-600 hover:text-brand-800 transition-colors"
                 >
-                  ✏ Editar
+                  <Pencil className="w-3.5 h-3.5" aria-hidden="true" />
+                  Editar
                 </button>
               ) : (
                 <div className="flex gap-2">
@@ -1170,7 +1194,15 @@ export default function AlumnoPerfil() {
               <div className="flex justify-between">
                 <dt className="text-sm text-gray-500">Colegio técnico</dt>
                 <dd className="text-sm font-medium">
-                  {data.alumno.colegio_tecnico === 1 ? "✅ Sí" : "❌ No"}
+                  {data.alumno.colegio_tecnico === 1 ? (
+                    <span className="inline-flex items-center gap-1 text-green-700">
+                      <Check className="w-4 h-4" aria-hidden="true" />Sí
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 text-slate-500">
+                      <X className="w-4 h-4" aria-hidden="true" />No
+                    </span>
+                  )}
                 </dd>
               </div>
 
@@ -1195,7 +1227,15 @@ export default function AlumnoPerfil() {
                     </select>
                   ) : (
                     <span className="text-sm font-medium">
-                      {data.alumno.ayuda_financiera === 1 ? "✅ Sí" : "❌ No"}
+                      {data.alumno.ayuda_financiera === 1 ? (
+                        <span className="inline-flex items-center gap-1 text-green-700">
+                          <Check className="w-4 h-4" aria-hidden="true" />Sí
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-slate-500">
+                          <X className="w-4 h-4" aria-hidden="true" />No
+                        </span>
+                      )}
                     </span>
                   )}
                 </dd>
@@ -1208,11 +1248,16 @@ export default function AlumnoPerfil() {
                     <button
                       onClick={simularImpacto}
                       disabled={simulacion.loading}
-                      className="w-full text-xs bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 px-3 py-2 rounded-lg transition-colors disabled:opacity-50 font-medium"
+                      className="inline-flex items-center justify-center gap-1.5 w-full text-xs bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 px-3 py-2 rounded-lg transition-colors disabled:opacity-50 font-medium"
                     >
-                      {simulacion.loading
-                        ? "Calculando impacto..."
-                        : "⚡ Ver impacto antes de guardar"}
+                      {simulacion.loading ? (
+                        "Calculando impacto..."
+                      ) : (
+                        <>
+                          <Zap className="w-3.5 h-3.5" aria-hidden="true" />
+                          Ver impacto antes de guardar
+                        </>
+                      )}
                     </button>
                   </div>
                 )}
@@ -1241,7 +1286,8 @@ export default function AlumnoPerfil() {
               medio: "text-amber-700 bg-amber-50 border-amber-200",
               bajo: "text-green-700 bg-green-50 border-green-200",
             };
-            const nivelLabel = { alto: "🔴 Alto", medio: "🟡 Medio", bajo: "🟢 Bajo" };
+            // Sin emojis: el color del contenedor ya comunica el nivel de riesgo
+            const nivelLabel = { alto: "Alto", medio: "Medio", bajo: "Bajo" };
 
             return (
               <div className="md:col-span-2 bg-indigo-50 border border-indigo-200 rounded-xl p-5">
@@ -1298,11 +1344,12 @@ export default function AlumnoPerfil() {
           {predicciones?.abandono && predicciones.abandono.probabilidad !== null && (() => {
             const prob = Math.round(predicciones.abandono.probabilidad * 100);
             const nivel = predicciones.abandono.nivel_riesgo;
+            // Las labels sin emoji — el color del badge comunica el nivel visualmente
             const cfg = {
-              alto:  { bg: "bg-red-50",   border: "border-red-200",   bar: "bg-red-500",   text: "text-red-700",   badge: "bg-red-100 text-red-700",   label: "🔴 Riesgo alto" },
-              medio: { bg: "bg-amber-50", border: "border-amber-200", bar: "bg-amber-400", text: "text-amber-700", badge: "bg-amber-100 text-amber-700", label: "🟡 Riesgo medio" },
-              bajo:  { bg: "bg-green-50", border: "border-green-200", bar: "bg-green-500", text: "text-green-700", badge: "bg-green-100 text-green-700", label: "🟢 Riesgo bajo" },
-            }[nivel] || { bg: "bg-gray-50", border: "border-gray-200", bar: "bg-gray-400", text: "text-gray-700", badge: "bg-gray-100 text-gray-700", label: "Sin datos" };
+              alto:  { bg: "bg-red-50",   border: "border-red-200",   bar: "bg-red-500",   text: "text-red-700",   badge: "bg-red-50 text-red-700",   label: "Riesgo alto" },
+              medio: { bg: "bg-amber-50", border: "border-amber-200", bar: "bg-amber-400", text: "text-amber-700", badge: "bg-amber-50 text-amber-700", label: "Riesgo medio" },
+              bajo:  { bg: "bg-green-50", border: "border-green-200", bar: "bg-green-500", text: "text-green-700", badge: "bg-green-50 text-green-700", label: "Riesgo bajo" },
+            }[nivel] || { bg: "bg-slate-50", border: "border-slate-200", bar: "bg-slate-400", text: "text-slate-700", badge: "bg-slate-100 text-slate-600", label: "Sin datos" };
 
             return (
               <div className={`md:col-span-2 ${cfg.bg} border ${cfg.border} rounded-xl p-5`}>
@@ -1355,7 +1402,7 @@ export default function AlumnoPerfil() {
                 valor: `${(indicadores.promedio_asistencia * 100).toFixed(0)}%`,
                 sub:
                   indicadores.promedio_asistencia < 0.75
-                    ? "⚠ Por debajo del mínimo"
+                    ? "Bajo el mínimo requerido (75%)"
                     : "Por encima del mínimo",
                 color:
                   indicadores.promedio_asistencia >= 0.8
@@ -1422,23 +1469,38 @@ export default function AlumnoPerfil() {
 
       {(isDocente || tabActiva === "academico") && (
         <div className="space-y-4">
-          {/* Buscador */}
-          <div className="relative">
-            <span className="absolute inset-y-0 left-3 flex items-center text-gray-400 pointer-events-none text-sm">🔍</span>
-            <input
-              type="text"
-              value={busquedaAcademica}
-              onChange={(e) => setBusquedaAcademica(e.target.value)}
-              placeholder="Buscar materia por código o nombre..."
-              className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-300 bg-gray-50"
-            />
+          {/* Buscador + filtro En curso */}
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute inset-y-0 left-3 my-auto w-4 h-4 text-slate-400 pointer-events-none" aria-hidden="true" />
+              <input
+                type="text"
+                value={busquedaAcademica}
+                onChange={(e) => setBusquedaAcademica(e.target.value)}
+                placeholder="Buscar materia por código o nombre..."
+                className="w-full pl-9 pr-4 py-2 text-sm border border-surface-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-300 bg-surface"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => setSoloCursando((v) => !v)}
+              className={`flex-shrink-0 text-xs px-3 py-2 rounded-lg font-medium border transition-colors ${
+                soloCursando
+                  ? "bg-blue-100 text-blue-700 border-blue-300"
+                  : "bg-white text-gray-500 border-gray-200 hover:border-gray-300"
+              }`}
+            >
+              En curso
+            </button>
           </div>
 
           {[...new Set(cursadas.map((c) => c.materia_codigo))]
             .filter((codigo) => {
+              const cursadasMateria = cursadas.filter((c) => c.materia_codigo === codigo);
+              const estadoUltima = cursadasMateria[0]?.estado;
+              if (soloCursando && estadoUltima !== "cursando") return false;
               if (!busquedaAcademica.trim()) return true;
               const q = busquedaAcademica.trim().toLowerCase();
-              const cursadasMateria = cursadas.filter((c) => c.materia_codigo === codigo);
               const nombre = cursadasMateria[0]?.materia_nombre || "";
               return codigo.toLowerCase().includes(q) || nombre.toLowerCase().includes(q);
             })
