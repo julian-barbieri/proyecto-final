@@ -16,11 +16,12 @@ function SkeletonLoader() {
     <div className="space-y-6">
       {/* Loading message */}
       <div className="flex flex-col items-center justify-center py-10 gap-4">
+        {/* Spinner institucional: sin emoji, ícono SVG centrado */}
         <div className="relative w-16 h-16">
-          <div className="absolute inset-0 rounded-full border-4 border-blue-100" />
-          <div className="absolute inset-0 rounded-full border-4 border-blue-500 border-t-transparent animate-spin" />
-          <div className="absolute inset-0 flex items-center justify-center text-2xl">
-            🎓
+          <div className="absolute inset-0 rounded-full border-4 border-brand-100" />
+          <div className="absolute inset-0 rounded-full border-4 border-brand-500 border-t-transparent animate-spin" />
+          <div className="absolute inset-0 flex items-center justify-center text-brand-500">
+            <GraduationCap className="w-7 h-7" />
           </div>
         </div>
         <div className="text-center">
@@ -189,25 +190,13 @@ export default function Dashboard() {
     return `hace ${Math.floor(diff / 86400)} días`;
   };
 
-  const getTipoIcono = (tipo) => {
-    switch (tipo) {
-      case "abandono":
-        return "🎓";
-      case "recursado":
-        return "📚";
-      case "nota":
-        return "📝";
-      default:
-        return "📊";
-    }
-  };
-
   return (
     <div className="space-y-6">
       <div>
         {!ai_disponible && data && (
-          <div className="mt-3 px-4 py-2 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
-            ⚠ El servicio de predicciones ML no está disponible. Se muestran
+          <div className="mt-3 flex items-center gap-2 px-4 py-2 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+            <AlertTriangle className="w-4 h-4 flex-shrink-0" aria-hidden="true" />
+            El servicio de predicciones ML no está disponible. Se muestran
             solo datos académicos.
           </div>
         )}
@@ -226,8 +215,8 @@ export default function Dashboard() {
               onClick={() => setTabActiva(tab.key)}
               className={`py-3 px-1 font-medium text-sm border-b-2 transition-colors ${
                 tabActiva === tab.key
-                  ? "border-blue-500 text-blue-600"
-                  : "border-transparent text-gray-600 hover:text-gray-900"
+                  ? "border-brand-500 text-brand-600"
+                  : "border-transparent text-slate-500 hover:text-slate-800"
               }`}
             >
               {tab.label}
@@ -334,19 +323,6 @@ function SeccionResumen({
     return `hace ${Math.floor(diff / 86400)} días`;
   };
 
-  const getTipoIcono = (tipo) => {
-    switch (tipo) {
-      case "abandono":
-        return "🎓";
-      case "recursado":
-        return "📚";
-      case "nota":
-        return "📝";
-      default:
-        return "📊";
-    }
-  };
-
   const alumnosAlto = (todos_en_riesgo || []).filter(
     (a) => a.nivel_riesgo === "alto",
   );
@@ -357,7 +333,6 @@ function SeccionResumen({
   const acciones = [
     abandono.en_riesgo_alto > 0 && {
       nivel: "critico",
-      icono: "🔴",
       texto: (
         <>
           <strong>{abandono.en_riesgo_alto}</strong> alumno/s con riesgo alto de
@@ -375,7 +350,6 @@ function SeccionResumen({
     },
     kpis.alumnos_asistencia_baja > 0 && {
       nivel: "advertencia",
-      icono: "⚠",
       texto: (
         <>
           <strong>{kpis.alumnos_asistencia_baja}</strong> alumno/s con
@@ -389,7 +363,6 @@ function SeccionResumen({
     },
     abandono.en_riesgo_medio > 0 && {
       nivel: "advertencia",
-      icono: "🟡",
       texto: (
         <>
           <strong>{abandono.en_riesgo_medio}</strong> alumno/s en riesgo medio
@@ -1054,7 +1027,7 @@ function ModalAsistenciaBaja({ alumnos, onClose, navigate }) {
                 key={alumno.id}
                 className="flex items-center gap-4 px-6 py-3 hover:bg-gray-50 transition-colors"
               >
-                <span className="text-lg flex-shrink-0">⚠</span>
+                <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0" aria-hidden="true" />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-gray-900 truncate">
                     {alumno.nombre_completo}

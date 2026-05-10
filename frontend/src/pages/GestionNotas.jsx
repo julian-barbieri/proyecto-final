@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Download } from "lucide-react";
 import api from "../api/axios";
 import CargarNotaModal from "../components/notas/CargarNotaModal";
 import ImportarExcelModal from "../components/notas/ImportarExcelModal";
@@ -207,13 +208,14 @@ export default function GestionNotas() {
 
   return (
     <div className="space-y-6">
-      <section className="rounded-lg border border-slate-200 bg-white p-6">
+      {/* Header con acento brand: identifica visualmente la herramienta del profesor */}
+      <section className="rounded-lg border border-surface-border border-t-[3px] border-t-brand-500 bg-white p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-xl font-semibold text-slate-900">
               Gestión de notas
             </h2>
-            <p className="mt-2 text-slate-600">
+            <p className="mt-1.5 text-sm text-slate-500">
               Cargá o importá notas de exámenes de tus materias asignadas.
             </p>
           </div>
@@ -224,16 +226,18 @@ export default function GestionNotas() {
                 setManualInitialPayload(null);
                 setShowManualModal(true);
               }}
-              className="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              className="rounded-md border border-surface-border px-3 py-2 text-sm font-medium text-slate-700 hover:bg-surface-hover transition-colors"
             >
               + Cargar nota
             </button>
+            {/* Download SVG reemplaza emoji 📥 */}
             <button
               type="button"
               onClick={() => setShowExcelModal(true)}
-              className="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
+              className="inline-flex items-center gap-1.5 rounded-md bg-brand-600 px-3 py-2 text-sm font-medium text-white hover:bg-brand-700 transition-colors"
             >
-              📥 Excel
+              <Download className="w-4 h-4" aria-hidden="true" />
+              Importar Excel
             </button>
           </div>
         </div>
@@ -248,7 +252,7 @@ export default function GestionNotas() {
           <select
             value={materiaId}
             onChange={(event) => setMateriaId(event.target.value)}
-            className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className="rounded-md border border-surface-border px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
           >
             {materias.map((materia) => (
               <option key={materia.id} value={materia.materia_id}>
@@ -260,7 +264,7 @@ export default function GestionNotas() {
           <select
             value={anio}
             onChange={(event) => setAnio(Number(event.target.value))}
-            className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className="rounded-md border border-surface-border px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
           >
             {yearOptions.map((year) => (
               <option key={year} value={year}>
@@ -278,7 +282,7 @@ export default function GestionNotas() {
       {!loading ? (
         <section className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
           <table className="min-w-full text-sm">
-            <thead className="bg-slate-100 text-slate-700">
+            <thead className="bg-brand-50 text-slate-700 border-b border-surface-border">
               <tr>
                 <th className="px-3 py-2 text-left">Legajo</th>
                 <th className="px-3 py-2 text-left">Alumno</th>
@@ -337,7 +341,8 @@ export default function GestionNotas() {
                                   setEditingValue("");
                                 }
                               }}
-                              className="w-full rounded border border-slate-300 px-1 py-0.5"
+                              /* ring-2 brand para feedback claro al editar notas inline */
+                            className="w-full rounded border border-brand-400 px-1 py-0.5 focus:outline-none focus:ring-2 focus:ring-brand-500"
                               type="number"
                               min="1"
                               max="10"

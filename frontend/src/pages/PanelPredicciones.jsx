@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { Search, Sparkles } from "lucide-react";
 import api from "../api/axios";
 import LoadingSpinner from "../components/LoadingSpinner";
 import ModalSugerencia from "../components/ModalSugerencia";
@@ -74,21 +75,23 @@ function getRecursadoRiskLevel(prediccion) {
 function RiskBadge({ risk, label }) {
   if (!risk) {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">
-        ⚪ Sin datos
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600">
+        {/* Punto neutro SVG en lugar de emoji ⚪ */}
+        <span className="inline-block w-2 h-2 rounded-full bg-slate-400 flex-shrink-0" aria-hidden="true" />
+        Sin datos
       </span>
     );
   }
   const colors = {
-    red: "bg-red-100 text-red-700",
-    yellow: "bg-yellow-100 text-yellow-700",
-    orange: "bg-orange-100 text-orange-700",
-    amber: "bg-amber-100 text-amber-700",
-    green: "bg-green-100 text-green-700",
+    red:    "bg-red-50 text-red-700",
+    yellow: "bg-amber-50 text-amber-700",
+    orange: "bg-orange-50 text-orange-700",
+    amber:  "bg-amber-50 text-amber-700",
+    green:  "bg-green-50 text-green-700",
   };
   return (
     <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium ${colors[risk.color] || colors.green}`}>
-      {risk.icon} {label || risk.label}
+      {label || risk.label}
     </span>
   );
 }
@@ -203,7 +206,8 @@ function TablaAlumnos({ alumnos, predicciones, loadingPredicciones, onViewDetail
   return (
     <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
       <table className="min-w-full">
-        <thead className="bg-slate-50 border-b border-slate-200">
+        {/* bg-brand-50 en el header da leve identidad institucional a la tabla */}
+        <thead className="bg-brand-50 border-b border-surface-border">
           <tr>
             <th className={thClass} onClick={() => handleSort("nombre")}>
               Alumno <SortIcon column="nombre" sortBy={sortBy} sortDir={sortDir} />
@@ -233,9 +237,10 @@ function TablaAlumnos({ alumnos, predicciones, loadingPredicciones, onViewDetail
             const pred     = predicciones[alumno.id];
             const loading  = loadingPredicciones && !pred;
             const level    = getRiskFn(pred);
+            // border-l lateral para filas de alto riesgo — señalización clara sin ruido
             const rowBg    = level === "alto"
-              ? "bg-red-50/60 hover:bg-red-50"
-              : "hover:bg-slate-50/80";
+              ? "bg-red-50/60 hover:bg-red-50 border-l-[3px] border-l-risk-high"
+              : "hover:bg-surface-hover/80";
 
             return (
               <tr key={alumno.id} className={`transition-colors ${rowBg}`}>
@@ -251,10 +256,21 @@ function TablaAlumnos({ alumnos, predicciones, loadingPredicciones, onViewDetail
                   <AsistenciaCel value={alumno.ultima_asistencia} />
                 </td>
                 {/* Veces cursada */}
+                {/* Color semántico: verde 1ra vez, ámbar 2da, rojo 3ra+ */}
                 <td className="px-4 py-3">
-                  <span className="text-xs font-medium text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full">
-                    {getBadgeByAttempts(alumno.veces_cursada)}
-                  </span>
+                  {(() => {
+                    const count = Number(alumno.veces_cursada || 0);
+                    const cls = count <= 1
+                      ? "bg-green-50 text-green-700"
+                      : count === 2
+                        ? "bg-amber-50 text-amber-700"
+                        : "bg-red-50 text-red-700";
+                    return (
+                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${cls}`}>
+                        {getBadgeByAttempts(alumno.veces_cursada)}
+                      </span>
+                    );
+                  })()}
                 </td>
                 {/* Abandono */}
                 {userRole !== "docente" && (
@@ -273,12 +289,14 @@ function TablaAlumnos({ alumnos, predicciones, loadingPredicciones, onViewDetail
                 {/* Acción */}
                 <td className="px-4 py-3 text-right">
                   <div className="flex items-center justify-end gap-2">
+                    {/* Sparkles SVG de lucide-react — reemplaza emoji ✨ */}
                     <button
                       type="button"
                       onClick={() => onVerSugerencias(alumno.id)}
-                      className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:border-blue-400 hover:text-blue-700 transition-colors whitespace-nowrap"
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-surface-border bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:border-brand-400 hover:text-brand-700 transition-colors whitespace-nowrap"
                     >
-                      Sugerencias ✨
+                      <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />
+                      Sugerencias
                     </button>
                     <button
                       type="button"
@@ -302,12 +320,13 @@ function TablaAlumnos({ alumnos, predicciones, loadingPredicciones, onViewDetail
 
 const PAGE_SIZE = 10;
 
+// dot: clase CSS del punto de color SVG que reemplaza los emojis de semáforo
 const FILTROS_RIESGO = [
-  { key: "todos",     label: "Todos" },
-  { key: "alto",      label: "🔴 Alto riesgo" },
-  { key: "medio",     label: "🟡 Medio riesgo" },
-  { key: "bajo",      label: "🟢 Bajo riesgo" },
-  { key: "sin_datos", label: "⚪ Sin datos" },
+  { key: "todos",     label: "Todos",        dot: null },
+  { key: "alto",      label: "Alto riesgo",  dot: "bg-risk-high" },
+  { key: "medio",     label: "Medio riesgo", dot: "bg-risk-medium" },
+  { key: "bajo",      label: "Bajo riesgo",  dot: "bg-risk-low" },
+  { key: "sin_datos", label: "Sin datos",    dot: "bg-risk-none" },
 ];
 
 export default function PanelPredicciones() {
@@ -479,13 +498,14 @@ export default function PanelPredicciones() {
             ))}
           </select>
           <div className="relative flex-1 min-w-[220px]">
-            <span className="absolute inset-y-0 left-3 flex items-center text-slate-400 pointer-events-none text-sm">🔍</span>
+            {/* Search SVG de lucide-react — reemplaza emoji 🔍 */}
+            <Search className="absolute inset-y-0 left-3 my-auto w-4 h-4 text-slate-400 pointer-events-none" aria-hidden="true" />
             <input
               type="text"
               placeholder="Buscar alumno..."
               value={busqueda}
               onChange={(e) => setBusqueda(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 bg-white pl-9 pr-3 py-2 text-sm text-slate-800 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="w-full rounded-lg border border-surface-border bg-white pl-9 pr-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
             />
           </div>
         </section>
@@ -526,20 +546,27 @@ export default function PanelPredicciones() {
       {/* Filtros rápidos de riesgo */}
       {datos && !loadingPredicciones && (
         <div className="flex flex-wrap gap-2">
-          {FILTROS_RIESGO.map(({ key, label }) => (
+          {FILTROS_RIESGO.map(({ key, label, dot }) => (
             <button
               key={key}
               type="button"
               onClick={() => setFiltroRiesgo(key)}
-              className={`rounded-full px-3 py-1 text-xs font-medium transition-colors border ${
+              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-colors border ${
                 filtroRiesgo === key
-                  ? "bg-blue-600 text-white border-blue-600"
-                  : "bg-white text-slate-600 border-slate-300 hover:border-blue-400 hover:text-blue-600"
+                  ? "bg-brand-600 text-white border-brand-600"
+                  : "bg-white text-slate-600 border-surface-border hover:border-brand-400 hover:text-brand-600"
               }`}
             >
+              {/* Punto de color SVG reemplaza emojis 🔴🟡🟢⚪ */}
+              {dot && (
+                <span
+                  className={`inline-block w-2 h-2 rounded-full flex-shrink-0 ${dot} ${filtroRiesgo === key ? "opacity-90" : ""}`}
+                  aria-hidden="true"
+                />
+              )}
               {label}
               {key !== "todos" && (
-                <span className="ml-1 opacity-70">({kpis[key] ?? 0})</span>
+                <span className="opacity-70">({kpis[key] ?? 0})</span>
               )}
             </button>
           ))}

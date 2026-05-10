@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Inbox } from "lucide-react";
 import api from "../api/axios";
 import EmptyState from "../components/EmptyState";
 import ErrorMessage from "../components/ErrorMessage";
@@ -32,11 +33,11 @@ export default function MisMateriasDocente() {
 
   return (
     <div className="space-y-6">
-      <section className="rounded-lg border border-slate-200 bg-white p-6">
+      {/* Header con acento brand — consistente con GestionNotas */}
+      <section className="rounded-lg border border-surface-border border-t-[3px] border-t-brand-500 bg-white p-6">
         <h2 className="text-xl font-semibold text-slate-900">Mis materias</h2>
-        <p className="mt-2 text-slate-600">
-          Consultá tus materias activas y el historial de asignaciones
-          anteriores.
+        <p className="mt-1.5 text-sm text-slate-500">
+          Consultá tus materias activas y el historial de asignaciones anteriores.
         </p>
       </section>
 
@@ -55,7 +56,7 @@ export default function MisMateriasDocente() {
 
             {activas.length === 0 ? (
               <EmptyState
-                icon="📭"
+                icon={<Inbox />}
                 title="No tenés materias asignadas actualmente."
                 description="Contactá al coordinador para revisar tu asignación docente."
               />

@@ -1,7 +1,22 @@
+/* Tipografía institucional:
+   - Crimson Pro: presencia académica en títulos y encabezados
+   - Atkinson Hyperlegible: diseñada para legibilidad máxima (accesibilidad) */
+@import url('https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Crimson+Pro:wght@400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-body {
-  @apply bg-slate-50 text-slate-900;
+@layer base {
+  body {
+    @apply bg-surface text-slate-900 font-body;
+    /* 16px mínimo + line-height 1.6 para cumplir WCAG AA en usuarios mayores */
+    font-size: 16px;
+    line-height: 1.6;
+  }
+
+  /* Todos los encabezados heredan Crimson Pro automáticamente */
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-heading;
+  }
 }
