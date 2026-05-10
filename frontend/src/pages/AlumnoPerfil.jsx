@@ -1483,6 +1483,7 @@ export default function AlumnoPerfil() {
             </div>
             <button
               type="button"
+              aria-pressed={soloCursando}
               onClick={() => setSoloCursando((v) => !v)}
               className={`flex-shrink-0 text-xs px-3 py-2 rounded-lg font-medium border transition-colors ${
                 soloCursando
@@ -1494,204 +1495,215 @@ export default function AlumnoPerfil() {
             </button>
           </div>
 
-          {[...new Set(cursadas.map((c) => c.materia_codigo))]
-            .filter((codigo) => {
-              const cursadasMateria = cursadas.filter((c) => c.materia_codigo === codigo);
+          {(() => {
+            const codigosFiltrados = [...new Set(cursadas.map((c) => c.materia_codigo))]
+              .filter((codigo) => {
+                const cursadasMateria = cursadas.filter((c) => c.materia_codigo === codigo);
+                const estadoUltima = cursadasMateria[0]?.estado;
+                if (soloCursando && estadoUltima !== "cursando") return false;
+                if (!busquedaAcademica.trim()) return true;
+                const q = busquedaAcademica.trim().toLowerCase();
+                const nombre = cursadasMateria[0]?.materia_nombre || "";
+                return codigo.toLowerCase().includes(q) || nombre.toLowerCase().includes(q);
+              });
+
+            if (codigosFiltrados.length === 0) {
+              return (
+                <p className="text-sm text-gray-400 py-4 text-center">
+                  {soloCursando ? "No hay materias en curso." : "No se encontraron materias."}
+                </p>
+              );
+            }
+
+            return codigosFiltrados.map((codigo) => {
+              const cursadasMateria = cursadas.filter(
+                (c) => c.materia_codigo === codigo,
+              );
+              if (cursadasMateria.length === 0) return null;
+
+              // Calcular resumen agregado de la materia
+              const todosExamenes = cursadasMateria.flatMap((c) => c.examenes || []);
+              const examenesConNota = todosExamenes.filter(
+                (e) => e.rendido && e.nota !== null && e.nota !== undefined,
+              );
+              const promedioTotal =
+                examenesConNota.length > 0
+                  ? examenesConNota.reduce((s, e) => s + Number(e.nota), 0) /
+                    examenesConNota.length
+                  : null;
+              const aprobadosTotal = examenesConNota.filter(
+                (e) => Number(e.nota) >= 4,
+              ).length;
+              const tasaAprobTotal =
+                examenesConNota.length > 0
+                  ? aprobadosTotal / examenesConNota.length
+                  : null;
+              const promedioAsist =
+                cursadasMateria.length > 0
+                  ? cursadasMateria.reduce(
+                      (s, c) => s + Number(c.asistencia || 0),
+                      0,
+                    ) / cursadasMateria.length
+                  : null;
               const estadoUltima = cursadasMateria[0]?.estado;
-              if (soloCursando && estadoUltima !== "cursando") return false;
-              if (!busquedaAcademica.trim()) return true;
-              const q = busquedaAcademica.trim().toLowerCase();
-              const nombre = cursadasMateria[0]?.materia_nombre || "";
-              return codigo.toLowerCase().includes(q) || nombre.toLowerCase().includes(q);
-            })
-            .map((codigo) => {
-            const cursadasMateria = cursadas.filter(
-              (c) => c.materia_codigo === codigo,
-            );
-            if (cursadasMateria.length === 0) return null;
 
-            // Calcular resumen agregado de la materia
-            const todosExamenes = cursadasMateria.flatMap((c) => c.examenes || []);
-            const examenesConNota = todosExamenes.filter(
-              (e) => e.rendido && e.nota !== null && e.nota !== undefined,
-            );
-            const promedioTotal =
-              examenesConNota.length > 0
-                ? examenesConNota.reduce((s, e) => s + Number(e.nota), 0) /
-                  examenesConNota.length
-                : null;
-            const aprobadosTotal = examenesConNota.filter(
-              (e) => Number(e.nota) >= 4,
-            ).length;
-            const tasaAprobTotal =
-              examenesConNota.length > 0
-                ? aprobadosTotal / examenesConNota.length
-                : null;
-            const promedioAsist =
-              cursadasMateria.length > 0
-                ? cursadasMateria.reduce(
-                    (s, c) => s + Number(c.asistencia || 0),
-                    0,
-                  ) / cursadasMateria.length
-                : null;
-            const estadoUltima = cursadasMateria[0]?.estado;
-
-            return (
-              <div
-                key={codigo}
-                className="bg-white border border-gray-100 rounded-xl p-5"
-              >
-                {/* Encabezado con nombre y badge de estado */}
-                <div className="flex items-start justify-between mb-3">
-                  <div>
-                    <h3 className="text-base font-semibold text-gray-800">
-                      {codigo} — {cursadasMateria[0].materia_nombre}
-                    </h3>
-                    <p className="text-xs text-gray-400 mt-0.5">
-                      {cursadasMateria.length} cursada/s
-                    </p>
+              return (
+                <div
+                  key={codigo}
+                  className="bg-white border border-gray-100 rounded-xl p-5"
+                >
+                  {/* Encabezado con nombre y badge de estado */}
+                  <div className="flex items-start justify-between mb-3">
+                    <div>
+                      <h3 className="text-base font-semibold text-gray-800">
+                        {codigo} — {cursadasMateria[0].materia_nombre}
+                      </h3>
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        {cursadasMateria.length} cursada/s
+                      </p>
+                    </div>
+                    <span
+                      className={`text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${
+                        estadoUltima === "aprobada"
+                          ? "bg-green-100 text-green-700"
+                          : estadoUltima === "cursando"
+                            ? "bg-blue-100 text-blue-700"
+                            : estadoUltima === "recursada"
+                              ? "bg-amber-100 text-amber-700"
+                              : "bg-red-100 text-red-700"
+                      }`}
+                    >
+                      {estadoUltima
+                        ? estadoUltima.charAt(0).toUpperCase() +
+                          estadoUltima.slice(1)
+                        : "—"}
+                    </span>
                   </div>
-                  <span
-                    className={`text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${
-                      estadoUltima === "aprobada"
-                        ? "bg-green-100 text-green-700"
-                        : estadoUltima === "cursando"
-                          ? "bg-blue-100 text-blue-700"
-                          : estadoUltima === "recursada"
-                            ? "bg-amber-100 text-amber-700"
-                            : "bg-red-100 text-red-700"
-                    }`}
-                  >
-                    {estadoUltima
-                      ? estadoUltima.charAt(0).toUpperCase() +
-                        estadoUltima.slice(1)
-                      : "—"}
-                  </span>
-                </div>
 
-                {/* Estadísticas rápidas */}
-                {(promedioTotal !== null || tasaAprobTotal !== null) && (
-                  <div className="flex gap-4 mb-4 pb-3 border-b border-gray-100">
-                    {promedioTotal !== null && (
-                      <div>
-                        <p className="text-xs text-gray-400">Promedio notas</p>
-                        <p
-                          className={`text-lg font-semibold ${
-                            promedioTotal >= 6
-                              ? "text-green-600"
-                              : promedioTotal >= 4
-                                ? "text-amber-600"
-                                : "text-red-500"
-                          }`}
-                        >
-                          {promedioTotal.toFixed(1)}
-                        </p>
-                      </div>
-                    )}
-                    {tasaAprobTotal !== null && (
-                      <div>
-                        <p className="text-xs text-gray-400">Tasa aprobación</p>
-                        <p
-                          className={`text-lg font-semibold ${
-                            tasaAprobTotal >= 0.6
-                              ? "text-green-600"
-                              : tasaAprobTotal >= 0.4
-                                ? "text-amber-600"
-                                : "text-red-500"
-                          }`}
-                        >
-                          {Math.round(tasaAprobTotal * 100)}%
-                        </p>
-                      </div>
-                    )}
-                    {promedioAsist !== null && (
-                      <div>
-                        <p className="text-xs text-gray-400">Asistencia prom.</p>
-                        <p
-                          className={`text-lg font-semibold ${
-                            promedioAsist >= 0.8
-                              ? "text-green-600"
-                              : promedioAsist >= 0.75
-                                ? "text-amber-600"
-                                : "text-red-500"
-                          }`}
-                        >
-                          {Math.round(promedioAsist * 100)}%
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                )}
+                  {/* Estadísticas rápidas */}
+                  {(promedioTotal !== null || tasaAprobTotal !== null) && (
+                    <div className="flex gap-4 mb-4 pb-3 border-b border-gray-100">
+                      {promedioTotal !== null && (
+                        <div>
+                          <p className="text-xs text-gray-400">Promedio notas</p>
+                          <p
+                            className={`text-lg font-semibold ${
+                              promedioTotal >= 6
+                                ? "text-green-600"
+                                : promedioTotal >= 4
+                                  ? "text-amber-600"
+                                  : "text-red-500"
+                            }`}
+                          >
+                            {promedioTotal.toFixed(1)}
+                          </p>
+                        </div>
+                      )}
+                      {tasaAprobTotal !== null && (
+                        <div>
+                          <p className="text-xs text-gray-400">Tasa aprobación</p>
+                          <p
+                            className={`text-lg font-semibold ${
+                              tasaAprobTotal >= 0.6
+                                ? "text-green-600"
+                                : tasaAprobTotal >= 0.4
+                                  ? "text-amber-600"
+                                  : "text-red-500"
+                            }`}
+                          >
+                            {Math.round(tasaAprobTotal * 100)}%
+                          </p>
+                        </div>
+                      )}
+                      {promedioAsist !== null && (
+                        <div>
+                          <p className="text-xs text-gray-400">Asistencia prom.</p>
+                          <p
+                            className={`text-lg font-semibold ${
+                              promedioAsist >= 0.8
+                                ? "text-green-600"
+                                : promedioAsist >= 0.75
+                                  ? "text-amber-600"
+                                  : "text-red-500"
+                            }`}
+                          >
+                            {Math.round(promedioAsist * 100)}%
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
-                {cursadasMateria.map((cursada) => (
-                  <AcordeonCursada key={`${cursada.materia_id}-${cursada.anio}`} cursada={cursada} />
-                ))}
+                  {cursadasMateria.map((cursada) => (
+                    <AcordeonCursada key={`${cursada.materia_id}-${cursada.anio}`} cursada={cursada} />
+                  ))}
 
-                {/* Predicciones inline para la cursada activa */}
-                {estadoUltima === "cursando" && (() => {
-                  const predRecursado = notasPredecidas.find(
-                    (p) => p.materia === codigo && p.es_prediccion_recursado,
-                  );
-                  const predNota = notasPredecidas.find(
-                    (p) => p.materia === codigo && !p.es_prediccion_recursado,
-                  );
+                  {/* Predicciones inline para la cursada activa */}
+                  {estadoUltima === "cursando" && (() => {
+                    const predRecursado = notasPredecidas.find(
+                      (p) => p.materia === codigo && p.es_prediccion_recursado,
+                    );
+                    const predNota = notasPredecidas.find(
+                      (p) => p.materia === codigo && !p.es_prediccion_recursado,
+                    );
 
-                  if (loadingNotas) {
+                    if (loadingNotas) {
+                      return (
+                        <div className="mt-3 pt-3 border-t border-gray-100 flex items-center gap-2 text-xs text-gray-400">
+                          <div className="animate-spin w-3 h-3 border-2 border-gray-200 border-t-gray-500 rounded-full" />
+                          Generando predicciones...
+                        </div>
+                      );
+                    }
+
+                    if (!predRecursado && !predNota) return null;
+
                     return (
-                      <div className="mt-3 pt-3 border-t border-gray-100 flex items-center gap-2 text-xs text-gray-400">
-                        <div className="animate-spin w-3 h-3 border-2 border-gray-200 border-t-gray-500 rounded-full" />
-                        Generando predicciones...
+                      <div className="mt-3 pt-3 border-t border-gray-100">
+                        <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">Predicciones IA</p>
+                        <div className="grid grid-cols-2 gap-3">
+                          {predRecursado && predRecursado.nota_predicha !== null && (() => {
+                            const pct = Math.round(predRecursado.nota_predicha * 100);
+                            const cfg =
+                              pct > 60 ? { bg: "bg-red-50", border: "border-red-200", bar: "bg-red-500", text: "text-red-700" }
+                              : pct > 40 ? { bg: "bg-amber-50", border: "border-amber-200", bar: "bg-amber-400", text: "text-amber-700" }
+                              : { bg: "bg-green-50", border: "border-green-200", bar: "bg-green-500", text: "text-green-700" };
+                            return (
+                              <div className={`${cfg.bg} border ${cfg.border} rounded-lg p-3`}>
+                                <p className="text-xs text-gray-500 mb-1">Prob. recursado</p>
+                                <p className={`text-2xl font-bold ${cfg.text}`}>{pct}%</p>
+                                <div className="w-full bg-white/70 rounded-full h-1 mt-1.5 overflow-hidden">
+                                  <div className={`h-1 rounded-full ${cfg.bar}`} style={{ width: `${pct}%` }} />
+                                </div>
+                              </div>
+                            );
+                          })()}
+                          {predNota && predNota.nota_predicha !== null && (() => {
+                            const n = predNota.nota_predicha;
+                            const cfg =
+                              n >= 7 ? { bg: "bg-green-50", border: "border-green-200", bar: "bg-green-500", text: "text-green-700" }
+                              : n >= 4 ? { bg: "bg-amber-50", border: "border-amber-200", bar: "bg-amber-400", text: "text-amber-700" }
+                              : { bg: "bg-red-50", border: "border-red-200", bar: "bg-red-500", text: "text-red-700" };
+                            return (
+                              <div className={`${cfg.bg} border ${cfg.border} rounded-lg p-3`}>
+                                <p className="text-xs text-gray-500 mb-1">
+                                  Próxima nota · {predNota.tipo_examen} {predNota.instancia}
+                                </p>
+                                <p className={`text-2xl font-bold ${cfg.text}`}>{n.toFixed(1)}</p>
+                                <div className="w-full bg-white/70 rounded-full h-1 mt-1.5 overflow-hidden">
+                                  <div className={`h-1 rounded-full ${cfg.bar}`} style={{ width: `${Math.min((n / 10) * 100, 100)}%` }} />
+                                </div>
+                              </div>
+                            );
+                          })()}
+                        </div>
                       </div>
                     );
-                  }
-
-                  if (!predRecursado && !predNota) return null;
-
-                  return (
-                    <div className="mt-3 pt-3 border-t border-gray-100">
-                      <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">Predicciones IA</p>
-                      <div className="grid grid-cols-2 gap-3">
-                        {predRecursado && predRecursado.nota_predicha !== null && (() => {
-                          const pct = Math.round(predRecursado.nota_predicha * 100);
-                          const cfg =
-                            pct > 60 ? { bg: "bg-red-50", border: "border-red-200", bar: "bg-red-500", text: "text-red-700" }
-                            : pct > 40 ? { bg: "bg-amber-50", border: "border-amber-200", bar: "bg-amber-400", text: "text-amber-700" }
-                            : { bg: "bg-green-50", border: "border-green-200", bar: "bg-green-500", text: "text-green-700" };
-                          return (
-                            <div className={`${cfg.bg} border ${cfg.border} rounded-lg p-3`}>
-                              <p className="text-xs text-gray-500 mb-1">Prob. recursado</p>
-                              <p className={`text-2xl font-bold ${cfg.text}`}>{pct}%</p>
-                              <div className="w-full bg-white/70 rounded-full h-1 mt-1.5 overflow-hidden">
-                                <div className={`h-1 rounded-full ${cfg.bar}`} style={{ width: `${pct}%` }} />
-                              </div>
-                            </div>
-                          );
-                        })()}
-                        {predNota && predNota.nota_predicha !== null && (() => {
-                          const n = predNota.nota_predicha;
-                          const cfg =
-                            n >= 7 ? { bg: "bg-green-50", border: "border-green-200", bar: "bg-green-500", text: "text-green-700" }
-                            : n >= 4 ? { bg: "bg-amber-50", border: "border-amber-200", bar: "bg-amber-400", text: "text-amber-700" }
-                            : { bg: "bg-red-50", border: "border-red-200", bar: "bg-red-500", text: "text-red-700" };
-                          return (
-                            <div className={`${cfg.bg} border ${cfg.border} rounded-lg p-3`}>
-                              <p className="text-xs text-gray-500 mb-1">
-                                Próxima nota · {predNota.tipo_examen} {predNota.instancia}
-                              </p>
-                              <p className={`text-2xl font-bold ${cfg.text}`}>{n.toFixed(1)}</p>
-                              <div className="w-full bg-white/70 rounded-full h-1 mt-1.5 overflow-hidden">
-                                <div className={`h-1 rounded-full ${cfg.bar}`} style={{ width: `${Math.min((n / 10) * 100, 100)}%` }} />
-                              </div>
-                            </div>
-                          );
-                        })()}
-                      </div>
-                    </div>
-                  );
-                })()}
-              </div>
-            );
-          })}
+                  })()}
+                </div>
+              );
+            });
+          })()}
         </div>
       )}
 
