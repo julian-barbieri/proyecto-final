@@ -26,12 +26,15 @@ dist/
 # MODELOS Y DATOS (CRÍTICO EN DATA SCIENCE)
 # ==========================================
 
-# Modelos entrenados (pueden ser 100+ MB)
-src/models/models-trained/*.pkl
+# Modelos entrenados grandes (los .pkl del proyecto se incluyen explícitamente)
 src/models/models-trained/*.joblib
 src/models/models-trained/*.h5
 src/models/models-trained/*.pt
 src/models/models-trained/*.pth
+# Forzar inclusión de los .pkl del proyecto (override del *.pkl global)
+!src/models/models-trained/modelo_alumno.pkl
+!src/models/models-trained/modelo_materia.pkl
+!src/models/models-trained/modelo_examen.pkl
 src/models/training/
 
 # Datasets de prueba/entrenamiento
