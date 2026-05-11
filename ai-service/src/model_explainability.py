@@ -55,16 +55,17 @@ def cargar_modelos(models_dir: str = _MODELS_DIR) -> dict:
     """
     modelos = {}
     datasets = ['alumno', 'materia', 'examen']
+    models_trained_dir = os.path.join(models_dir, 'models-trained')
 
     for ds in datasets:
-        ruta = os.path.join(models_dir, f'modelo_{ds}.pkl')
+        ruta = os.path.join(models_trained_dir, f'modelo_{ds}.pkl')
         try:
             modelos[ds] = joblib.load(ruta)
             print(f'  [OK] modelo_{ds}.pkl cargado correctamente.')
         except FileNotFoundError:
             raise RuntimeError(
                 f'No se encontró el archivo: {ruta}\n'
-                f'Ejecutá model_training_evaluation.py primero para generar los .pkl.'
+                f'Ejecutá python models/training/main.py primero para generar los .pkl.'
             )
         except Exception as exc:
             raise RuntimeError(f'Error al cargar modelo_{ds}.pkl: {exc}') from exc
@@ -115,39 +116,71 @@ def explicar_modelo(
     X_np = X_test.values  # array numpy para SHAP
 
     # ------------------------------------------------------------------
-    # 2.1  Instanciar TreeExplainer y calcular SHAP values
+    # 2.1  Instanciar Explainer automático según tipo de modelo
     # ------------------------------------------------------------------
     print(f'\n  [{nombre_modelo.upper()}] Calculando SHAP values...')
     try:
-        explainer = shap.TreeExplainer(model)
-        shap_raw  = explainer.shap_values(X_test, check_additivity=False)
+        model_type = type(model).__name__
+        
+        # Detectar tipo de modelo y usar explainer óptimo
+        if 'Logistic' in model_type or 'LinearRegression' in model_type or 'Linear' in model_type:
+            # Modelos lineales: usar LinearExplainer (rápido y exacto)
+            print(f'  [INFO] Detectado modelo lineal: {model_type}. Usando LinearExplainer.')
+            explainer = shap.LinearExplainer(model, X_test)
+            shap_raw = explainer.shap_values(X_test)
+        elif any(tree_model in model_type for tree_model in ['XGB', 'RandomForest', 'GradientBoosting', 'DecisionTree']):
+            # Modelos basados en árboles: usar TreeExplainer (muy rápido)
+            print(f'  [INFO] Detectado modelo basado en árboles: {model_type}. Usando TreeExplainer.')
+            explainer = shap.TreeExplainer(model)
+            shap_raw = explainer.shap_values(X_test, check_additivity=False)
+        else:
+            # Otros modelos: usar KernelExplainer genérico (más lento pero funciona con cualquiera)
+            print(f'  [INFO] Modelo no reconocido: {model_type}. Usando KernelExplainer (puede ser lento).')
+            if tipo == 'clasificacion':
+                predictor = lambda X: model.predict_proba(X)[:, 1]
+            else:
+                predictor = lambda X: model.predict(X)
+            explainer = shap.KernelExplainer(
+                model=predictor,
+                data=shap.sample(X_test, min(100, len(X_test)))
+            )
+            shap_raw = explainer.shap_values(X_test, check_additivity=False)
     except Exception as exc:
-        print(f'  [ERROR] No se pudo instanciar TreeExplainer para {nombre_modelo}: {exc}')
+        print(f'  [ERROR] No se pudo instanciar Explainer para {nombre_modelo}: {exc}')
         raise
 
-    # Para clasificadores binarios, shap_values devuelve una lista [clase0, clase1].
-    # Usamos siempre la clase positiva (índice 1).
+    # Para clasificadores binarios, shap_values puede venir en 3 formatos según versión de SHAP:
+    #   - lista [clase0, clase1]  → SHAP antiguo con TreeExplainer/KernelExplainer
+    #   - array 3D (n, f, clases) → SHAP nuevo con RandomForest/sklearn tree models
+    #   - array 2D (n, f)         → LinearExplainer o GBM log-odds directo
+    # Siempre extraemos la clase positiva (índice 1) para clasificación binaria.
     if tipo == 'clasificacion':
         if isinstance(shap_raw, list):
-            shap_vals = shap_raw[1]            # (n_muestras, n_features) clase positiva
-            base_val  = (
+            shap_vals = shap_raw[1]
+            base_val  = float(
                 explainer.expected_value[1]
                 if isinstance(explainer.expected_value, (list, np.ndarray))
                 else explainer.expected_value
             )
+        elif isinstance(shap_raw, np.ndarray) and shap_raw.ndim == 3:
+            # SHAP >= 0.40 con sklearn tree: shape (n_muestras, n_features, n_clases)
+            shap_vals = shap_raw[:, :, 1]
+            ev = explainer.expected_value
+            base_val  = float(ev[1] if isinstance(ev, (list, np.ndarray)) else ev)
         else:
-            # Algunos modelos devuelven directamente un array 3D (n, f, 2)
-            shap_vals = shap_raw[:, :, 1] if shap_raw.ndim == 3 else shap_raw
-            base_val  = (
-                explainer.expected_value[-1]
-                if hasattr(explainer.expected_value, '__len__')
-                else explainer.expected_value
+            # Array 2D directo (GBM log-odds, LinearExplainer)
+            shap_vals = shap_raw
+            ev = explainer.expected_value
+            base_val  = float(
+                ev if not isinstance(ev, (list, np.ndarray))
+                else (ev[1] if isinstance(ev, list) else ev[0])
             )
     else:
+        # Regresión
         shap_vals = shap_raw          # (n_muestras, n_features)
         base_val  = (
             float(explainer.expected_value)
-            if not hasattr(explainer.expected_value, '__len__')
+            if not isinstance(explainer.expected_value, (list, np.ndarray))
             else float(explainer.expected_value[0])
         )
 
@@ -340,16 +373,18 @@ if __name__ == '__main__':
     MODELS_DIR = _MODELS_DIR
     OUTPUT_DIR = _OUTPUT_DIR
 
-    # Rutas a los CSV de test generados por model_training_evaluation.py
+    # Rutas a los CSV de test generados por models/training/main.py
+    # Los archivos se guardan en la carpeta dataset-test dentro de models/
+    DATASET_TEST_DIR = os.path.join(MODELS_DIR, 'dataset-test')
     CSV_X_TEST = {
-        'alumno':  os.path.join(MODELS_DIR, 'X_test_alumno.csv'),
-        'materia': os.path.join(MODELS_DIR, 'X_test_materia.csv'),
-        'examen':  os.path.join(MODELS_DIR, 'X_test_examen.csv'),
+        'alumno':  os.path.join(DATASET_TEST_DIR, 'X_test_alumno.csv'),
+        'materia': os.path.join(DATASET_TEST_DIR, 'X_test_materia.csv'),
+        'examen':  os.path.join(DATASET_TEST_DIR, 'X_test_examen.csv'),
     }
     CSV_Y_TEST = {
-        'alumno':  os.path.join(MODELS_DIR, 'y_test_alumno.csv'),
-        'materia': os.path.join(MODELS_DIR, 'y_test_materia.csv'),
-        'examen':  os.path.join(MODELS_DIR, 'y_test_examen.csv'),
+        'alumno':  os.path.join(DATASET_TEST_DIR, 'y_test_alumno.csv'),
+        'materia': os.path.join(DATASET_TEST_DIR, 'y_test_materia.csv'),
+        'examen':  os.path.join(DATASET_TEST_DIR, 'y_test_examen.csv'),
     }
 
     # Tipo de problema por dataset

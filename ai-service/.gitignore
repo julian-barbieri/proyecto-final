@@ -1,11 +1,82 @@
+# ==========================================
+# ENTORNOS VIRTUALES Y DEPENDENCIAS
+# ==========================================
+
+venv/
+.venv/
+env/
+.env
+.env.local
+*.egg-info/
+
+# ==========================================
+# ARCHIVOS COMPILADOS Y CACHÉ
+# ==========================================
+
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
-venv/
-.venv/
-env/
-.env
+build/
+dist/
+*.egg
+
+# ==========================================
+# MODELOS Y DATOS (CRÍTICO EN DATA SCIENCE)
+# ==========================================
+
+# Modelos entrenados (pueden ser 100+ MB)
+src/models/models-trained/*.pkl
+src/models/models-trained/*.joblib
+src/models/models-trained/*.h5
+src/models/models-trained/*.pt
+src/models/models-trained/*.pth
+src/models/training/
+
+# Datasets de prueba/entrenamiento
+src/dataset-test/
+src/dataset-test/*.csv
+src/dataset-test/*.xlsx
+src/dataset-test/*.parquet
+
+# Datasets locales
+data/*.csv
+data/*.xlsx
+data/*.parquet
+data/*.json
+
+# Outputs y análisis
+outputs/
+outputs/shap/
+outputs/shap/*.csv
+
+# ==========================================
+# JUPYTER Y NOTEBOOKS
+# ==========================================
+
+.ipynb_checkpoints/
+*/.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# ==========================================
+# LOGS Y TEMPORALES
+# ==========================================
+
+logs/
 *.log
+temp/
+tmp/
+*.tmp
+*.pickle
+
+# ==========================================
+# IDE
+# ==========================================
+
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
 

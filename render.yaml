@@ -1,0 +1,45 @@
+services:
+  - type: web
+    name: pf-frontend
+    env: static
+    buildCommand: cd frontend && npm install && npm run build
+    staticPublishPath: frontend/dist
+    envVars:
+      - key: VITE_API_URL
+        value: https://pf-backend.onrender.com
+
+  - type: web
+    name: pf-backend
+    env: node
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: node src/app.js
+    plan: free
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: FRONTEND_URL
+        value: https://pf-frontend.onrender.com
+      - key: AI_SERVICE_URL
+        value: https://pf-ai.onrender.com
+      - key: GOOGLE_CALLBACK_URL
+        value: https://pf-backend.onrender.com/api/auth/google/callback
+      - key: UPLOADS_BASE_URL
+        value: https://pf-backend.onrender.com/uploads
+      - key: JWT_SECRET
+        generateValue: true
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+
+  - type: web
+    name: pf-ai
+    env: docker
+    rootDir: ai-service
+    dockerfilePath: ./Dockerfile
+    plan: free

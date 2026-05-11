@@ -35,6 +35,7 @@ api.interceptors.response.use(
       error?.response?.data?.error || error?.response?.data?.message;
 
     const fallbackByStatus = {
+      404: "Recurso no encontrado. Verificá que el backend esté actualizado y en ejecución.",
       403: "No tenés permisos para realizar esta acción.",
       422: "Datos de entrada inválidos.",
       500: "Error interno del servidor.",

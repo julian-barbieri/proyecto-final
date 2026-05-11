@@ -1,54 +1,41 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import api from "../../api/axios";
 
 const currentYear = new Date().getFullYear();
 
 const initialValues = {
-  Materia: "0",
-  AnioCursada: String(currentYear),
+  Materia: "",
   Asistencia: "0.75",
+  AnioIngreso: String(currentYear - 1),
+  AnioCursada: String(currentYear),
+  AniosDesdeIngreso: "1",
   Genero: "0",
   Edad: "20",
   AyudaFinanciera: "0",
   ColegioTecnico: "0",
   PromedioColegio: "7",
-  AnioIngreso: String(currentYear - 1),
-  AniosDesdeIngreso: "1",
-  VecesRendidaExamenMateria: "0",
-  VecesAusenteMateria: "0",
-  CantAprobadosMateria: "0",
-  PromedioNotaMateria: "5",
-  TasaAprobacionMateria: "0",
   PromedioNotaGeneral: "5",
   TasaAprobacionGeneral: "0.5",
+  IndiceBloqueo: "0",
 };
 
+// Campos que se envían al modelo (deben coincidir exactamente con feature_names_in_)
 const payloadFields = [
-  "Materia",
-  "AnioCursada",
-  "Asistencia",
-  "Genero",
   "Edad",
-  "AyudaFinanciera",
-  "ColegioTecnico",
   "PromedioColegio",
-  "AnioIngreso",
+  "Asistencia",
   "AniosDesdeIngreso",
-  "VecesRendidaExamenMateria",
-  "VecesAusenteMateria",
-  "PromedioNotaMateria",
-  "TasaAprobacionMateria",
+  "Materia",
   "PromedioNotaGeneral",
   "TasaAprobacionGeneral",
+  "IndiceBloqueo",
+  "Genero",
+  "AyudaFinanciera",
+  "ColegioTecnico",
 ];
 
-const sectionClassName =
-  "rounded-xl border border-slate-200 bg-slate-50/70 p-5";
+const sectionClassName = "rounded-xl border border-slate-200 bg-slate-50/70 p-5";
 const readOnlyClassName = "bg-slate-100 text-slate-600";
-
-function formatRatio(value) {
-  return Number.isFinite(value) ? String(Number(value.toFixed(2))) : "0";
-}
 
 function isEmptyValue(value) {
   return value === "" || value === null || value === undefined;
@@ -73,28 +60,34 @@ export default function MateriaForm({
   const [errors, setErrors] = useState({});
   const [errorMessage, setErrorMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [materias, setMaterias] = useState([]);
 
   const submitDisabled = isLoading || isSubmitting;
+
+  useEffect(() => {
+    api
+      .get("/api/gestion/materias")
+      .then((res) => setMaterias(res.data || []))
+      .catch(() => setMaterias([]));
+  }, []);
 
   const updateDerivedFields = (nextValues) => {
     const anioCursada = Number(nextValues.AnioCursada || currentYear);
     const anioIngreso = Number(nextValues.AnioIngreso || currentYear - 1);
-    const rendidas = Number(nextValues.VecesRendidaExamenMateria || 0);
-    const ausentes = Number(nextValues.VecesAusenteMateria || 0);
-    const cantAprobados = Number(nextValues.CantAprobadosMateria || 0);
+    const aniosDesdeIngreso = Math.max(0, Math.min(10, anioCursada - anioIngreso));
 
-    const aniosDesdeIngreso = Math.max(
-      0,
-      Math.min(10, anioCursada - anioIngreso),
+    // Actualizar IndiceBloqueo según materia seleccionada y plan
+    const materiaSeleccionada = materias.find(
+      (m) => String(m.codigo_plan) === String(nextValues.Materia),
     );
-    const examenesValidos = rendidas - ausentes;
-    const tasaAprobacionMateria =
-      examenesValidos > 0 ? cantAprobados / rendidas : 0;
+    const indiceBloqueo = nextValues.IndiceBloqueo ?? "0";
 
     return {
       ...nextValues,
       AniosDesdeIngreso: String(aniosDesdeIngreso),
-      TasaAprobacionMateria: formatRatio(tasaAprobacionMateria),
+      IndiceBloqueo: materiaSeleccionada?.correlativas?.length === 0
+        ? "0"
+        : indiceBloqueo,
     };
   };
 
@@ -105,10 +98,10 @@ export default function MateriaForm({
           name: "Materia",
           label: "Materia",
           type: "select",
-          options: [
-            { label: "AM1 - Análisis Matemático 1", value: "0" },
-            { label: "AM2 - Análisis Matemático 2", value: "1" },
-          ],
+          options: materias.map((m) => ({
+            label: `${m.codigo_plan} - ${m.nombre}`,
+            value: String(m.codigo_plan),
+          })),
         },
         {
           name: "AnioCursada",
@@ -179,43 +172,6 @@ export default function MateriaForm({
           readOnly: true,
         },
       ],
-      historialMateria: [
-        {
-          name: "VecesRendidaExamenMateria",
-          label: "Veces que rindió examen en esta materia",
-          type: "number",
-          min: 0,
-        },
-        {
-          name: "VecesAusenteMateria",
-          label: "Ausencias en exámenes de esta materia",
-          type: "number",
-          min: 0,
-        },
-        {
-          name: "CantAprobadosMateria",
-          label: "Cantidad de aprobados",
-          type: "number",
-          min: 0,
-        },
-        {
-          name: "PromedioNotaMateria",
-          label: "Promedio de nota en esta materia",
-          type: "number",
-          min: 0,
-          max: 10,
-          step: "0.1",
-        },
-        {
-          name: "TasaAprobacionMateria",
-          label: "Tasa de aprobación en esta materia",
-          type: "number",
-          min: 0,
-          max: 1,
-          step: "0.01",
-          readOnly: true,
-        },
-      ],
       rendimientoGeneral: [
         {
           name: "PromedioNotaGeneral",
@@ -233,39 +189,33 @@ export default function MateriaForm({
           max: 1,
           step: "0.01",
         },
+        {
+          name: "IndiceBloqueo",
+          label: "Índice de bloqueo (0=sin bloqueo, 1=bloqueado)",
+          type: "number",
+          min: 0,
+          max: 1,
+          step: "0.01",
+        },
       ],
     }),
-    [],
+    [materias],
   );
 
   const validateForm = (values) => {
     const validationErrors = Object.fromEntries(
       Object.entries(values)
-        .filter(([, value]) => isEmptyValue(value))
+        .filter(([key, value]) => payloadFields.includes(key) && isEmptyValue(value))
         .map(([key]) => [key, "Este campo es obligatorio"]),
     );
-
-    const rendidas = Number(values.VecesRendidaExamenMateria || 0);
-    const aprobados = Number(values.CantAprobadosMateria || 0);
-
-    if (aprobados > rendidas) {
-      validationErrors.CantAprobadosMateria =
-        "La cantidad de aprobados no puede superar las veces rendidas.";
-    }
-
     return validationErrors;
   };
 
   const handleChange = (event) => {
     const { name, value } = event.target;
-
     setFormValues((prev) => updateDerivedFields({ ...prev, [name]: value }));
-
     setErrors((prev) => {
-      if (!prev[name]) {
-        return prev;
-      }
-
+      if (!prev[name]) return prev;
       const nextErrors = { ...prev };
       delete nextErrors[name];
       return nextErrors;
@@ -287,10 +237,7 @@ export default function MateriaForm({
 
     const validationErrors = validateForm(formValues);
     setErrors(validationErrors);
-
-    if (Object.keys(validationErrors).length > 0) {
-      return;
-    }
+    if (Object.keys(validationErrors).length > 0) return;
 
     onPredictStart?.();
     setIsSubmitting(true);
@@ -302,15 +249,9 @@ export default function MateriaForm({
     } catch (error) {
       const message = !error?.response
         ? "No se pudo conectar con el backend. Verificá que esté corriendo en http://localhost:3001"
-        : error?.message ||
-          error?.response?.data?.error ||
-          "No se pudo obtener la predicción.";
-
-      if (onPredictError) {
-        onPredictError(message);
-      } else {
-        setErrorMessage(message);
-      }
+        : error?.message || error?.response?.data?.error || "No se pudo obtener la predicción.";
+      if (onPredictError) onPredictError(message);
+      else setErrorMessage(message);
     } finally {
       setIsSubmitting(false);
       onPredictEnd?.();
@@ -332,6 +273,9 @@ export default function MateriaForm({
           className={sharedClassName}
           required
         >
+          {field.name === "Materia" && (
+            <option value="">-- Seleccionar materia --</option>
+          )}
           {field.options.map((option) => (
             <option key={option.value} value={option.value}>
               {option.label}
@@ -367,10 +311,7 @@ export default function MateriaForm({
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         {sectionFields.map((field) => (
           <div key={field.name}>
-            <label
-              htmlFor={field.name}
-              className="text-sm font-medium text-slate-700"
-            >
+            <label htmlFor={field.name} className="text-sm font-medium text-slate-700">
               {field.label}
             </label>
             {renderField(field)}
@@ -389,12 +330,9 @@ export default function MateriaForm({
       className="space-y-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
     >
       <div>
-        <h2 className="text-xl font-semibold text-slate-900">
-          Predicción de recursado
-        </h2>
+        <h2 className="text-xl font-semibold text-slate-900">Predicción de recursado</h2>
         <p className="mt-1 text-sm text-slate-600">
-          Completá la información de cursada para estimar riesgo de recursado en
-          la materia.
+          Completá la información de cursada para estimar riesgo de recursado en la materia.
         </p>
       </div>
 
@@ -409,13 +347,8 @@ export default function MateriaForm({
         fields.alumno,
       )}
       {renderSection(
-        "Historial en esta materia",
-        "Desempeño histórico específico de la materia.",
-        fields.historialMateria,
-      )}
-      {renderSection(
         "Rendimiento general",
-        "Indicadores globales de rendimiento académico.",
+        "Indicadores globales de rendimiento académico y correlativas.",
         fields.rendimientoGeneral,
       )}
 
