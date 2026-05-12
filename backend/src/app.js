@@ -89,13 +89,9 @@ app.use(
 app.use("/api/notas", authenticate, notasRoutes);
 app.use("/api/sugerencias", sugerenciasRoutes);
 
-seedUsers()
-  .then(() => {
-    app.listen(PORT, () => {
-      console.log(`Backend running on http://localhost:${PORT}`);
-    });
-  })
-  .catch((error) => {
-    console.error("Error during startup:", error);
-    process.exit(1);
+app.listen(PORT, () => {
+  console.log(`Backend running on http://localhost:${PORT}`);
+  seedUsers().catch((error) => {
+    console.error("Error during seed:", error);
   });
+});
