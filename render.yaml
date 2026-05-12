@@ -6,7 +6,7 @@ services:
     staticPublishPath: frontend/dist
     envVars:
       - key: VITE_API_URL
-        value: https://pf-backend.onrender.com
+        value: https://pf-backend-fgg3.onrender.com
 
   - type: web
     name: pf-backend
@@ -19,13 +19,13 @@ services:
       - key: NODE_ENV
         value: production
       - key: FRONTEND_URL
-        value: https://pf-frontend.onrender.com
+        value: https://pf-frontend-1cdz.onrender.com
       - key: AI_SERVICE_URL
         value: https://pf-ai.onrender.com
       - key: GOOGLE_CALLBACK_URL
-        value: https://pf-backend.onrender.com/api/auth/google/callback
+        value: https://pf-backend-fgg3.onrender.com/api/auth/google/callback
       - key: UPLOADS_BASE_URL
-        value: https://pf-backend.onrender.com/uploads
+        value: https://pf-backend-fgg3.onrender.com/uploads
       - key: JWT_SECRET
         generateValue: true
       - key: SESSION_SECRET
