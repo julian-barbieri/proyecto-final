@@ -109,11 +109,7 @@ export function AuthProvider({ children }) {
 
       return applyTokenSession(authToken, userData);
     } catch (error) {
-      const message =
-        error?.response?.data?.message ||
-        error?.response?.data?.error ||
-        "No se pudo iniciar sesión";
-      throw new Error(message);
+      throw new Error(error?.message || "No se pudo iniciar sesión");
     }
   };
 

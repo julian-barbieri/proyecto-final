@@ -21,8 +21,9 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     const status = error?.response?.status;
+    const requestUrl = error?.config?.url || "";
 
-    if (status === 401) {
+    if (status === 401 && !requestUrl.includes("/api/auth/login")) {
       localStorage.removeItem("auth_token");
       sessionStorage.setItem(
         "auth_error",
