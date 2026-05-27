@@ -504,6 +504,7 @@ def ft_engineering_procesado(dataset: str = 'examen'):
         )
         if os.path.exists(_mat_path):
             _modelo_mat  = _joblib.load(_mat_path)
+            # feature_names_in_ requires sklearn >= 1.0 (guaranteed in this project)
             _mat_cols    = [str(c) for c in _modelo_mat.feature_names_in_]
             df['ProbRecursa'] = _modelo_mat.predict_proba(
                 df[_mat_cols].fillna(0)
