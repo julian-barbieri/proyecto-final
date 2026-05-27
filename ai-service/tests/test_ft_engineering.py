@@ -31,3 +31,47 @@ def test_examen_prob_recursa_no_es_constante():
     """ProbRecursa debe tener varianza real (no ser siempre 0 del fallback)."""
     X_train, _, _, _ = ft_engineering_procesado('examen')
     assert X_train['ProbRecursa'].std() > 0.01
+
+
+def test_coherencia_nota_vs_recursado():
+    """
+    Un alumno con alta probabilidad de recursado debe tener nota predicha
+    menor que uno con baja probabilidad, ceteris paribus.
+    """
+    import joblib
+    from pathlib import Path
+
+    models_dir = Path(__file__).parents[1] / 'src' / 'models' / 'models-trained'
+    modelo_examen = joblib.load(models_dir / 'modelo_examen.pkl')
+    examen_cols   = list(modelo_examen.feature_names_in_)
+
+    assert 'ProbRecursa' in examen_cols, (
+        "modelo_examen no fue reentrenado con ProbRecursa. "
+        "Ejecutar Task 3 (reentrenamiento) primero."
+    )
+
+    import pandas as pd
+
+    base = {col: 0.0 for col in examen_cols}
+    base.update({
+        'Asistencia': 0.90, 'NotaPromedioParcialCursada': 8.0,
+        'PromedioNotaGeneral': 7.5, 'TasaAprobacionGeneral': 0.85,
+        'ProbRecursa': 0.05, 'TasaRecursaMateria': 0.05,
+    })
+
+    alto_riesgo = base.copy()
+    alto_riesgo.update({
+        'Asistencia': 0.50, 'NotaPromedioParcialCursada': 2.0,
+        'PromedioNotaGeneral': 3.5, 'TasaAprobacionGeneral': 0.25,
+        'ProbRecursa': 0.85, 'TasaRecursaMateria': 0.65,
+    })
+
+    X_bajo = pd.DataFrame([base])[examen_cols]
+    X_alto = pd.DataFrame([alto_riesgo])[examen_cols]
+
+    nota_bajo = modelo_examen.predict(X_bajo)[0]
+    nota_alto = modelo_examen.predict(X_alto)[0]
+
+    assert nota_alto < nota_bajo, (
+        f"Se esperaba nota_alto ({nota_alto:.2f}) < nota_bajo ({nota_bajo:.2f})"
+    )
