@@ -8,11 +8,13 @@ from feature_engineering.ft_engineering import ft_engineering_procesado
 
 def test_examen_tiene_promedio_nota_general():
     X_train, X_test, _, _ = ft_engineering_procesado('examen')
-    assert 'PromedioNotaGeneral' in X_train.columns
-    assert X_train['PromedioNotaGeneral'].between(0, 10).all()
+    for split in (X_train, X_test):
+        assert 'PromedioNotaGeneral' in split.columns
+        assert split['PromedioNotaGeneral'].between(0, 10).all()
 
 
 def test_examen_tiene_tasa_aprobacion_general():
     X_train, X_test, _, _ = ft_engineering_procesado('examen')
-    assert 'TasaAprobacionGeneral' in X_train.columns
-    assert X_train['TasaAprobacionGeneral'].between(0, 1).all()
+    for split in (X_train, X_test):
+        assert 'TasaAprobacionGeneral' in split.columns
+        assert split['TasaAprobacionGeneral'].between(0, 1).all()

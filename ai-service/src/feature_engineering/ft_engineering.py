@@ -336,9 +336,11 @@ def ft_engineering_procesado(dataset: str = 'examen'):
         ]
         df[fill_zero] = df[fill_zero].fillna(0)
 
-        # -- 0e2) PromedioNotaGeneral / TasaAprobacionGeneral por IdAlumno ------
+        # -- 0d2) PromedioNotaGeneral / TasaAprobacionGeneral por IdAlumno ------
         # Mismas features que usa modelo_materia: alinea la señal de rendimiento
         # académico entre ambos modelos para reducir predicciones contradictorias.
+        # Nota: el aggregate incluye la fila actual (misma limitacion que en
+        # nivel_materia). En produccion, el historial previo es el proxy valido.
         ex_nota_general = examen[examen['AusenteExamen'] == 0].groupby('IdAlumno').agg(
             PromedioNotaGeneral   = ('Nota', 'mean'),
             TasaAprobacionGeneral = ('Nota', lambda x: (x >= 4).mean()),
