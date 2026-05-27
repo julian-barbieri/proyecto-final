@@ -18,3 +18,15 @@ def test_examen_tiene_tasa_aprobacion_general():
     for split in (X_train, X_test):
         assert 'TasaAprobacionGeneral' in split.columns
         assert split['TasaAprobacionGeneral'].between(0, 1).all()
+
+
+def test_examen_tiene_prob_recursa():
+    X_train, X_test, _, _ = ft_engineering_procesado('examen')
+    assert 'ProbRecursa' in X_train.columns
+    assert X_train['ProbRecursa'].between(0, 1).all()
+
+
+def test_examen_prob_recursa_no_es_constante():
+    """ProbRecursa debe tener varianza real (no ser siempre 0 del fallback)."""
+    X_train, _, _, _ = ft_engineering_procesado('examen')
+    assert X_train['ProbRecursa'].std() > 0.01

@@ -493,6 +493,25 @@ def ft_engineering_procesado(dataset: str = 'examen'):
         materia_vars = [col for col in materia_vars if col in df.columns]
         df = df[materia_vars]
 
+    # -- Stacking: ProbRecursa desde modelo_materia (solo para dataset examen) -
+    # Se carga modelo_materia.pkl (entrenado antes que examen en train_models.py)
+    # y se predice la probabilidad de recursado para cada fila del dataset examen.
+    # Si el modelo no existe (primer run en frío), se usa 0.0 como fallback.
+    if dataset == 'examen':
+        import joblib as _joblib
+        _mat_path = os.path.join(
+            os.path.dirname(__file__), '..', 'models', 'models-trained', 'modelo_materia.pkl'
+        )
+        if os.path.exists(_mat_path):
+            _modelo_mat  = _joblib.load(_mat_path)
+            _mat_cols    = [str(c) for c in _modelo_mat.feature_names_in_]
+            df['ProbRecursa'] = _modelo_mat.predict_proba(
+                df[_mat_cols].fillna(0)
+            )[:, 1]
+        else:
+            df['ProbRecursa'] = 0.0
+            print('[EXAMEN] modelo_materia.pkl no encontrado — ProbRecursa=0.0 (fallback)')
+
     # -- 2) Identificar variables categoricas, numericas y binarias -----------
     # Nota: Materia es una ID numérica (140-187), no una categoría nominal.
     # No debe ser OneHotEncoded, debe mantener su naturaleza numérica.
