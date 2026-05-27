@@ -58,6 +58,9 @@ except FileNotFoundError as exc:
 _ALUMNO_COLS  = [str(f) for f in model_alumno.feature_names_in_]
 _MATERIA_COLS = [str(f) for f in model_materia.feature_names_in_]
 _EXAMEN_COLS  = [str(f) for f in model_examen.feature_names_in_]
+# Features calculadas internamente por la API; no se exponen en el schema de entrada.
+_INTERNAL_EXAMEN   = frozenset({'ProbRecursa'})
+_EXAMEN_COLS_INPUT = [c for c in _EXAMEN_COLS if c not in _INTERNAL_EXAMEN]
 
 
 # ---------------------------------------------------------------------------
@@ -152,7 +155,7 @@ _examen_ohe  = _detectar_ohe(_EXAMEN_COLS)
 
 AlumnoInput  = _crear_pydantic_model('AlumnoInput',  _ALUMNO_COLS,  _alumno_ohe)
 MateriaInput = _crear_pydantic_model('MateriaInput', _MATERIA_COLS, _materia_ohe)
-ExamenInput  = _crear_pydantic_model('ExamenInput',  _EXAMEN_COLS,  _examen_ohe)
+ExamenInput  = _crear_pydantic_model('ExamenInput',  _EXAMEN_COLS_INPUT, _examen_ohe)
 
 
 # ---------------------------------------------------------------------------
@@ -250,13 +253,20 @@ def predict_examen(registros: List[ExamenInput]):
     Predice la nota (0-10) que obtendra un alumno en un examen.
 
     - **Nota**: nota predicha redondeada a 2 decimales.
+
+    ProbRecursa se calcula internamente usando modelo_materia; no es necesario
+    proveerla como input.
     """
     if not registros:
         raise HTTPException(status_code=422, detail='La lista de registros no puede estar vacia.')
 
-    df = _registros_a_df(registros, _EXAMEN_COLS, _examen_ohe)
+    df = _registros_a_df(registros, _EXAMEN_COLS_INPUT, _examen_ohe)
 
-    predicciones = model_examen.predict(df).tolist()
+    if 'ProbRecursa' in _EXAMEN_COLS:
+        X_mat = df[list(_MATERIA_COLS)].copy().fillna(0)
+        df['ProbRecursa'] = model_materia.predict_proba(X_mat)[:, 1]
+
+    predicciones = model_examen.predict(df[_EXAMEN_COLS]).tolist()
 
     return [
         {'Nota': round(float(pred), 2)}
