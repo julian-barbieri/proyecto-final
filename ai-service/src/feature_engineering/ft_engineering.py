@@ -336,6 +336,18 @@ def ft_engineering_procesado(dataset: str = 'examen'):
         ]
         df[fill_zero] = df[fill_zero].fillna(0)
 
+        # -- 0e2) PromedioNotaGeneral / TasaAprobacionGeneral por IdAlumno ------
+        # Mismas features que usa modelo_materia: alinea la señal de rendimiento
+        # académico entre ambos modelos para reducir predicciones contradictorias.
+        ex_nota_general = examen[examen['AusenteExamen'] == 0].groupby('IdAlumno').agg(
+            PromedioNotaGeneral   = ('Nota', 'mean'),
+            TasaAprobacionGeneral = ('Nota', lambda x: (x >= 4).mean()),
+        ).reset_index()
+        df = df.merge(ex_nota_general, on='IdAlumno', how='left')
+        df[['PromedioNotaGeneral', 'TasaAprobacionGeneral']] = (
+            df[['PromedioNotaGeneral', 'TasaAprobacionGeneral']].fillna(0)
+        )
+
         # -- 0e) NotaPromedioCorrelativas: promedio de notas en correlativas ----
         # Para esta materia, obtener el promedio de notas que tiene el alumno en
         # las materias que son correlativas (requisitos previos)
@@ -410,6 +422,13 @@ def ft_engineering_procesado(dataset: str = 'examen'):
         # Filas sin parciales previos (p.ej., la propia fila es un Parcial 1)
         df['NotaPromedioParcialCursada'] = df['NotaPromedioParcialCursada'].fillna(0)
         df['CantParcialesAprobados']     = df['CantParcialesAprobados'].fillna(0)
+
+        # Eliminar leakage: el aggregate incluye el propio Parcial 1 como feature de si mismo.
+        # En produccion, cuando se predice Parcial 1 no hay parciales previos → valor = 0.
+        # Forzar 0 en entrenamiento para que el modelo aprenda la distribucion real de produccion.
+        parcial1_mask = (df['TipoExamen'] == 'Parcial') & (df['Instancia'] == 1)
+        df.loc[parcial1_mask, 'NotaPromedioParcialCursada'] = 0
+        df.loc[parcial1_mask, 'CantParcialesAprobados']     = 0
 
         df = df.drop(columns=['IdAlumno'])
 
