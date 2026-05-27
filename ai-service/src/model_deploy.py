@@ -263,7 +263,7 @@ def predict_examen(registros: List[ExamenInput]):
     df = _registros_a_df(registros, _EXAMEN_COLS_INPUT, _examen_ohe)
 
     if 'ProbRecursa' in _EXAMEN_COLS:
-        X_mat = df[list(_MATERIA_COLS)].copy().fillna(0)
+        X_mat = df.reindex(columns=list(_MATERIA_COLS), fill_value=0)
         df['ProbRecursa'] = model_materia.predict_proba(X_mat)[:, 1]
 
     predicciones = model_examen.predict(df[_EXAMEN_COLS]).tolist()
