@@ -1,5 +1,7 @@
 const bcrypt = require("bcryptjs");
 const db = require("./database");
+const fs = require("fs");
+const path = require("path");
 
 // Plan de estudios completo — Ingeniería en Informática
 // Formato: [codigo_plan, nombre, tipo ('A'=anual, 'C'=cuatrimestral), anio_carrera, correlativas[]]
@@ -862,6 +864,7 @@ function seedDemoAlumnosCDU010() {
   // ─────────────────────────────────────────────────────────────
   try {
     const usernamesAEliminar = [
+      "pedro.quintero",
       "alu0476",
       "alu0303",
       "alu0097",
@@ -1040,6 +1043,18 @@ function seedDemoAlumnosCDU010() {
         0,
         0,
         6.4,
+        2024,
+      ],
+      [
+        "pedro.quintero",
+        "Pedro Quintero",
+        "pedro.quintero@usal.edu.ar",
+        "demo_pedro.quintero",
+        "Masculino",
+        "12-07-2005",
+        0,
+        0,
+        4.5,
         2024,
       ],
     ];
@@ -1700,6 +1715,23 @@ function seedDemoAlumnosCDU010() {
       },
     ]);
 
+    // Pedro Quintero — perfil bajo_rendimiento: notas 1-3, asistencia baja, tres recursadas en AM1
+    seedC("pedro.quintero", [
+      { m: "AM1", anio: 2024, asist: 0.58, estado: "recursada" },
+      { m: "AM1", anio: 2025, asist: 0.62, estado: "recursada" },
+      { m: "AM1", anio: 2026, asist: 0.55, estado: "cursando" },
+      { m: "144", anio: 2024, asist: 0.61, estado: "recursada" },
+    ]);
+    seedE("pedro.quintero", [
+      { m: "AM1",  anio: 2024, tipo: "Parcial",       inst: 1, rend: 1, nota: 2.1, asist: 0.55, vrec: 0, fecha: "15-06-2024" },
+      { m: "AM1",  anio: 2024, tipo: "Recuperatorio", inst: 1, rend: 1, nota: 1.8, asist: 0.52, vrec: 0, fecha: "25-06-2024" },
+      { m: "AM1",  anio: 2025, tipo: "Parcial",       inst: 1, rend: 1, nota: 2.5, asist: 0.60, vrec: 1, fecha: "14-06-2025" },
+      { m: "AM1",  anio: 2025, tipo: "Recuperatorio", inst: 1, rend: 1, nota: 1.9, asist: 0.58, vrec: 1, fecha: "24-06-2025" },
+      { m: "AM1",  anio: 2026, tipo: "Parcial",       inst: 1, rend: 1, nota: 2.3, asist: 0.53, vrec: 2, fecha: "15-06-2026" },
+      { m: "144",  anio: 2024, tipo: "Parcial",       inst: 1, rend: 1, nota: 1.5, asist: 0.58, vrec: 0, fecha: "17-06-2024" },
+      { m: "144",  anio: 2024, tipo: "Recuperatorio", inst: 1, rend: 1, nota: 2.2, asist: 0.55, vrec: 0, fecha: "27-06-2024" },
+    ]);
+
     const insertInscripcion = db.prepare(`
       INSERT OR IGNORE INTO inscripciones (alumno_id, materia_id, anio, estado)
       VALUES (?, ?, ?, 'activa')
@@ -1717,6 +1749,7 @@ function seedDemoAlumnosCDU010() {
       "ignacio.sanchez",
       "martina.villareal",
       "tomas.acosta",
+      "pedro.quintero",
     ];
 
     for (const username of todos2026) {
@@ -2794,6 +2827,287 @@ function seedDemoAlumnosAM2CDU014() {
   }
 }
 
+// ═════════════════════════════════════════════════════════════════════════════
+// Helpers para seed de 500 alumnos desde CSVs de entrenamiento
+// ═════════════════════════════════════════════════════════════════════════════
+
+function parsearCSV(filepath) {
+  const lines = fs.readFileSync(filepath, "utf8").split("\n").filter((l) => l.trim());
+  if (lines.length < 2) return [];
+  const headers = lines[0].split(",").map((h) => h.trim());
+  return lines.slice(1).map((line) => {
+    const vals = line.split(",");
+    const obj = {};
+    headers.forEach((h, i) => {
+      obj[h] = vals[i] !== undefined ? vals[i].trim() : "";
+    });
+    return obj;
+  });
+}
+
+function normalizarEmail(str) {
+  return str
+    .toLowerCase()
+    .replace(/[áàä]/g, "a").replace(/[éèë]/g, "e")
+    .replace(/[íìï]/g, "i").replace(/[óòö]/g, "o")
+    .replace(/[úùüű]/g, "u").replace(/ñ/g, "n")
+    .replace(/[^a-z0-9]/g, "");
+}
+
+const NOMBRES_MASCULINOS = [
+  "Mateo", "Santiago", "Lucas", "Nicolás", "Joaquín", "Gabriel", "Diego",
+  "Martín", "Pablo", "Facundo", "Agustín", "Rodrigo", "Sebastián", "Ignacio",
+  "Federico", "Ramiro", "Hernán", "Leandro", "Ezequiel", "Damián", "Gonzalo",
+  "Bruno", "Adrián", "Mauricio", "Claudio", "Marcos", "Carlos", "Eduardo",
+  "Fernando", "Alejandro", "Manuel", "Darío", "Iván", "Julio", "Andrés",
+  "Gustavo", "Cristian", "Maximiliano", "Emilio", "Javier", "Ariel", "Germán",
+  "Lionel", "Rubén", "Sergio", "Raúl", "Néstor", "Víctor", "César", "Hugo",
+];
+
+const NOMBRES_FEMENINOS = [
+  "Valentina", "Sofía", "Martina", "Camila", "Florencia", "Luciana",
+  "Natalia", "Valeria", "Antonella", "Lucía", "Carolina", "Celeste",
+  "Vanesa", "Romina", "Noelia", "Gabriela", "Daniela", "Agustina",
+  "Micaela", "Paola", "Laura", "Paula", "Claudia", "Débora", "Verónica",
+  "Belén", "Pilar", "Lorena", "Soledad", "Viviana",
+];
+
+const APELLIDOS_ARG = [
+  "García", "Fernández", "González", "Rodríguez", "López", "Martínez",
+  "Pérez", "Gómez", "Sánchez", "Romero", "Torres", "Díaz", "Herrera",
+  "Ramos", "Molina", "Silva", "Vargas", "Ibáñez", "Medina", "Acosta",
+  "Benítez", "Vera", "Rojas", "Cardozo", "Villalba", "Flores", "Farías",
+  "Juárez", "Sosa", "Leiva", "Miranda", "Rivero", "Paz", "Blanco",
+  "Ponce", "Bravo", "Prieto", "Palacios", "Cruz", "Lara", "Ayala",
+  "Giménez", "Correa", "Arias", "Ojeda", "Meza", "Mercado", "Lagos",
+  "Orellana", "Peña", "Quiñones", "Tapia", "Segura", "Méndez", "Sandoval",
+  "Montenegro", "Galindo", "Valenzuela", "Salas", "Ibarra", "Quijano",
+  "Campos", "Palma", "Vega", "Castro", "Luna", "Fuentes", "Figueroa",
+  "Domínguez", "Gutiérrez", "Navarro", "Peralta", "Carrillo", "Espinosa",
+  "Delgado", "Montes", "Serrano", "Paredes", "Barrios", "Cáceres",
+  "Orozco", "Suárez", "Núñez", "Reyes",
+];
+
+// ═════════════════════════════════════════════════════════════════════════════
+// SEED PRINCIPAL — 500 alumnos desde datos reales de entrenamiento del modelo
+// ═════════════════════════════════════════════════════════════════════════════
+function seedAlumnos500CSVs() {
+  try {
+    const yaSeeded = db
+      .prepare("SELECT id FROM users WHERE username = 'alu0001' AND role = 'alumno'")
+      .get();
+    if (yaSeeded) {
+      console.log("✅ Seed CSV: alumnos de entrenamiento ya cargados, saltando.");
+      return;
+    }
+
+    const dataDir = path.join(__dirname, "..", "..", "..", "ai-service", "data");
+    if (!fs.existsSync(path.join(dataDir, "nivel_alumno.csv"))) {
+      console.warn("⚠️  CSVs de entrenamiento no encontrados, saltando seedAlumnos500CSVs.");
+      return;
+    }
+
+    console.log("🔄 Seed CSV: cargando 500 alumnos del dataset de entrenamiento...");
+
+    // ── Eliminar alumnos previos ────────────────────────────────────────────
+    const alumnosPrevios = db
+      .prepare("SELECT id FROM users WHERE role = 'alumno'")
+      .all()
+      .map((u) => u.id);
+
+    if (alumnosPrevios.length > 0) {
+      const ph = alumnosPrevios.map(() => "?").join(",");
+      // Respetar FK constraints: eliminar en orden correcto (hijos antes que padres)
+      db.prepare(`DELETE FROM mensajes WHERE conversacion_id IN (SELECT id FROM conversaciones WHERE alumno_id IN (${ph}))`).run(...alumnosPrevios);
+      db.prepare(`DELETE FROM conversaciones WHERE alumno_id IN (${ph})`).run(...alumnosPrevios);
+      db.prepare(`DELETE FROM visualizaciones WHERE alumno_id IN (${ph})`).run(...alumnosPrevios);
+      db.prepare(`DELETE FROM contenido WHERE alumno_id IN (${ph})`).run(...alumnosPrevios);
+      db.prepare(`DELETE FROM examenes WHERE alumno_id IN (${ph})`).run(...alumnosPrevios);
+      db.prepare(`DELETE FROM cursadas WHERE alumno_id IN (${ph})`).run(...alumnosPrevios);
+      db.prepare(`DELETE FROM inscripciones WHERE alumno_id IN (${ph})`).run(...alumnosPrevios);
+      db.prepare(`DELETE FROM predictions_log WHERE user_id IN (${ph})`).run(...alumnosPrevios);
+      db.prepare(`DELETE FROM users WHERE id IN (${ph})`).run(...alumnosPrevios);
+      console.log(`  🗑️  ${alumnosPrevios.length} alumnos previos eliminados.`);
+    }
+
+    // ── Leer CSVs ──────────────────────────────────────────────────────────
+    const alumnosCSV = parsearCSV(path.join(dataDir, "nivel_alumno.csv"));
+    const materiasCSV = parsearCSV(path.join(dataDir, "nivel_materia.csv"));
+    const examenesCSV = parsearCSV(path.join(dataDir, "nivel_examen.csv"));
+    console.log(
+      `  📂 CSVs: ${alumnosCSV.length} alumnos, ${materiasCSV.length} cursadas, ${examenesCSV.length} exámenes.`
+    );
+
+    // ── Mapa codigo_plan → materia_id ──────────────────────────────────────
+    const mapaMaterias = {};
+    db.prepare("SELECT id, codigo_plan FROM materias WHERE codigo_plan IS NOT NULL")
+      .all()
+      .forEach((m) => { mapaMaterias[m.codigo_plan] = m.id; });
+
+    // ── Agrupar registros por alumno ───────────────────────────────────────
+    const cursadasPorAlumno = {};
+    for (const r of materiasCSV) {
+      if (!cursadasPorAlumno[r.IdAlumno]) cursadasPorAlumno[r.IdAlumno] = [];
+      cursadasPorAlumno[r.IdAlumno].push(r);
+    }
+    const examenesPorAlumno = {};
+    for (const r of examenesCSV) {
+      if (!examenesPorAlumno[r.IdAlumno]) examenesPorAlumno[r.IdAlumno] = [];
+      examenesPorAlumno[r.IdAlumno].push(r);
+    }
+
+    // ── Correlativas del plan para lógica 2026 ─────────────────────────────
+    const correlativasPlan = {};
+    for (const [planId, , , , corrs] of PLAN_CURRICULUM) {
+      correlativasPlan[planId] = corrs || [];
+    }
+    const todosIdsPlan = PLAN_CURRICULUM.map(([id]) => id);
+
+    // ── Sentencias preparadas ──────────────────────────────────────────────
+    const stmtInsertUser = db.prepare(`
+      INSERT OR IGNORE INTO users
+        (username, password, role, nombre_completo, email,
+         oauth_provider, google_id,
+         genero, fecha_nac, ayuda_financiera, colegio_tecnico, promedio_colegio, anio_ingreso)
+      VALUES (?, NULL, 'alumno', ?, ?, 'google', ?, ?, ?, ?, ?, ?, ?)
+    `);
+    const stmtGetUser = db.prepare("SELECT id FROM users WHERE username = ?");
+    const stmtInsertCursada = db.prepare(`
+      INSERT OR IGNORE INTO cursadas (alumno_id, materia_id, anio, asistencia, estado)
+      VALUES (?, ?, ?, ?, ?)
+    `);
+    const stmtInsertExamen = db.prepare(`
+      INSERT OR IGNORE INTO examenes
+        (alumno_id, materia_id, anio, tipo, instancia,
+         rendido, nota, ausente, veces_recursada, asistencia, fecha_examen)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    const stmtInsertInscripcion = db.prepare(`
+      INSERT OR IGNORE INTO inscripciones (alumno_id, materia_id, anio, estado)
+      VALUES (?, ?, 2026, 'activa')
+    `);
+
+    const totales = { usuarios: 0, cursadas: 0, examenes: 0, cursando2026: 0 };
+
+    // ── PASO 1: Insertar usuarios (solo alumnos activos, Abandona = 0) ────
+    const insertarUsuarios = db.transaction(() => {
+      let idx = 0;
+      for (const alumno of alumnosCSV) {
+        idx++;
+        if (String(alumno.Abandona) === "1") continue;
+        const username = alumno.IdAlumno.toLowerCase();
+        const genero = alumno.Genero;
+        const nombrePool = genero === "Masculino" ? NOMBRES_MASCULINOS : NOMBRES_FEMENINOS;
+        const nombre = nombrePool[(idx - 1) % nombrePool.length];
+        const apellido = APELLIDOS_ARG[(idx - 1) % APELLIDOS_ARG.length];
+        const nombreCompleto = `${nombre} ${apellido}`;
+        const email = `${normalizarEmail(nombre)}.${normalizarEmail(apellido)}${idx}@usal.edu.ar`;
+
+        stmtInsertUser.run(
+          username,
+          nombreCompleto,
+          email,
+          `csv_${username}`,
+          genero,
+          alumno.FechaNac || null,
+          parseInt(alumno.AyudaFinanciera) || 0,
+          parseInt(alumno.ColegioTecnico) || 0,
+          parseFloat(alumno.PromedioColegio) || 7.0,
+          parseInt(alumno.AnioIngreso) || 2020
+        );
+        totales.usuarios++;
+      }
+    });
+    insertarUsuarios();
+    console.log(`  👤 ${totales.usuarios} usuarios creados.`);
+
+    // ── Mapa IdAlumno → userId ─────────────────────────────────────────────
+    const mapaUsuarios = {};
+    for (const alumno of alumnosCSV) {
+      const row = stmtGetUser.get(alumno.IdAlumno.toLowerCase());
+      if (row) mapaUsuarios[alumno.IdAlumno] = row.id;
+    }
+
+    // ── PASO 2: Insertar cursadas + exámenes históricos + cursando 2026 ────
+    const insertarDatos = db.transaction(() => {
+      for (const alumno of alumnosCSV) {
+        if (String(alumno.Abandona) === "1") continue;
+        const userId = mapaUsuarios[alumno.IdAlumno];
+        if (!userId) continue;
+
+        const aprobadas = new Set();
+
+        for (const c of cursadasPorAlumno[alumno.IdAlumno] || []) {
+          const codigoPlan = parseInt(c.Materia);
+          const matId = mapaMaterias[codigoPlan];
+          if (!matId) continue;
+          const estado = parseInt(c.Recursa) === 1 ? "recursada" : "aprobada";
+          stmtInsertCursada.run(
+            userId, matId, parseInt(c.AnioCursada),
+            parseFloat(c.Asistencia) || 0.8, estado
+          );
+          totales.cursadas++;
+          if (estado === "aprobada") aprobadas.add(codigoPlan);
+        }
+
+        for (const e of examenesPorAlumno[alumno.IdAlumno] || []) {
+          const codigoPlan = parseInt(e.Materia);
+          const matId = mapaMaterias[codigoPlan];
+          if (!matId) continue;
+          const nota = e.Nota !== "" ? parseFloat(e.Nota) : null;
+          stmtInsertExamen.run(
+            userId, matId, parseInt(e.Anio),
+            e.TipoExamen, parseInt(e.Instancia) || 1,
+            parseInt(e.ExamenRendido) || 0,
+            nota,
+            parseInt(e.AusenteExamen) || 0,
+            parseInt(e.VecesRecursada) || 0,
+            parseFloat(e.Asistencia) || 0.8,
+            e.FechaExamen || null
+          );
+          totales.examenes++;
+        }
+
+        // Cursadas 2026 solo para alumnos activos con materias pendientes
+        if (String(alumno.Abandona) === "0") {
+          const disponibles = todosIdsPlan.filter((planId) => {
+            if (aprobadas.has(planId)) return false;
+            return (correlativasPlan[planId] || []).every((c) => aprobadas.has(c));
+          });
+
+          if (disponibles.length === 0) continue;
+
+          const aluIdx = parseInt(alumno.IdAlumno.slice(3));
+          for (const planId of disponibles.slice(0, 10)) {
+            const matId = mapaMaterias[planId];
+            if (!matId) continue;
+
+            // Asistencia con distribución normal(0.84, 0.12) determinista por alumno+materia
+            const seed = aluIdx * 100 + planId;
+            const u1 = Math.abs(Math.sin(seed * 127.1) * 43758.5453) % 1;
+            const u2 = Math.abs(Math.sin(seed * 311.7) * 43758.5453) % 1;
+            const z = Math.sqrt(-2.0 * Math.log(Math.max(u1, 1e-10))) * Math.cos(2 * Math.PI * u2);
+            const asistencia = Math.min(1.0, Math.max(0.30, Math.round((0.84 + z * 0.12) * 100) / 100));
+
+            stmtInsertCursada.run(userId, matId, 2026, asistencia, "cursando");
+            stmtInsertInscripcion.run(userId, matId);
+            totales.cursando2026++;
+          }
+        }
+      }
+    });
+    insertarDatos();
+
+    console.log("✅ Seed CSV completado:");
+    console.log(`   👤 ${totales.usuarios} alumnos`);
+    console.log(`   📚 ${totales.cursadas} cursadas históricas`);
+    console.log(`   📝 ${totales.examenes} exámenes históricos`);
+    console.log(`   🔄 ${totales.cursando2026} cursadas cursando 2026`);
+  } catch (err) {
+    console.error("❌ Error en seedAlumnos500CSVs:", err.message);
+  }
+}
+
 async function seedAlumnosGenerales() {
   try {
     const NOMBRES = [
@@ -3119,6 +3433,136 @@ function fixCursadasSinExamenes() {
   }
 }
 
+// ═════════════════════════════════════════════════════════════════════════════
+// SEED exámenes parciales 2026 — genera resultados para alumnos alu0XXX
+// cursando en 2026, para que el panel de predicciones muestre variedad.
+// ═════════════════════════════════════════════════════════════════════════════
+function seedExamenes2026() {
+  try {
+    const yaSeeded = db
+      .prepare(
+        `SELECT COUNT(*) AS cnt FROM examenes e
+         JOIN users u ON e.alumno_id = u.id
+         WHERE u.username LIKE 'alu0%' AND e.anio = 2026 AND e.rendido = 1`,
+      )
+      .get();
+
+    if (yaSeeded && yaSeeded.cnt > 0) {
+      console.log(
+        `✅ Seed exámenes 2026: ya existen ${yaSeeded.cnt} registros, saltando.`,
+      );
+      return;
+    }
+
+    // Alumnos alu0XXX con cursadas 2026
+    const alumnos = db
+      .prepare(
+        `SELECT c.alumno_id, c.materia_id, c.asistencia, u.username, m.codigo_plan
+         FROM cursadas c
+         JOIN users u ON c.alumno_id = u.id
+         JOIN materias m ON c.materia_id = m.id
+         WHERE u.username LIKE 'alu0%' AND c.anio = 2026 AND c.estado = 'cursando'
+         ORDER BY c.alumno_id, c.materia_id`,
+      )
+      .all();
+
+    if (alumnos.length === 0) {
+      console.warn("⚠️  No hay alumnos alu0XXX cursando en 2026, saltando.");
+      return;
+    }
+
+    const stmtInsert = db.prepare(
+      `INSERT OR IGNORE INTO examenes
+         (alumno_id, materia_id, anio, tipo, instancia, rendido, nota, ausente, veces_recursada, asistencia, fecha_examen)
+       VALUES (?, ?, 2026, ?, ?, 1, ?, 0, ?, ?, ?)`,
+    );
+
+    const stmtVecesRec = db.prepare(
+      `SELECT COUNT(*) AS cnt FROM cursadas c
+       WHERE c.alumno_id = ? AND c.materia_id = ? AND c.anio < 2026 AND c.estado = 'recursada'`,
+    );
+
+    // Función determinista de hash para generar valores reproducibles
+    function dHash(seed) {
+      return Math.abs(Math.sin(seed * 127.1 + 0.3) * 43758.5453) % 1;
+    }
+
+    // Distribución normal Box-Muller determinista
+    function normalDet(seed, mu, sigma) {
+      const u1 = Math.max(dHash(seed * 173.1), 1e-10);
+      const u2 = dHash(seed * 257.3);
+      const z = Math.sqrt(-2.0 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+      return Math.min(10, Math.max(1.5, Math.round((mu + z * sigma) * 10) / 10));
+    }
+
+    const procesarExamenes = db.transaction(() => {
+      let totalInserted = 0;
+
+      for (const alu of alumnos) {
+        const idx = parseInt(alu.username.slice(3), 10); // "alu0042" → 42
+        const seed1 = idx * 137 + alu.codigo_plan * 31;
+
+        // 60 % de los alumnos ya rindió Parcial 1
+        if (dHash(seed1 * 91.3) >= 0.60) continue;
+
+        const vecesRec = stmtVecesRec.get(alu.alumno_id, alu.materia_id).cnt || 0;
+        const asist = parseFloat(alu.asistencia) || 0.8;
+
+        // Nota P1: normal(5.5, 1.8)
+        const notaP1 = normalDet(seed1, 5.5, 1.8);
+        stmtInsert.run(
+          alu.alumno_id, alu.materia_id,
+          "Parcial", 1, notaP1, vecesRec, asist, "17-06-2026",
+        );
+        totalInserted++;
+
+        const seed2 = seed1 * 7 + 13;
+
+        if (notaP1 < 4) {
+          // 70 % rinde Recuperatorio 1
+          if (dHash(seed2 * 61.7) < 0.70) {
+            const notaRec1 = normalDet(seed2, 4.5, 1.5);
+            stmtInsert.run(
+              alu.alumno_id, alu.materia_id,
+              "Recuperatorio", 1, notaRec1, vecesRec, asist, "24-06-2026",
+            );
+            totalInserted++;
+          }
+        } else {
+          // 65 % rinde Parcial 2 (correlacionado con P1)
+          if (dHash(seed2 * 71.3) < 0.65) {
+            const notaP2 = normalDet(seed2, notaP1, 1.2);
+            stmtInsert.run(
+              alu.alumno_id, alu.materia_id,
+              "Parcial", 2, notaP2, vecesRec, asist, "07-11-2026",
+            );
+            totalInserted++;
+
+            // Si desaprobó P2, 60 % rinde Recuperatorio 2
+            if (notaP2 < 4 && dHash(seed2 * 53.1) < 0.60) {
+              const notaRec2 = normalDet(seed2 * 3, 4.5, 1.5);
+              stmtInsert.run(
+                alu.alumno_id, alu.materia_id,
+                "Recuperatorio", 2, notaRec2, vecesRec, asist, "14-11-2026",
+              );
+              totalInserted++;
+            }
+          }
+        }
+      }
+
+      return totalInserted;
+    });
+
+    const total = procesarExamenes();
+    console.log(
+      `✅ Seed exámenes 2026: ${total} registros insertados para ${alumnos.length} cursadas activas.`,
+    );
+  } catch (err) {
+    console.error("❌ Error en seedExamenes2026:", err.message);
+  }
+}
+
 async function seedUsers() {
   const users = [
     {
@@ -3184,8 +3628,9 @@ async function seedUsers() {
 
   seedMateriasInscripcionesYContenido(); // crea AM1, AM2 y demás materias
   seedRestoCurriculumPlan();
-  await seedAlumnosGenerales();         // crea 500 alumnos (necesita materias)
+  seedAlumnos500CSVs();                 // carga 500 alumnos reales del dataset de entrenamiento
   fixCursadasSinExamenes();             // genera exámenes para cursadas sin registros
+  seedExamenes2026();                   // añade parciales 2026 para predicciones variadas en el panel
   seedMateriasInscripcionesYContenido(); // segunda pasada: ahora encuentra alumnos y seedea contenido CDU002
   seedMensajeriaCDU003();
   seedMensajeriaCDU007();
