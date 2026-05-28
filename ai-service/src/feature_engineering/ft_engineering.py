@@ -264,6 +264,13 @@ def ft_engineering_procesado(dataset: str = 'examen'):
         ]
         df[fill_zero] = df[fill_zero].fillna(0)
 
+        # Promedio de asistencia global del alumno (todas sus cursadas)
+        asistencia_global = materia.groupby('IdAlumno').agg(
+            PromedioAsistencia=('Asistencia', 'mean')
+        ).reset_index()
+        df = df.merge(asistencia_global, on='IdAlumno', how='left')
+        df['PromedioAsistencia'] = df['PromedioAsistencia'].fillna(0)
+
         df = df.drop(columns=['IdAlumno'])
 
     elif dataset == 'examen':
@@ -482,15 +489,18 @@ def ft_engineering_procesado(dataset: str = 'examen'):
     elif dataset == 'materia':
         # Variables seleccionadas para prediccion de recursada
         materia_vars = [
-            # Variables numericas (8)
-            'Edad', 'PromedioColegio', 'Asistencia', 'AniosDesdeIngreso',
-            'Materia', 'PromedioNotaGeneral', 'TasaAprobacionGeneral', 'IndiceBloqueo',
-            # Variables binarias (3)
-            'Genero', 'AyudaFinanciera', 'ColegioTecnico',
-            # Target
+            'PromedioNotaGeneral', 'PromedioAsistencia', 'AyudaFinanciera',
+            'Materia', 'PromedioColegio',
             target
         ]
-        # Filtrar solo las columnas que existen en df
+        # -- COMENTADAS: Edad, AniosDesdeIngreso, IndiceBloqueo, Genero, ColegioTecnico,
+        # -- Asistencia (especifica de la cursada), TasaAprobacionGeneral
+        # materia_vars_full = [
+        #     'Edad', 'PromedioColegio', 'Asistencia', 'AniosDesdeIngreso',
+        #     'Materia', 'PromedioNotaGeneral', 'TasaAprobacionGeneral', 'IndiceBloqueo',
+        #     'Genero', 'AyudaFinanciera', 'ColegioTecnico',
+        #     target
+        # ]
         materia_vars = [col for col in materia_vars if col in df.columns]
         df = df[materia_vars]
 
