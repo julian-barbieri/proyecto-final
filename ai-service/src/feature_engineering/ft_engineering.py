@@ -107,7 +107,7 @@ def ft_engineering_procesado(dataset: str = 'examen'):
             # Cantidad de examenes efectivamente rendidos
             CantExamenesRendidos = ('Nota',       'count'),
             # Promedio de notas en los examenes rendidos
-            PromedioNota         = ('Nota',       'mean'),
+            PromedioNotaGeneral   = ('Nota',       'mean'),
             # Cuantas veces llego a rendir la instancia Final
             # (llegar al final implica haber superado instancias previas)
             CantFinalesRendidos  = ('TipoExamen', lambda x: (x == 'Final').sum()),
@@ -149,7 +149,7 @@ def ft_engineering_procesado(dataset: str = 'examen'):
         fill_zero = [
             'CantMaterias', 'CantRecursa', 'TasaRecursa',
             'PromedioAsistencia', 'CantAniosCursados',
-            'CantExamenesRendidos', 'PromedioNota', 'CantFinalesRendidos',
+            'CantExamenesRendidos', 'PromedioNotaGeneral', 'CantFinalesRendidos',
             'CantAusencias', 'TasaAusencia', 'CantAprobados',
         ]
         df[fill_zero] = df[fill_zero].fillna(0)
@@ -462,19 +462,20 @@ def ft_engineering_procesado(dataset: str = 'examen'):
     if dataset == 'alumno':
         # Variables seleccionadas para prediccion de abandonos
         alumno_vars = [
-            # Variables numericas (13)
-            'CantMaterias', 'PromedioAsistencia',
-            'CantAniosCursados', 'CantExamenesRendidos', 'PromedioNota',
-            'CantFinalesRendidos', 'CantAusencias', 'TasaAusencia',
-            'CantAprobados', 'TasaAprobacion', 'Edad',
-            # Variables binarias (3)
-            'Genero', 'AyudaFinanciera', 'ColegioTecnico',
-            # Variables numericas (1)
-            'PromedioColegio',
-            # Target
+            'PromedioNotaGeneral', 'PromedioAsistencia', 'AyudaFinanciera',
+            'CantExamenesRendidos', 'CantFinalesRendidos',
             target
         ]
-        # Filtrar solo las columnas que existen en df
+        # -- COMENTADAS: CantMaterias, CantAniosCursados, CantAusencias, TasaAusencia,
+        # -- CantAprobados, TasaAprobacion, Edad, Genero, ColegioTecnico, PromedioColegio
+        # alumno_vars_full = [
+        #     'CantMaterias', 'PromedioAsistencia',
+        #     'CantAniosCursados', 'CantExamenesRendidos', 'PromedioNotaGeneral',
+        #     'CantFinalesRendidos', 'CantAusencias', 'TasaAusencia',
+        #     'CantAprobados', 'TasaAprobacion', 'Edad',
+        #     'Genero', 'AyudaFinanciera', 'ColegioTecnico', 'PromedioColegio',
+        #     target
+        # ]
         alumno_vars = [col for col in alumno_vars if col in df.columns]
         df = df[alumno_vars]
 
