@@ -319,7 +319,7 @@ def ft_engineering_procesado(dataset: str = 'examen'):
             # Proporcion general de cursadas que terminaron en recursar
             TasaRecursaGeneral        = ('Recursa', 'mean'),
             # Promedio de asistencia en todas las cursadas
-            PromedioAsistenciaGeneral = ('Asistencia', 'mean'),
+            PromedioAsistencia        = ('Asistencia', 'mean'),
         ).reset_index()
 
         # -- 0d) Join y relleno de nulos ----------------------------------------
@@ -339,7 +339,7 @@ def ft_engineering_procesado(dataset: str = 'examen'):
             'VecesCursadaMateria', 'TasaRecursaMateria',
             'PromedioAsistenciaHistMateria',
             'TotalCursadasGeneral', 'TasaRecursaGeneral',
-            'PromedioAsistenciaGeneral',
+            'PromedioAsistencia',
         ]
         df[fill_zero] = df[fill_zero].fillna(0)
 
@@ -504,31 +504,39 @@ def ft_engineering_procesado(dataset: str = 'examen'):
         materia_vars = [col for col in materia_vars if col in df.columns]
         df = df[materia_vars]
 
-    # -- Stacking: ProbRecursa desde modelo_materia (solo para dataset examen) -
-    # Se carga modelo_materia.pkl (entrenado antes que examen en train_models.py)
-    # y se predice la probabilidad de recursado para cada fila del dataset examen.
-    # Si el modelo no existe (primer run en frío), se usa 0.0 como fallback.
-    if dataset == 'examen':
-        import joblib as _joblib
-        _mat_path = os.path.join(
-            os.path.dirname(__file__), '..', 'models', 'models-trained', 'modelo_materia.pkl'
-        )
-        if os.path.exists(_mat_path):
-            _modelo_mat  = _joblib.load(_mat_path)
-            # feature_names_in_ requires sklearn >= 1.0 (guaranteed in this project)
-            _mat_cols    = [str(c) for c in _modelo_mat.feature_names_in_]
-            df['ProbRecursa'] = _modelo_mat.predict_proba(
-                df[_mat_cols].fillna(0)
-            )[:, 1]
-        else:
-            df['ProbRecursa'] = 0.0
-            print('[EXAMEN] modelo_materia.pkl no encontrado — ProbRecursa=0.0 (fallback)')
+    elif dataset == 'examen':
+        examen_vars = [
+            'PromedioNotaGeneral', 'PromedioAsistencia', 'AyudaFinanciera',
+            'NotaPromedioParcialCursada', 'TasaRecursaGeneral', 'Materia',
+            target
+        ]
+        # -- COMENTADAS: TipoExamen, Tipo, ProbRecursa (stacking), VecesCursadaMateria,
+        # -- TasaRecursaMateria, PromedioAsistenciaHistMateria, TotalCursadasGeneral,
+        # -- TasaAprobacionGeneral, PosicionFlujo, etc.
+        examen_vars = [col for col in examen_vars if col in df.columns]
+        df = df[examen_vars]
+
+    # -- Stacking: ProbRecursa desde modelo_materia — COMENTADO (ya no es feature del modelo)
+    # if dataset == 'examen':
+    #     import joblib as _joblib
+    #     _mat_path = os.path.join(
+    #         os.path.dirname(__file__), '..', 'models', 'models-trained', 'modelo_materia.pkl'
+    #     )
+    #     if os.path.exists(_mat_path):
+    #         _modelo_mat  = _joblib.load(_mat_path)
+    #         _mat_cols    = [str(c) for c in _modelo_mat.feature_names_in_]
+    #         df['ProbRecursa'] = _modelo_mat.predict_proba(
+    #             df[_mat_cols].fillna(0)
+    #         )[:, 1]
+    #     else:
+    #         df['ProbRecursa'] = 0.0
+    #         print('[EXAMEN] modelo_materia.pkl no encontrado — ProbRecursa=0.0 (fallback)')
 
     # -- 2) Identificar variables categoricas, numericas y binarias -----------
     # Nota: Materia es una ID numérica (140-187), no una categoría nominal.
     # No debe ser OneHotEncoded, debe mantener su naturaleza numérica.
     # Tipo contiene categorías como 'A' y 'C' que SÍ deben ser codificadas.
-    cat_vars    = [c for c in ['TipoExamen', 'Tipo'] if c in df.columns]
+    cat_vars    = [c for c in [] if c in df.columns]  # TipoExamen, Tipo removidos del feature set
     binary_vars = [c for c in ['Genero', 'AyudaFinanciera', 'ColegioTecnico']
                    if c in df.columns]
     num_vars    = [c for c in df.columns if c not in cat_vars + binary_vars + [target]]
