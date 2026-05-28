@@ -3628,9 +3628,7 @@ async function seedUsers() {
 
   seedMateriasInscripcionesYContenido(); // crea AM1, AM2 y demás materias
   seedRestoCurriculumPlan();
-  seedAlumnos500CSVs();                 // carga 500 alumnos reales del dataset de entrenamiento
   fixCursadasSinExamenes();             // genera exámenes para cursadas sin registros
-  seedExamenes2026();                   // añade parciales 2026 para predicciones variadas en el panel
   seedMateriasInscripcionesYContenido(); // segunda pasada: ahora encuentra alumnos y seedea contenido CDU002
   seedMensajeriaCDU003();
   seedMensajeriaCDU007();
