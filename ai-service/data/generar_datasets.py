@@ -171,7 +171,9 @@ def generar_datasets(num_alumnos=500, output_dir="data"):
             ["excelencia", "regular", "bajo_rendimiento"],
             p=[0.50, 0.40, 0.10],
         )
-        abandona = 1 if np.random.random() < PROB_ABANDONO[tipo] else 0
+        ayuda_financiera = 1 if np.random.random() < 0.05 else 0
+        prob_abandono = PROB_ABANDONO[tipo] * (0.8 if ayuda_financiera else 1.0)
+        abandona = 1 if np.random.random() < prob_abandono else 0
         cuatrimestres_abandono = None
         if abandona:
             anios, probs = CORTE_DIST[tipo]
@@ -181,7 +183,7 @@ def generar_datasets(num_alumnos=500, output_dir="data"):
         estudiantes[alumno_id] = {
             "tipo_alumno": tipo,
             "genero": "Masculino" if np.random.random() < 0.9 else "Femenino",
-            "ayuda_financiera": 1 if np.random.random() < 0.05 else 0,
+            "ayuda_financiera": ayuda_financiera,
             "colegio_tecnico": 1 if np.random.random() < 0.10 else 0,
             "promedio_colegio": np.clip(np.random.normal(7.0, 0.8), 1, 10),
             "fecha_nac": generar_fecha_nac(),
@@ -376,13 +378,20 @@ def generar_datasets(num_alumnos=500, output_dir="data"):
         tiene_final_aprobado = any(nota >= 4 for nota in data['finales']) if data['finales'] else False
 
         tipo = datos_alumno["tipo_alumno"]
-        asistencia = round(generar_asistencia_tipo(tipo), 2)
         es_bottleneck = materia in MATERIAS_BOTTLENECK
         indice_bloqueo = data['indice_bloqueo']
 
         year_group = 0 if data['ano_plan'] <= 2 else 1
         prob_recursa = PROB_RECURSA[tipo][year_group]
+        if datos_alumno["ayuda_financiera"]:
+            prob_recursa = prob_recursa * 0.8
         recursa = int(np.random.random() < prob_recursa)
+
+        asistencia = round(generar_asistencia_tipo(tipo), 2)
+        if recursa:
+            asistencia = max(round(asistencia - 0.15, 2), 0.0)
+        else:
+            asistencia = min(round(asistencia + 0.15, 2), 1.0)
 
         delay = anio - (datos_alumno["anio_ingreso"] + data['ano_plan'] - 1)
 
