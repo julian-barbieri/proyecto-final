@@ -184,27 +184,30 @@ function calcularVariablesRecursado(legajo, materiaId, anio) {
       ? todosExamenes.reduce((s, e) => s + toNumber(e.nota, 0), 0) /
         todosExamenes.length
       : 0;
-  const aprobadosGeneral = todosExamenes.filter(
-    (e) => toNumber(e.nota, 0) >= 4,
-  ).length;
-  const tasaAprobacionGeneral =
-    todosExamenes.length > 0 ? aprobadosGeneral / todosExamenes.length : 0;
 
-  const aprobadas = getAprobadas(legajo);
-  const indiceBloqueo = calcularIndiceBloqueo(aprobadas, materia.correlativas);
+  // -- COMENTADAS: aprobadosGeneral, tasaAprobacionGeneral, indiceBloqueo
+  // const aprobadosGeneral = todosExamenes.filter((e) => toNumber(e.nota, 0) >= 4).length;
+  // const tasaAprobacionGeneral = todosExamenes.length > 0 ? aprobadosGeneral / todosExamenes.length : 0;
+  // const aprobadas = getAprobadas(legajo);
+  // const indiceBloqueo = calcularIndiceBloqueo(aprobadas, materia.correlativas);
 
+  // Promedio de asistencia global del alumno (todas las cursadas)
+  const todasCursadas = db
+    .prepare(`SELECT asistencia FROM cursadas WHERE alumno_id = ?`)
+    .all(legajo);
+  const promedioAsistencia =
+    todasCursadas.length > 0
+      ? todasCursadas.reduce((s, c) => s + toNumber(c.asistencia, 0), 0) / todasCursadas.length
+      : 0;
+
+  // -- COMENTADAS: anioNac, Edad, AniosDesdeIngreso, Asistencia (especifica), IndiceBloqueo,
+  // -- Genero, ColegioTecnico, TasaAprobacionGeneral
   return {
-    Edad: anio - anioNac,
-    PromedioColegio: toNumber(alumno.promedio_colegio, 0),
-    Asistencia: toNumber(cursada.asistencia, 0),
-    AniosDesdeIngreso: anio - Number(alumno.anio_ingreso || anio),
-    Materia: materia.codigo_plan || 0,
     PromedioNotaGeneral: round4(promedioNotaGeneral),
-    TasaAprobacionGeneral: round4(tasaAprobacionGeneral),
-    IndiceBloqueo: indiceBloqueo,
-    Genero: parseGenero(alumno.genero),
+    PromedioAsistencia: round4(promedioAsistencia),
     AyudaFinanciera: Number(alumno.ayuda_financiera || 0),
-    ColegioTecnico: Number(alumno.colegio_tecnico || 0),
+    Materia: materia.codigo_plan || 0,
+    PromedioColegio: toNumber(alumno.promedio_colegio, 0),
     _meta: {
       nombre: alumno.nombre_completo,
       legajo,
