@@ -135,22 +135,14 @@ function calcularVariablesAbandono(legajo) {
   const tasaAprobacion =
     cantExamenesRendidos > 0 ? cantAprobados / cantExamenesRendidos : 0;
 
+  // -- COMENTADAS: CantMaterias, CantAniosCursados, CantAusencias, TasaAusencia,
+  // -- CantAprobados, TasaAprobacion, Edad, Genero, ColegioTecnico, PromedioColegio
   return {
-    CantMaterias: cantMaterias,
+    PromedioNotaGeneral: round4(promedioNota),
     PromedioAsistencia: round4(promedioAsistencia),
-    CantAniosCursados: cantAniosCursados,
-    CantExamenesRendidos: cantExamenesRendidos,
-    PromedioNota: round4(promedioNota),
-    CantFinalesRendidos: cantFinalesRendidos,
-    CantAusencias: cantAusencias,
-    TasaAusencia: round4(tasaAusencia),
-    CantAprobados: cantAprobados,
-    TasaAprobacion: round4(tasaAprobacion),
-    Edad: anioIngreso - anioNac,
-    Genero: parseGenero(alumno.genero),
     AyudaFinanciera: Number(alumno.ayuda_financiera || 0),
-    ColegioTecnico: Number(alumno.colegio_tecnico || 0),
-    PromedioColegio: toNumber(alumno.promedio_colegio, 0),
+    CantExamenesRendidos: cantExamenesRendidos,
+    CantFinalesRendidos: cantFinalesRendidos,
     _meta: {
       nombre: alumno.nombre_completo,
       legajo,
@@ -280,6 +272,21 @@ function calcularVariablesExamen(legajo, materiaId, tipoExamen, instancia, anio)
         totalCursadasGeneral
       : 0;
 
+  // Rendimiento general del alumno en exámenes (todas las materias)
+  const todosExamenes = db
+    .prepare(
+      `SELECT nota FROM examenes WHERE alumno_id = ? AND rendido = 1 AND nota IS NOT NULL`,
+    )
+    .all(legajo);
+
+  const promedioNotaGeneral =
+    todosExamenes.length > 0
+      ? todosExamenes.reduce((s, e) => s + toNumber(e.nota, 0), 0) / todosExamenes.length
+      : 0;
+  const aprobadosGeneral = todosExamenes.filter((e) => toNumber(e.nota, 0) >= 4).length;
+  const tasaAprobacionGeneral =
+    todosExamenes.length > 0 ? aprobadosGeneral / todosExamenes.length : 0;
+
   // Parciales rendidos en la cursada actual
   const parcialesCursada = db
     .prepare(
@@ -354,6 +361,8 @@ function calcularVariablesExamen(legajo, materiaId, tipoExamen, instancia, anio)
     TotalCursadasGeneral: totalCursadasGeneral,
     TasaRecursaGeneral: round4(tasaRecursaGeneral),
     PromedioAsistenciaGeneral: round4(promedioAsistenciaGeneral),
+    PromedioNotaGeneral: round4(promedioNotaGeneral),
+    TasaAprobacionGeneral: round4(tasaAprobacionGeneral),
     PosicionFlujo: posicionFlujo,
     NotaPromedioParcialCursada: round4(notaPromedioParcialCursada),
     CantParcialesAprobados: cantParcialesAprobados,
