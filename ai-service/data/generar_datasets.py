@@ -230,10 +230,7 @@ def generar_datasets(num_alumnos=500, output_dir="data"):
                 nombre, tipo_mat, ano_plan, corr = MATERIAS[mat_code]
                 indice_bloqueo = calcular_indice_bloqueo(aprobadas, mat_code)
                 cuatrimestre = 0 if tipo_mat == "A" else np.random.randint(1, 3)
-                if datos_alumno["abandona"]:
-                    asistencia_final = np.clip(np.random.normal(0.50, 0.15), 0.10, 0.75)
-                else:
-                    asistencia_final = np.clip(np.random.normal(0.84, 0.11), 0.10, 1.0)
+                asistencia_final = round(generar_asistencia_tipo(datos_alumno["tipo_alumno"]), 2)
                 
                 def crear_registro_examen(tipo_examen, instancia, nota, asistencia, fecha):
                     """Helper para crear registros de examen"""
@@ -257,129 +254,98 @@ def generar_datasets(num_alumnos=500, output_dir="data"):
                 
                 if tipo_mat == "A":
                     # ======= FLUJO ANUAL =======
-                    # Parcial 1
-                    aprueba_p1 = True if not datos_alumno["abandona"] else np.random.random() < 0.30
-                    asistencia_p1 = np.clip(asistencia_final + np.random.uniform(-0.15, 0.08), 0, 1)
-                    nota_p1 = generar_nota() if aprueba_p1 else generar_nota(media=3.5, std=1.5)
-                    
+                    nota_p1 = generar_nota_tipo(datos_alumno["tipo_alumno"])
+                    asistencia_p1 = np.clip(asistencia_final + np.random.uniform(-0.05, 0.05), 0, 1)
                     registros_examen.append(crear_registro_examen("Parcial", 1, nota_p1, asistencia_p1,
                                                                    generar_fecha_examen_anual("Parcial", 1, anio)))
-                    
-                    # Si desaprueba Parcial 1 → Recuperatorio 1
+
                     if nota_p1 < 4:
-                        aprueba_rec1 = np.random.random() < 0.55
-                        asistencia_rec1 = np.clip(asistencia_final + np.random.uniform(-0.15, 0.08), 0, 1)
-                        nota_rec1 = generar_nota() if aprueba_rec1 else generar_nota(media=3.5, std=1.5)
+                        nota_rec1 = generar_nota_tipo(datos_alumno["tipo_alumno"])
+                        asistencia_rec1 = np.clip(asistencia_final + np.random.uniform(-0.05, 0.05), 0, 1)
                         registros_examen.append(crear_registro_examen("Recuperatorio", 1, nota_rec1, asistencia_rec1,
                                                                        generar_fecha_examen_anual("Recuperatorio", 1, anio)))
                         nota_p1_final = nota_rec1
                     else:
                         nota_p1_final = nota_p1
-                    
-                    # Parcial 2 (solo si aprobó o recuperó Parcial 1)
+
                     if nota_p1_final >= 4:
-                        aprueba_p2 = True if not datos_alumno["abandona"] else np.random.random() < 0.30
-                        asistencia_p2 = np.clip(asistencia_final + np.random.uniform(-0.15, 0.08), 0, 1)
-                        nota_p2 = generar_nota() if aprueba_p2 else generar_nota(media=3.5, std=1.5)
-                        
+                        nota_p2 = generar_nota_tipo(datos_alumno["tipo_alumno"])
+                        asistencia_p2 = np.clip(asistencia_final + np.random.uniform(-0.05, 0.05), 0, 1)
                         registros_examen.append(crear_registro_examen("Parcial", 2, nota_p2, asistencia_p2,
                                                                        generar_fecha_examen_anual("Parcial", 2, anio)))
-                        
-                        # Si desaprueba Parcial 2 → Recuperatorio 2
+
                         if nota_p2 < 4:
-                            aprueba_rec2 = np.random.random() < 0.55
-                            asistencia_rec2 = np.clip(asistencia_final + np.random.uniform(-0.15, 0.08), 0, 1)
-                            nota_rec2 = generar_nota() if aprueba_rec2 else generar_nota(media=3.5, std=1.5)
+                            nota_rec2 = generar_nota_tipo(datos_alumno["tipo_alumno"])
+                            asistencia_rec2 = np.clip(asistencia_final + np.random.uniform(-0.05, 0.05), 0, 1)
                             registros_examen.append(crear_registro_examen("Recuperatorio", 2, nota_rec2, asistencia_rec2,
                                                                            generar_fecha_examen_anual("Recuperatorio", 2, anio)))
                             nota_p2_final = nota_rec2
                         else:
                             nota_p2_final = nota_p2
-                        
-                        # Final (si asistencia >= 0.75 y aprobó Parcial 2)
+
                         if asistencia_final >= 0.75 and nota_p2_final >= 4:
-                            # Final 1
-                            aprueba_f1 = np.random.random() < 0.62
-                            nota_f1 = generar_nota() if aprueba_f1 else generar_nota(media=3.5, std=1.5)
+                            nota_f1 = generar_nota_tipo(datos_alumno["tipo_alumno"])
                             registros_examen.append(crear_registro_examen("Final", 1, nota_f1, asistencia_final,
                                                                            generar_fecha_examen_anual("Final", 1, anio)))
-                            
                             if nota_f1 >= 4:
                                 aprobadas.add(mat_code)
                                 notas_finales[mat_code] = nota_f1
                             else:
-                                # Final 2 (febrero siguiente)
-                                aprueba_f2 = np.random.random() < 0.62
-                                nota_f2 = generar_nota() if aprueba_f2 else generar_nota(media=3.5, std=1.5)
+                                nota_f2 = generar_nota_tipo(datos_alumno["tipo_alumno"])
                                 registros_examen.append(crear_registro_examen("Final", 2, nota_f2, asistencia_final,
                                                                                generar_fecha_examen_anual("Final", 2, anio)))
-                                
                                 if nota_f2 >= 4:
                                     aprobadas.add(mat_code)
                                     notas_finales[mat_code] = nota_f2
                                 else:
-                                    # Final 3 (julio siguiente)
-                                    aprueba_f3 = np.random.random() < 0.62
-                                    nota_f3 = generar_nota() if aprueba_f3 else generar_nota(media=3.5, std=1.5)
+                                    nota_f3 = generar_nota_tipo(datos_alumno["tipo_alumno"])
                                     registros_examen.append(crear_registro_examen("Final", 3, nota_f3, asistencia_final,
                                                                                    generar_fecha_examen_anual("Final", 3, anio)))
-                                    
                                     if nota_f3 >= 4:
                                         aprobadas.add(mat_code)
                                         notas_finales[mat_code] = nota_f3
                 
                 else:
                     # ======= FLUJO CUATRIMESTRAL =======
-                    # Parcial
-                    aprueba_parcial = True if not datos_alumno["abandona"] else np.random.random() < 0.30
-                    asistencia_parcial = np.clip(asistencia_final + np.random.uniform(-0.15, 0.08), 0, 1)
-                    nota_parcial = generar_nota() if aprueba_parcial else generar_nota(media=3.5, std=1.5)
-                    
+                    nota_parcial = generar_nota_tipo(datos_alumno["tipo_alumno"])
+                    asistencia_parcial = np.clip(asistencia_final + np.random.uniform(-0.05, 0.05), 0, 1)
                     registros_examen.append(crear_registro_examen("Parcial", 1, nota_parcial, asistencia_parcial,
                                                                    generar_fecha_examen_cuatrimestral("Parcial", cuatrimestre, anio)))
-                    
-                    # Si desaprueba Parcial → Recuperatorio
+
                     if nota_parcial < 4:
-                        aprueba_rec = np.random.random() < 0.55
-                        asistencia_rec = np.clip(asistencia_final + np.random.uniform(-0.15, 0.08), 0, 1)
-                        nota_rec = generar_nota() if aprueba_rec else generar_nota(media=3.5, std=1.5)
+                        nota_rec = generar_nota_tipo(datos_alumno["tipo_alumno"])
+                        asistencia_rec = np.clip(asistencia_final + np.random.uniform(-0.05, 0.05), 0, 1)
                         registros_examen.append(crear_registro_examen("Recuperatorio", 1, nota_rec, asistencia_rec,
                                                                        generar_fecha_examen_cuatrimestral("Recuperatorio", cuatrimestre, anio)))
                         nota_parcial_final = nota_rec
                     else:
                         nota_parcial_final = nota_parcial
-                    
-                    # Final (si asistencia >= 0.75 y aprobó parcial/recuperatorio)
+
                     if asistencia_final >= 0.75 and nota_parcial_final >= 4:
-                        aprueba_f1 = np.random.random() < 0.60
-                        nota_f1 = generar_nota() if aprueba_f1 else generar_nota(media=3.5, std=1.5)
+                        nota_f1 = generar_nota_tipo(datos_alumno["tipo_alumno"])
                         registros_examen.append(crear_registro_examen("Final", 1, nota_f1, asistencia_final,
                                                                        generar_fecha_examen_cuatrimestral("Final", cuatrimestre, anio)))
-                        
                         if nota_f1 >= 4:
                             aprobadas.add(mat_code)
                             notas_finales[mat_code] = nota_f1
                         else:
-                            # Final 2
-                            aprueba_f2 = np.random.random() < 0.60
-                            nota_f2 = generar_nota() if aprueba_f2 else generar_nota(media=3.5, std=1.5)
+                            nota_f2 = generar_nota_tipo(datos_alumno["tipo_alumno"])
                             registros_examen.append(crear_registro_examen("Final", 2, nota_f2, asistencia_final,
                                                                            generar_fecha_examen_cuatrimestral("Final", cuatrimestre, anio)))
-                            
                             if nota_f2 >= 4:
                                 aprobadas.add(mat_code)
                                 notas_finales[mat_code] = nota_f2
                             else:
-                                # Final 3
-                                aprueba_f3 = np.random.random() < 0.60
-                                nota_f3 = generar_nota() if aprueba_f3 else generar_nota(media=3.5, std=1.5)
+                                nota_f3 = generar_nota_tipo(datos_alumno["tipo_alumno"])
                                 registros_examen.append(crear_registro_examen("Final", 3, nota_f3, asistencia_final,
                                                                                generar_fecha_examen_cuatrimestral("Final", cuatrimestre, anio)))
-                                
                                 if nota_f3 >= 4:
                                     aprobadas.add(mat_code)
                                     notas_finales[mat_code] = nota_f3
-    
+
+        notas_finales_por_alumno[alumno_id] = dict(notas_finales)
+        aprobadas_por_alumno[alumno_id] = len(aprobadas)
+
     df_examen = pd.DataFrame(registros_examen)
     df_examen.to_csv(os.path.join(output_dir, "nivel_examen.csv"), index=False)
     print(f"✓ nivel_examen.csv ({len(df_examen):,} registros)")
