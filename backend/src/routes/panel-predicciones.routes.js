@@ -202,23 +202,28 @@ router.get("/alumnos/:alumnoId", (req, res) => {
   try {
     const vars = calcularVariablesAbandono(alumnoId);
     resumen = {
-      cant_materias: vars.CantMaterias,
-      cant_recursa: vars.CantRecursa,
-      tasa_recursa: vars.TasaRecursa,
-      promedio_asistencia: vars.PromedioAsistencia,
-      cant_examenes_rendidos: vars.CantExamenesRendidos,
-      promedio_nota: vars.PromedioNota,
-      cant_aprobados: vars.CantAprobados,
-      tasa_aprobacion: vars.TasaAprobacion,
-    };
-  } catch {
-    resumen = {
+      promedio_nota: vars.PromedioNotaGeneral ?? 0,
+      promedio_asistencia: vars.PromedioAsistencia ?? 0,
+      ayuda_financiera: vars.AyudaFinanciera ?? 0,
+      cant_examenes_rendidos: vars.CantExamenesRendidos ?? 0,
+      cant_finales_rendidos: vars.CantFinalesRendidos ?? 0,
+      // removed fields kept as 0 for frontend compatibility
       cant_materias: 0,
       cant_recursa: 0,
       tasa_recursa: 0,
-      promedio_asistencia: 0,
-      cant_examenes_rendidos: 0,
+      cant_aprobados: 0,
+      tasa_aprobacion: 0,
+    };
+  } catch {
+    resumen = {
       promedio_nota: 0,
+      promedio_asistencia: 0,
+      ayuda_financiera: 0,
+      cant_examenes_rendidos: 0,
+      cant_finales_rendidos: 0,
+      cant_materias: 0,
+      cant_recursa: 0,
+      tasa_recursa: 0,
       cant_aprobados: 0,
       tasa_aprobacion: 0,
     };

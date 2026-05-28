@@ -67,7 +67,7 @@ ${[lineaAbandono, lineaRecursado, lineaNota].filter(Boolean).join('\n')}
 
 VARIABLES CLAVE:
 - Asistencia actual: ${asistenciaPct}%
-- Promedio general de notas: ${Number(vars.PromedioNota || 0).toFixed(2)}
+- Promedio general de notas: ${Number(vars.PromedioNotaGeneral || 0).toFixed(2)}
 - Veces que cursó esta materia: ${vecesCursada}
 - Parciales rendidos: ${parcialesRendidos} de ${totalParciales || '?'}
 
