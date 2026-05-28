@@ -2,7 +2,7 @@
 Script optimizado AGRESIVO para generar 190k-260k exámenes, 32k-45k cursadas.
 Genera TODAS las instancias de examen, incluyendo recursadas como nuevas cursadas.
 Cambios principales:
-- Alumnos activos (no abandonan): 100% tasa de graduación (48 materias aprobadas)
+- Alumnos asignados a tipo_alumno (excelencia/regular/bajo_rendimiento) que controla notas, asistencia y abandono
 - Solo datos históricos hasta 2025
 - IndiceBloqueo calculado según correlativas no aprobadas
 """
