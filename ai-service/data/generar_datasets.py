@@ -366,21 +366,20 @@ def generar_datasets(num_alumnos=500, output_dir="data"):
             cursadas_unicas[key]['finales'].append(row['Nota'])
     
     registros_materia = []
+    PROB_RECURSA = {
+        "excelencia":        [0.03, 0.01],
+        "regular":           [0.15, 0.06],
+        "bajo_rendimiento":  [0.70, 0.50],
+    }
     for (alumno_id, materia, anio, cuatrimestre), data in cursadas_unicas.items():
         datos_alumno = estudiantes[alumno_id]
         tiene_final_aprobado = any(nota >= 4 for nota in data['finales']) if data['finales'] else False
 
-        # Generar asistencia antes de decidir recursado para poder correlacionarla
         tipo = datos_alumno["tipo_alumno"]
         asistencia = round(generar_asistencia_tipo(tipo), 2)
         es_bottleneck = materia in MATERIAS_BOTTLENECK
         indice_bloqueo = data['indice_bloqueo']
 
-        PROB_RECURSA = {
-            "excelencia":        [0.03, 0.01],
-            "regular":           [0.15, 0.06],
-            "bajo_rendimiento":  [0.70, 0.50],
-        }
         year_group = 0 if data['ano_plan'] <= 2 else 1
         prob_recursa = PROB_RECURSA[tipo][year_group]
         recursa = int(np.random.random() < prob_recursa)
