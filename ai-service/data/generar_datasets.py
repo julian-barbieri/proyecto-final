@@ -371,25 +371,19 @@ def generar_datasets(num_alumnos=500, output_dir="data"):
         tiene_final_aprobado = any(nota >= 4 for nota in data['finales']) if data['finales'] else False
 
         # Generar asistencia antes de decidir recursado para poder correlacionarla
-        if datos_alumno["abandona"]:
-            asistencia = round(np.clip(np.random.normal(0.50, 0.15), 0.10, 0.75), 2)
-        else:
-            asistencia = round(np.clip(np.random.normal(0.84, 0.11), 0.10, 1.0), 2)
+        tipo = datos_alumno["tipo_alumno"]
+        asistencia = round(generar_asistencia_tipo(tipo), 2)
         es_bottleneck = materia in MATERIAS_BOTTLENECK
         indice_bloqueo = data['indice_bloqueo']
 
-        if not datos_alumno["abandona"]:
-            # Años 1-2: ~15% recursado; años 3-5: ~5-8% recursado
-            prob_recursa = 0.13 if data['ano_plan'] <= 2 else 0.04
-            if asistencia < 0.60:
-                prob_recursa += 0.12
-            elif asistencia < 0.75:
-                prob_recursa += 0.06
-            if es_bottleneck:
-                prob_recursa += 0.03
-            recursa = int(np.random.random() < prob_recursa)
-        else:
-            recursa = 0 if tiene_final_aprobado else 1
+        PROB_RECURSA = {
+            "excelencia":        [0.03, 0.01],
+            "regular":           [0.15, 0.06],
+            "bajo_rendimiento":  [0.70, 0.50],
+        }
+        year_group = 0 if data['ano_plan'] <= 2 else 1
+        prob_recursa = PROB_RECURSA[tipo][year_group]
+        recursa = int(np.random.random() < prob_recursa)
 
         delay = anio - (datos_alumno["anio_ingreso"] + data['ano_plan'] - 1)
 
@@ -403,7 +397,12 @@ def generar_datasets(num_alumnos=500, output_dir="data"):
             "Asistencia": asistencia,
             "Recursa": recursa,
             "AñoCarrera": data['ano_plan'], "DelayRespectoPlan": delay,
-            "NotaPromedioPrevias": round(np.random.uniform(4, 8) if MATERIAS[materia][3] else 0.0, 2),
+            "NotaPromedioPrevias": round(
+                np.mean([notas_finales_por_alumno.get(alumno_id, {}).get(c, 0.0)
+                         for c in MATERIAS[materia][3]])
+                if MATERIAS[materia][3] else 0.0,
+                2
+            ),
             "MateriasRecursadasTotal": np.random.randint(0, 8),
             "EsMateriaBottleneck": 1 if materia in MATERIAS_BOTTLENECK else 0,
             "IndiceBloqueo": data['indice_bloqueo'],
