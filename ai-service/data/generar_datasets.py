@@ -416,17 +416,10 @@ def generar_datasets(num_alumnos=500, output_dir="data"):
     registros_alumno = []
     
     for alumno_id, datos_alumno in estudiantes.items():
-        if not datos_alumno["abandona"]:
-            # Alumnos activos: 100% graduados
-            materias_aprobadas = 48
-            recursadas_total = 0
-            tasa_progresion = 1.0
-            indice_bloqueo = 0.0
-        else:
-            materias_aprobadas = len(df_materia[(df_materia['IdAlumno'] == alumno_id) & (df_materia['Recursa'] == 0)])
-            recursadas_total = len(df_materia[(df_materia['IdAlumno'] == alumno_id) & (df_materia['Recursa'] == 1)])
-            tasa_progresion = min(materias_aprobadas / 48, 1.0) if materias_aprobadas > 0 else 0
-            indice_bloqueo = 0.0
+        materias_aprobadas = aprobadas_por_alumno.get(alumno_id, 0)
+        recursadas_total = len(df_materia[(df_materia['IdAlumno'] == alumno_id) & (df_materia['Recursa'] == 1)])
+        tasa_progresion = min(materias_aprobadas / 48, 1.0) if materias_aprobadas > 0 else 0
+        indice_bloqueo = 0.0
         
         anos_desde_ingreso = 2026 - datos_alumno["anio_ingreso"]
         
@@ -452,6 +445,7 @@ def generar_datasets(num_alumnos=500, output_dir="data"):
             "AñoCarreraActual": min(int(materias_aprobadas / 10) + 1, 5), "TasaProgresion": round(tasa_progresion, 2),
             "PrimerAñoCompleto": 1 if materias_aprobadas >= 8 else 0, "MateriasRecursadasTotal": recursadas_total,
             "AñosDesdeIngreso": anos_desde_ingreso, "IndiceBloqueo": indice_bloqueo,
+            "TipoAlumno": datos_alumno["tipo_alumno"],
         })
     
     df_alumno = pd.DataFrame(registros_alumno)
