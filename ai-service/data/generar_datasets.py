@@ -132,37 +132,73 @@ def calcular_indice_bloqueo(aprobadas, mat_code):
     indice = correlativas_no_aprobadas / len(correlativas)
     return round(indice, 2)
 
-def generar_nota(media=5.4, std=2.1):
-    return np.clip(np.random.normal(media, std), 1, 10)
+def generar_nota_tipo(tipo):
+    if tipo == "excelencia":
+        return np.clip(np.random.normal(8.0, 1.0), 7, 10)
+    elif tipo == "regular":
+        return np.clip(np.random.normal(5.5, 1.0), 4, 7)
+    else:  # bajo_rendimiento
+        return np.clip(np.random.normal(2.5, 0.8), 1, 4)
+
+def generar_asistencia_tipo(tipo):
+    if tipo == "excelencia":
+        return np.random.uniform(0.90, 1.00)
+    elif tipo == "regular":
+        return np.random.uniform(0.75, 1.00)
+    else:  # bajo_rendimiento
+        return np.random.uniform(0.50, 0.80)
 
 def generar_datasets(num_alumnos=500, output_dir="data"):
     print("🚀 Generando datasets con alumnos activos 100% graduados...")
     Path(output_dir).mkdir(parents=True, exist_ok=True)
     
     # Generar alumnos
+    PROB_ABANDONO = {
+        "excelencia": 0.00,
+        "regular": 0.015,
+        "bajo_rendimiento": 0.88,
+    }
+    CORTE_DIST = {
+        "bajo_rendimiento": ([1, 2, 3], [0.70, 0.25, 0.05]),
+        "regular":          ([2, 3, 4], [0.20, 0.40, 0.40]),
+    }
+    CUATRIMESTRE_MAP = {1: [1, 2], 2: [3, 4], 3: [5, 6], 4: [7, 8]}
+
     estudiantes = {}
     for i in range(1, num_alumnos + 1):
         alumno_id = f"ALU{i:04d}"
+        tipo = np.random.choice(
+            ["excelencia", "regular", "bajo_rendimiento"],
+            p=[0.50, 0.40, 0.10],
+        )
+        abandona = 1 if np.random.random() < PROB_ABANDONO[tipo] else 0
+        cuatrimestres_abandono = None
+        if abandona:
+            anios, probs = CORTE_DIST[tipo]
+            anio_corte = np.random.choice(anios, p=probs)
+            cuatrimestres_abandono = int(np.random.choice(CUATRIMESTRE_MAP[anio_corte]))
+
         estudiantes[alumno_id] = {
+            "tipo_alumno": tipo,
             "genero": "Masculino" if np.random.random() < 0.9 else "Femenino",
             "ayuda_financiera": 1 if np.random.random() < 0.05 else 0,
             "colegio_tecnico": 1 if np.random.random() < 0.10 else 0,
             "promedio_colegio": np.clip(np.random.normal(7.0, 0.8), 1, 10),
             "fecha_nac": generar_fecha_nac(),
             "anio_ingreso": np.random.randint(2018, 2025),
-            "abandona": 1 if np.random.random() < 0.20 else 0,
-            "cuatrimestres_abandono": None,
+            "abandona": abandona,
+            "cuatrimestres_abandono": cuatrimestres_abandono,
         }
-        if estudiantes[alumno_id]["abandona"]:
-            r = np.random.random()
-            estudiantes[alumno_id]["cuatrimestres_abandono"] = 2 if r < 0.5 else (4 if r < 0.8 else np.random.randint(6, 12))
     
     print(f"✓ {num_alumnos} alumnos generados")
     
     # ===== DATASET 1: EXÁMENES =====
     print("\n📊 Generando nivel_examen.csv...")
     registros_examen = []
-    
+
+    notas_finales_por_alumno = {}
+    aprobadas_por_alumno = {}
+
     for alumno_id, datos_alumno in estudiantes.items():
         aprobadas = set()
         notas_finales = {}
@@ -194,7 +230,10 @@ def generar_datasets(num_alumnos=500, output_dir="data"):
                 nombre, tipo_mat, ano_plan, corr = MATERIAS[mat_code]
                 indice_bloqueo = calcular_indice_bloqueo(aprobadas, mat_code)
                 cuatrimestre = 0 if tipo_mat == "A" else np.random.randint(1, 3)
-                asistencia_final = np.clip(np.random.normal(0.84, 0.11), 0.10, 1.0)
+                if datos_alumno["abandona"]:
+                    asistencia_final = np.clip(np.random.normal(0.50, 0.15), 0.10, 0.75)
+                else:
+                    asistencia_final = np.clip(np.random.normal(0.84, 0.11), 0.10, 1.0)
                 
                 def crear_registro_examen(tipo_examen, instancia, nota, asistencia, fecha):
                     """Helper para crear registros de examen"""
@@ -219,7 +258,7 @@ def generar_datasets(num_alumnos=500, output_dir="data"):
                 if tipo_mat == "A":
                     # ======= FLUJO ANUAL =======
                     # Parcial 1
-                    aprueba_p1 = True if not datos_alumno["abandona"] else np.random.random() < 0.60
+                    aprueba_p1 = True if not datos_alumno["abandona"] else np.random.random() < 0.30
                     asistencia_p1 = np.clip(asistencia_final + np.random.uniform(-0.15, 0.08), 0, 1)
                     nota_p1 = generar_nota() if aprueba_p1 else generar_nota(media=3.5, std=1.5)
                     
@@ -239,7 +278,7 @@ def generar_datasets(num_alumnos=500, output_dir="data"):
                     
                     # Parcial 2 (solo si aprobó o recuperó Parcial 1)
                     if nota_p1_final >= 4:
-                        aprueba_p2 = True if not datos_alumno["abandona"] else np.random.random() < 0.60
+                        aprueba_p2 = True if not datos_alumno["abandona"] else np.random.random() < 0.30
                         asistencia_p2 = np.clip(asistencia_final + np.random.uniform(-0.15, 0.08), 0, 1)
                         nota_p2 = generar_nota() if aprueba_p2 else generar_nota(media=3.5, std=1.5)
                         
@@ -292,7 +331,7 @@ def generar_datasets(num_alumnos=500, output_dir="data"):
                 else:
                     # ======= FLUJO CUATRIMESTRAL =======
                     # Parcial
-                    aprueba_parcial = True if not datos_alumno["abandona"] else np.random.random() < 0.60
+                    aprueba_parcial = True if not datos_alumno["abandona"] else np.random.random() < 0.30
                     asistencia_parcial = np.clip(asistencia_final + np.random.uniform(-0.15, 0.08), 0, 1)
                     nota_parcial = generar_nota() if aprueba_parcial else generar_nota(media=3.5, std=1.5)
                     
@@ -366,22 +405,22 @@ def generar_datasets(num_alumnos=500, output_dir="data"):
         tiene_final_aprobado = any(nota >= 4 for nota in data['finales']) if data['finales'] else False
 
         # Generar asistencia antes de decidir recursado para poder correlacionarla
-        asistencia = round(np.clip(np.random.normal(0.84, 0.11), 0.10, 1.0), 2)
+        if datos_alumno["abandona"]:
+            asistencia = round(np.clip(np.random.normal(0.50, 0.15), 0.10, 0.75), 2)
+        else:
+            asistencia = round(np.clip(np.random.normal(0.84, 0.11), 0.10, 1.0), 2)
         es_bottleneck = materia in MATERIAS_BOTTLENECK
         indice_bloqueo = data['indice_bloqueo']
 
         if not datos_alumno["abandona"]:
-            # Alumnos activos pueden recursar: probabilidad basada en asistencia,
-            # bottleneck e índice de bloqueo. Target ~20% tasa global.
-            prob_recursa = 0.05
+            # Años 1-2: ~15% recursado; años 3-5: ~5-8% recursado
+            prob_recursa = 0.13 if data['ano_plan'] <= 2 else 0.04
             if asistencia < 0.60:
-                prob_recursa += 0.40
+                prob_recursa += 0.12
             elif asistencia < 0.75:
-                prob_recursa += 0.20
+                prob_recursa += 0.06
             if es_bottleneck:
-                prob_recursa += 0.15
-            if indice_bloqueo > 0.5:
-                prob_recursa += 0.10
+                prob_recursa += 0.03
             recursa = int(np.random.random() < prob_recursa)
         else:
             recursa = 0 if tiene_final_aprobado else 1
