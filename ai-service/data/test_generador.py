@@ -23,9 +23,12 @@ def test_fix1_loo_examen_single_exam():
 
 
 def test_fix2_loo_materia_all_exams_from_same_subject():
-    """Student whose only exams are for the materia being predicted -> 0."""
+    """Two independent scenarios tested in one pass:
+    Row 0 (student A): all 2 exams belong to materia 140 → LOO average = 0.0
+    Row 1 (student B): 2 exams total, 1 in materia 141, 1 in other → LOO average = 7.0
+    """
     df = pd.DataFrame({
-        'IdAlumno':     ['A', 'A'],
+        'IdAlumno':     ['A', 'B'],
         'Materia':      [140, 141],
         '_global_sum':  [15.0, 15.0],
         '_global_cnt':  [2,    2],
