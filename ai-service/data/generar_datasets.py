@@ -337,3 +337,242 @@ def simular_cursada(materia_code: int, tipo_mat: str, cuatr: int, anio: int,
             return registros, True, nota_f
 
     return registros, False, None
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CAPA 2: TRAYECTORIA CUATRIMESTRAL
+# ─────────────────────────────────────────────────────────────────────────────
+
+def simular_trayectoria(perfil: dict, rng) -> tuple:
+    """
+    Returns: (registros_examen, registros_materia, estado_final, fecha_abandono)
+    estado_final in {'graduado', 'abandonó', 'timeout-abandonó'}
+    """
+    alumno_id      = perfil['IdAlumno']
+    tipo_notas     = perfil['TipoEfectivoNotas']
+    tipo_asist     = perfil['TipoEfectivoAsistencia']
+    tipo_abandono  = perfil['TipoEfectivoAbandono']
+    ayuda          = bool(perfil['AyudaFinanciera'])
+
+    aprobadas:       set  = set()
+    notas_aprobadas: dict = {}
+    asistencia_hist: list = []
+    pendiente_recursa: dict = {}   # materia_code → n_veces_fallida
+
+    registros_examen  = []
+    registros_materia = []
+
+    carga_base = {'excelente': 5, 'regular': 4, 'malo': 3}[tipo_notas]
+
+    for anio in range(perfil['AnioIngreso'], 2026):
+        for cuatr in [1, 2]:
+
+            # ── Hazard de abandono ──────────────────────────────────────────
+            progreso      = len(aprobadas) / 48
+            asist_acum    = float(np.mean(asistencia_hist)) if asistencia_hist else 0.5
+            ind_bloqueo_g = calcular_indice_bloqueo_global(aprobadas)
+
+            p_abandon = calcular_hazard(tipo_abandono, progreso, asist_acum, ind_bloqueo_g, rng)
+
+            if rng.random() < p_abandon:
+                mes = 6 if cuatr == 1 else 11
+                dia = int(rng.integers(1, 28))
+                fecha_ab = datetime(anio, mes, dia).strftime('%d-%m-%Y')
+                return registros_examen, registros_materia, 'abandonó', fecha_ab
+
+            # ── Seleccionar materias ────────────────────────────────────────
+            disponibles = [
+                m for m in MATERIAS
+                if m not in aprobadas
+                and m not in pendiente_recursa
+                and all(c in aprobadas for c in MATERIAS[m][3])
+                and (MATERIAS[m][1] == 'C' or cuatr == 1)   # anuales solo C1
+            ]
+
+            recursa_disp = [
+                m for m in pendiente_recursa
+                if all(c in aprobadas for c in MATERIAS[m][3])
+                and (MATERIAS[m][1] == 'C' or cuatr == 1)
+            ]
+
+            carga = max(1, carga_base + int(rng.integers(-1, 2)))
+
+            materias_cuatr = recursa_disp[:carga]
+            slots = carga - len(materias_cuatr)
+            if slots > 0:
+                rng.shuffle(disponibles)
+                materias_cuatr += disponibles[:slots]
+
+            if not materias_cuatr:
+                continue
+
+            n_sim = len(materias_cuatr)
+
+            for mat_code in materias_cuatr:
+                tipo_mat = MATERIAS[mat_code][1]
+                n_veces  = pendiente_recursa.get(mat_code, 0)
+
+                regs_ex, aprobada, nota_final = simular_cursada(
+                    mat_code, tipo_mat, cuatr, anio,
+                    tipo_notas, tipo_asist, ayuda,
+                    aprobadas, notas_aprobadas, n_veces, n_sim, rng,
+                )
+
+                # Enriquecer con datos demográficos del alumno
+                for reg in regs_ex:
+                    reg.update({
+                        'IdAlumno':        alumno_id,
+                        'Genero':          perfil['Genero'],
+                        'FechaNac':        perfil['FechaNac'],
+                        'AyudaFinanciera': perfil['AyudaFinanciera'],
+                        'ColegioTecnico':  perfil['ColegioTecnico'],
+                        'PromedioColegio': perfil['PromedioColegio'],
+                    })
+                registros_examen.extend(regs_ex)
+
+                asist_cursada = regs_ex[0]['Asistencia'] if regs_ex else 0.5
+                asistencia_hist.append(asist_cursada)
+
+                delay = anio - (perfil['AnioIngreso'] + MATERIAS[mat_code][2] - 1)
+
+                registros_materia.append({
+                    'IdAlumno':            alumno_id,
+                    'Materia':             mat_code,
+                    'Tipo':                tipo_mat,
+                    'Cuatrimestre':        0 if tipo_mat == 'A' else cuatr,
+                    'AnioCursada':         anio,
+                    'FechaNac':            perfil['FechaNac'],
+                    'AyudaFinanciera':     perfil['AyudaFinanciera'],
+                    'ColegioTecnico':      perfil['ColegioTecnico'],
+                    'PromedioColegio':     perfil['PromedioColegio'],
+                    'Asistencia':          round(asist_cursada, 2),
+                    'Recursa':             0 if aprobada else 1,
+                    'AñoCarrera':          MATERIAS[mat_code][2],
+                    'DelayRespectoPlan':   delay,
+                    'NotaPromedioPrevias': calcular_promedio_correlativas(notas_aprobadas, mat_code),
+                    'EsMateriaBottleneck': int(mat_code in MATERIAS_BOTTLENECK),
+                    'IndiceBloqueo':       calcular_indice_bloqueo_materia(aprobadas, mat_code),
+                })
+
+                if aprobada:
+                    aprobadas.add(mat_code)
+                    notas_aprobadas[mat_code] = nota_final
+                    pendiente_recursa.pop(mat_code, None)
+                else:
+                    pendiente_recursa[mat_code] = n_veces + 1
+
+            if len(aprobadas) == 48:
+                return registros_examen, registros_materia, 'graduado', ''
+
+    return registros_examen, registros_materia, 'timeout-abandonó', ''
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# MAIN
+# ─────────────────────────────────────────────────────────────────────────────
+
+_EXAMEN_COLS = [
+    'IdAlumno','Materia','Tipo','Cuatrimestre','Anio','TipoExamen','Instancia',
+    'Genero','FechaNac','AyudaFinanciera','ColegioTecnico','PromedioColegio',
+    'Asistencia','VecesRecursada','ExamenRendido','AusenteExamen','Nota',
+    'FechaExamen','AñoCarrera','NotaPromedioCorrelativas',
+    'MateriasAprobadasHastaMomento','CargaSimultanea','IndiceBloqueo',
+]
+_MATERIA_COLS = [
+    'IdAlumno','Materia','Tipo','Cuatrimestre','AnioCursada','FechaNac',
+    'AyudaFinanciera','ColegioTecnico','PromedioColegio','Asistencia','Recursa',
+    'AñoCarrera','DelayRespectoPlan','NotaPromedioPrevias',
+    'EsMateriaBottleneck','IndiceBloqueo',
+]
+_ALUMNO_COLS = [
+    'IdAlumno','FechaNac','Genero','AyudaFinanciera','ColegioTecnico',
+    'PromedioColegio','Fecha','Abandona','AnioIngreso','EstadoFinal',
+    'MateriasAprobadas','AñoCarreraActual','TasaProgresion','PrimerAñoCompleto',
+    'MateriasRecursadasTotal','AñosDesdeIngreso','IndiceBloqueo',
+]
+
+
+def generar_datasets(output_dir: str = None, n_alumnos: int = N_ALUMNOS) -> tuple:
+    if output_dir is None:
+        output_dir = os.path.dirname(os.path.abspath(__file__))
+    Path(output_dir).mkdir(parents=True, exist_ok=True)
+
+    rng = np.random.default_rng(SEED)
+
+    todos_examenes = []
+    todos_materias = []
+    todos_alumnos  = []
+    audit          = []
+
+    print(f'Generando {n_alumnos} alumnos...')
+    for i in range(1, n_alumnos + 1):
+        alumno_id = f'ALU{i:04d}'
+        perfil    = generar_perfil(alumno_id, rng)
+
+        regs_ex, regs_mat, estado, fecha_ab = simular_trayectoria(perfil, rng)
+
+        todos_examenes.extend(regs_ex)
+        todos_materias.extend(regs_mat)
+
+        aprobadas_set  = {r['Materia'] for r in regs_mat if r['Recursa'] == 0}
+        mat_aprobadas  = len(aprobadas_set)
+        mat_recursadas = sum(1 for r in regs_mat if r['Recursa'] == 1)
+
+        todos_alumnos.append({
+            'IdAlumno':              alumno_id,
+            'FechaNac':              perfil['FechaNac'],
+            'Genero':                perfil['Genero'],
+            'AyudaFinanciera':       perfil['AyudaFinanciera'],
+            'ColegioTecnico':        perfil['ColegioTecnico'],
+            'PromedioColegio':       perfil['PromedioColegio'],
+            'Fecha':                 fecha_ab,
+            'Abandona':              0 if estado == 'graduado' else 1,
+            'AnioIngreso':           perfil['AnioIngreso'],
+            'EstadoFinal':           estado,
+            'MateriasAprobadas':     mat_aprobadas,
+            'AñoCarreraActual':      min(int(mat_aprobadas / 10) + 1, 5),
+            'TasaProgresion':        round(mat_aprobadas / 48, 3),
+            'PrimerAñoCompleto':     int(mat_aprobadas >= 8),
+            'MateriasRecursadasTotal': mat_recursadas,
+            'AñosDesdeIngreso':      2026 - perfil['AnioIngreso'],
+            'IndiceBloqueo':         0.0,
+        })
+
+        audit.append({
+            'IdAlumno':                alumno_id,
+            'TipoAlumno':              perfil['TipoAlumno'],
+            'TipoEfectivoNotas':       perfil['TipoEfectivoNotas'],
+            'TipoEfectivoAsistencia':  perfil['TipoEfectivoAsistencia'],
+            'TipoEfectivoAbandono':    perfil['TipoEfectivoAbandono'],
+        })
+
+        if i % 50 == 0:
+            print(f'  {i}/{n_alumnos} alumnos procesados...')
+
+    df_ex  = pd.DataFrame(todos_examenes)[_EXAMEN_COLS]
+    df_mat = pd.DataFrame(todos_materias)[_MATERIA_COLS]
+    df_alm = pd.DataFrame(todos_alumnos)[_ALUMNO_COLS]
+    df_aud = pd.DataFrame(audit)
+
+    df_ex.to_csv( os.path.join(output_dir, 'nivel_examen.csv'),  index=False)
+    df_mat.to_csv(os.path.join(output_dir, 'nivel_materia.csv'), index=False)
+    df_alm.to_csv(os.path.join(output_dir, 'nivel_alumno.csv'),  index=False)
+    df_aud.to_csv(os.path.join(output_dir, 'audit_tipos.csv'),   index=False)
+
+    n_ex  = len(df_ex)
+    n_mat = len(df_mat)
+    print(f'\nnivel_examen.csv  : {n_ex:>8,}', end='')
+    print('' if 190_000 <= n_ex  <= 260_000 else '  [WARN] fuera del rango orientativo 190k-260k')
+    print(f'nivel_materia.csv : {n_mat:>8,}', end='')
+    print('' if 32_000  <= n_mat <= 45_000  else '  [WARN] fuera del rango orientativo 32k-45k')
+    print(f'nivel_alumno.csv  :      500')
+    print(f'audit_tipos.csv   :      500')
+
+    return df_ex, df_mat, df_alm, df_aud
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--out', default=None, help='Output directory (default: same as script)')
+    args = parser.parse_args()
+    generar_datasets(output_dir=args.out)

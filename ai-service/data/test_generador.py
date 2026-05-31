@@ -203,3 +203,54 @@ def test_recursa_deterministic():
                 assert nota_f is not None and nota_f >= 4
             else:
                 assert nota_f is None
+
+
+def test_simular_trayectoria_closed_state():
+    """Every simulated student must end as 'graduado' or 'abandonó', never in-course."""
+    from generar_datasets import generar_perfil, simular_trayectoria
+    import numpy as np
+    rng = np.random.default_rng(7)
+    for i in range(30):
+        perfil = generar_perfil(f'ALU{i:04d}', rng)
+        regs_ex, regs_mat, estado, _ = simular_trayectoria(perfil, rng)
+        assert estado in ('graduado', 'abandonó', 'timeout-abandonó'), \
+            f'Estado inválido: {estado}'
+        if regs_ex:
+            anios = [r['Anio'] for r in regs_ex]
+            assert max(anios) <= 2025
+            assert min(anios) >= perfil['AnioIngreso']
+
+
+def test_r4_correlativas_respetadas():
+    """R4: a materia can only be enrolled when all correlativas are approved."""
+    from generar_datasets import generar_perfil, simular_trayectoria, MATERIAS
+    import numpy as np
+    rng = np.random.default_rng(3)
+    for i in range(20):
+        perfil = generar_perfil(f'ALU{i:04d}', rng)
+        _, regs_mat, _, _ = simular_trayectoria(perfil, rng)
+        aprobadas_por_anio = {}
+        for r in sorted(regs_mat, key=lambda x: x['AnioCursada']):
+            mat = r['Materia']
+            corrs = MATERIAS[mat][3]
+            for c in corrs:
+                assert c in aprobadas_por_anio, \
+                    f'Materia {mat} cursada pero correlativa {c} no aprobada antes'
+            if r['Recursa'] == 0:
+                aprobadas_por_anio[mat] = r['AnioCursada']
+
+
+def test_r6_materia_aprobada_no_se_vuelve_a_cursar():
+    """R6: once a materia is approved (Recursa=0), it never appears again."""
+    from generar_datasets import generar_perfil, simular_trayectoria
+    import numpy as np
+    rng = np.random.default_rng(5)
+    for i in range(30):
+        perfil = generar_perfil(f'ALU{i:04d}', rng)
+        _, regs_mat, _, _ = simular_trayectoria(perfil, rng)
+        aprobadas = set()
+        for r in sorted(regs_mat, key=lambda x: x['AnioCursada']):
+            assert r['Materia'] not in aprobadas, \
+                f'Materia {r["Materia"]} cursada después de ser aprobada'
+            if r['Recursa'] == 0:
+                aprobadas.add(r['Materia'])
