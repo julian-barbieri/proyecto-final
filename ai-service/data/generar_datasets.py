@@ -19,7 +19,7 @@ import pandas as pd
 # ─────────────────────────────────────────────────────────────────────────────
 # PARÁMETROS AJUSTABLES
 # ─────────────────────────────────────────────────────────────────────────────
-N_ALUMNOS    = 1800
+N_ALUMNOS    = 500
 SEED         = 42
 P_OFFTYPE    = 0.12          # prob de comportarse como tipo adyacente por dimensión
 
