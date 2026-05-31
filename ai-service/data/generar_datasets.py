@@ -19,11 +19,11 @@ import pandas as pd
 # ─────────────────────────────────────────────────────────────────────────────
 # PARÁMETROS AJUSTABLES
 # ─────────────────────────────────────────────────────────────────────────────
-N_ALUMNOS    = 500
+N_ALUMNOS    = 1800
 SEED         = 42
 P_OFFTYPE    = 0.12          # prob de comportarse como tipo adyacente por dimensión
 
-B_TIPO       = {'excelente': -4.5, 'regular': -2.0, 'malo': -0.5}
+B_TIPO       = {'excelente': -6.0, 'regular': -4.0, 'malo': -2.0}
 W_PROGRESO   = -3.0
 W_ASISTENCIA = -2.0
 W_BLOQUEO    = +1.5
@@ -369,7 +369,7 @@ def simular_trayectoria(perfil: dict, rng) -> tuple:
 
             # ── Hazard de abandono ──────────────────────────────────────────
             progreso      = len(aprobadas) / 48
-            asist_acum    = float(np.mean(asistencia_hist)) if asistencia_hist else 0.5
+            asist_acum    = float(np.mean(asistencia_hist)) if asistencia_hist else MU_ASIST[tipo_asist]
             ind_bloqueo_g = calcular_indice_bloqueo_global(aprobadas)
 
             p_abandon = calcular_hazard(tipo_abandono, progreso, asist_acum, ind_bloqueo_g, rng)
@@ -565,8 +565,8 @@ def generar_datasets(output_dir: str = None, n_alumnos: int = N_ALUMNOS) -> tupl
     print('' if 190_000 <= n_ex  <= 260_000 else '  [WARN] fuera del rango orientativo 190k-260k')
     print(f'nivel_materia.csv : {n_mat:>8,}', end='')
     print('' if 32_000  <= n_mat <= 45_000  else '  [WARN] fuera del rango orientativo 32k-45k')
-    print(f'nivel_alumno.csv  :      500')
-    print(f'audit_tipos.csv   :      500')
+    print(f'nivel_alumno.csv  : {len(df_alm):>8,}')
+    print(f'audit_tipos.csv   : {len(df_aud):>8,}')
 
     return df_ex, df_mat, df_alm, df_aud
 
