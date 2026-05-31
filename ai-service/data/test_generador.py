@@ -49,3 +49,42 @@ if __name__ == '__main__':
     test_fix1_loo_examen_single_exam()
     test_fix2_loo_materia_all_exams_from_same_subject()
     print('All leakage tests PASSED')
+
+
+# ── Imports needed for generator tests ──────────────────────
+import sys, os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
+
+
+def test_sigmoid_range():
+    from generar_datasets import sigmoid
+    assert sigmoid(0.0) == 0.5
+    assert 0 < sigmoid(-10) < 0.1
+    assert 0.9 < sigmoid(10) < 1.0
+
+
+def test_calcular_hazard_monotone():
+    from generar_datasets import calcular_hazard
+    import numpy as np
+    hazards_high = [calcular_hazard('malo', 0.9, 0.8, 0.0, np.random.default_rng(i)) for i in range(200)]
+    hazards_low  = [calcular_hazard('malo', 0.1, 0.8, 0.0, np.random.default_rng(i)) for i in range(200)]
+    assert np.mean(hazards_high) < np.mean(hazards_low)
+
+
+def test_generar_nota_range():
+    from generar_datasets import generar_nota
+    import numpy as np
+    rng = np.random.default_rng(42)
+    notas = [generar_nota('excelente', rng) for _ in range(500)]
+    assert all(1.0 <= n <= 10.0 for n in notas)
+    assert np.mean(notas) > 6.5
+
+
+def test_generar_nota_overlap():
+    from generar_datasets import generar_nota
+    import numpy as np
+    rng = np.random.default_rng(42)
+    notas_excelente = [generar_nota('excelente', rng) for _ in range(1000)]
+    notas_regular   = [generar_nota('regular',   rng) for _ in range(1000)]
+    assert any(n < 7.0 for n in notas_excelente)
+    assert any(n > 6.5 for n in notas_regular)
