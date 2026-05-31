@@ -210,3 +210,92 @@ def check_volumen(df_ex, df_mat, df_alm):
 
     if not (190_000 <= n_ex  <= 260_000): warn(f'Exámenes {n_ex:,} fuera del rango 190k-260k')
     if not (32_000  <= n_mat <= 45_000):  warn(f'Cursadas {n_mat:,} fuera del rango 32k-45k')
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# BLOQUE 5: ACCURACY BASELINE + ANTI-LEAKAGE
+# ─────────────────────────────────────────────────────────────────────────────
+
+def check_accuracy_baseline():
+    from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
+    from sklearn.metrics import accuracy_score, r2_score, mean_absolute_error
+    from feature_engineering import ft_engineering_procesado
+
+    print('\n══ BLOQUE 5: Accuracy baseline ══')
+
+    # Generar los 3 datasets de modelado usando ft_engineering.py real
+    print('  Generando dataset_alumno  via ft_engineering_procesado("alumno")...')
+    Xtr_a, Xte_a, ytr_a, yte_a = ft_engineering_procesado('alumno')
+    print('  Generando dataset_materia via ft_engineering_procesado("materia")...')
+    Xtr_m, Xte_m, ytr_m, yte_m = ft_engineering_procesado('materia')
+    print('  Generando dataset_examen  via ft_engineering_procesado("examen")...')
+    Xtr_e, Xte_e, ytr_e, yte_e = ft_engineering_procesado('examen')
+
+    # Guardar CSVs de modelado
+    import pandas as pd
+    pd.concat([Xtr_a.assign(split='train'), Xte_a.assign(split='test')]).to_csv(
+        os.path.join(_DATA_DIR, 'dataset_alumno.csv'), index=False)
+    pd.concat([Xtr_m.assign(split='train'), Xte_m.assign(split='test')]).to_csv(
+        os.path.join(_DATA_DIR, 'dataset_materia.csv'), index=False)
+    pd.concat([Xtr_e.assign(split='train'), Xte_e.assign(split='test')]).to_csv(
+        os.path.join(_DATA_DIR, 'dataset_examen.csv'), index=False)
+
+    # Assert: TipoAlumno no está en ningún dataset de modelado
+    for nombre, X in [('alumno', Xtr_a), ('materia', Xtr_m), ('examen', Xtr_e)]:
+        assert 'TipoAlumno' not in X.columns, \
+            f'[BUG] TipoAlumno encontrado en dataset_{nombre} — LEAKAGE!'
+        ok(f'Anti-leakage: TipoAlumno ausente en dataset_{nombre}')
+
+    # Modelos baseline
+    def _check_range(val, lo, hi, label):
+        sym = '✓' if lo <= val <= hi else '✗'
+        print(f'  {sym} {label}: {val:.3f}  (esperado [{lo},{hi}])')
+        if val > hi:
+            warn(f'{label} = {val:.3f} > {hi} — subir P_OFFTYPE o SIGMA_NOTA en generar_datasets.py')
+        elif val < lo:
+            warn(f'{label} = {val:.3f} < {lo} — bajar P_OFFTYPE o SIGMA_NOTA en generar_datasets.py')
+
+    clf_a = DecisionTreeClassifier(max_depth=4, random_state=42)
+    clf_a.fit(Xtr_a, ytr_a)
+    acc_a = accuracy_score(yte_a, clf_a.predict(Xte_a))
+    _check_range(acc_a, 0.80, 0.88, 'Abandono accuracy')
+
+    clf_m = DecisionTreeClassifier(max_depth=4, random_state=42)
+    clf_m.fit(Xtr_m, ytr_m)
+    acc_m = accuracy_score(yte_m, clf_m.predict(Xte_m))
+    _check_range(acc_m, 0.80, 0.88, 'Recursa  accuracy')
+
+    reg_e = DecisionTreeRegressor(max_depth=4, random_state=42)
+    reg_e.fit(Xtr_e, ytr_e)
+    yhat_e = reg_e.predict(Xte_e)
+    _check_range(r2_score(yte_e, yhat_e),           0.30, 0.65, 'Prox nota R²')
+    _check_range(mean_absolute_error(yte_e, yhat_e), 1.0,  2.0, 'Prox nota MAE')
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# MAIN
+# ─────────────────────────────────────────────────────────────────────────────
+
+def main():
+    df_ex  = pd.read_csv(os.path.join(_DATA_DIR, 'nivel_examen.csv'))
+    df_mat = pd.read_csv(os.path.join(_DATA_DIR, 'nivel_materia.csv'))
+    df_alm = pd.read_csv(os.path.join(_DATA_DIR, 'nivel_alumno.csv'))
+    df_aud = pd.read_csv(os.path.join(_DATA_DIR, 'audit_tipos.csv'))
+
+    check_reglas_negocio(df_ex, df_mat)
+    check_distribuciones(df_ex, df_mat, df_alm, df_aud)
+    check_temporal(df_ex, df_alm)
+    check_volumen(df_ex, df_mat, df_alm)
+    check_accuracy_baseline()
+
+    print(f'\n══ REPORTE FINAL ══')
+    print(f'  Errores  : {len(ERRORES)}')
+    print(f'  Warnings : {len(WARNINGS)}')
+    for e in ERRORES:
+        print(f'  [ERROR] {e}')
+    if not ERRORES:
+        print('  ✓ Todos los checks críticos pasaron.')
+
+
+if __name__ == '__main__':
+    main()

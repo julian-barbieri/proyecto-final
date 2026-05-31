@@ -21,7 +21,7 @@ import pandas as pd
 # ─────────────────────────────────────────────────────────────────────────────
 N_ALUMNOS    = 500
 SEED         = 42
-P_OFFTYPE    = 0.12          # prob de comportarse como tipo adyacente por dimensión
+P_OFFTYPE    = 0.18          # prob de comportarse como tipo adyacente por dimensión
 
 B_TIPO       = {'excelente': -6.0, 'regular': -4.0, 'malo': -2.0}
 W_PROGRESO   = -3.0
