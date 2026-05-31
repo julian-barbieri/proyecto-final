@@ -89,14 +89,14 @@ def check_reglas_negocio(df_ex: pd.DataFrame, df_mat: pd.DataFrame):
     else:
         ok('R4: correlativas respetadas')
 
-    # R5: tipo A = 2 parciales, tipo C = 1 parcial (por cursada)
+    # R5: tipo A = 1 or 2 parciales (P2 only if P1_final >= 4), tipo C = exactly 1 parcial
     pc = (df_ex[df_ex['TipoExamen'] == 'Parcial']
           .groupby(['IdAlumno','Materia','Anio','Cuatrimestre','Tipo']).size()
           .reset_index(name='n'))
-    r5_A = pc[(pc['Tipo'] == 'A') & (pc['n'] != 2)]
+    r5_A = pc[(pc['Tipo'] == 'A') & (~pc['n'].isin([1, 2]))]
     r5_C = pc[(pc['Tipo'] == 'C') & (pc['n'] != 1)]
     if len(r5_A) or len(r5_C):
-        err(f'R5: {len(r5_A)} cursadas A con ≠2 parciales, {len(r5_C)} cursadas C con ≠1 parcial')
+        err(f'R5: {len(r5_A)} cursadas A con parciales fuera de [1,2], {len(r5_C)} cursadas C con ≠1 parcial')
     else:
         ok('R5: número de parciales correcto por tipo')
 
