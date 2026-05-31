@@ -188,3 +188,47 @@ def fecha_final(tipo_mat, cuatr, anio, instancia, rng):
     }
     y, m, lo, hi = slots[(tipo_mat, 0 if tipo_mat == 'A' else cuatr)][instancia - 1]
     return _fecha(y, m, lo, hi, rng)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CAPA 1: PERFIL LATENTE
+# ─────────────────────────────────────────────────────────────────────────────
+
+def generar_perfil(alumno_id: str, rng) -> dict:
+    tipo = rng.choice(['excelente', 'regular', 'malo'], p=[0.25, 0.50, 0.25])
+
+    # Ayuda económica: P(ayuda|excelente)=0.54, P(ayuda|no-excelente)=0.02
+    p_ayuda = 0.54 if tipo == 'excelente' else 0.02
+    ayuda = int(rng.random() < p_ayuda)
+
+    # Colegio técnico por tipo
+    p_tec = {'excelente': 0.90, 'regular': 0.40, 'malo': 0.01}[tipo]
+    colegio_tec = int(rng.random() < p_tec)
+
+    # Promedio colegio (Gaussiana suave, sin cortes duros entre tipos)
+    mu_pc   = {'excelente': 8.0, 'regular': 6.5, 'malo': 5.5}[tipo]
+    sig_pc  = {'excelente': 0.8, 'regular': 1.0, 'malo': 1.2}[tipo]
+    lo_pc   = {'excelente': 5.0, 'regular': 4.0, 'malo': 3.0}[tipo]
+    hi_pc   = {'excelente': 10.0,'regular': 9.0, 'malo': 8.0}[tipo]
+    prom_col = float(np.clip(rng.normal(mu_pc, sig_pc), lo_pc, hi_pc))
+
+    tipo_notas, tipo_asist, tipo_abandono = generar_offtype(tipo, rng)
+
+    anio_ingreso = int(rng.choice([2015, 2016, 2017, 2018, 2019, 2020]))
+    edad_ingreso = float(np.clip(rng.normal(19, 1.5), 17, 23))
+    fecha_nac    = datetime(anio_ingreso, 3, 1) - timedelta(days=int(edad_ingreso * 365.25))
+    genero       = 'Masculino' if rng.random() < 0.9 else 'Femenino'
+
+    return {
+        'IdAlumno':              alumno_id,
+        'TipoAlumno':            tipo,
+        'TipoEfectivoNotas':     tipo_notas,
+        'TipoEfectivoAsistencia':tipo_asist,
+        'TipoEfectivoAbandono':  tipo_abandono,
+        'AyudaFinanciera':       ayuda,
+        'ColegioTecnico':        colegio_tec,
+        'PromedioColegio':       round(prom_col, 2),
+        'AnioIngreso':           anio_ingreso,
+        'FechaNac':              fecha_nac.strftime('%d-%m-%Y'),
+        'Genero':                genero,
+    }

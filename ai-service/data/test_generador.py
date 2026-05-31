@@ -88,3 +88,43 @@ def test_generar_nota_overlap():
     notas_regular   = [generar_nota('regular',   rng) for _ in range(1000)]
     assert any(n < 7.0 for n in notas_excelente)
     assert any(n > 6.5 for n in notas_regular)
+
+
+def test_generar_perfil_structure():
+    from generar_datasets import generar_perfil
+    import numpy as np
+    rng = np.random.default_rng(0)
+    p = generar_perfil('ALU0001', rng)
+    required = ['IdAlumno','TipoAlumno','TipoEfectivoNotas','TipoEfectivoAsistencia',
+                'TipoEfectivoAbandono','AyudaFinanciera','ColegioTecnico','PromedioColegio',
+                'AnioIngreso','FechaNac','Genero']
+    for k in required:
+        assert k in p, f'Missing key: {k}'
+    assert p['AnioIngreso'] in range(2015, 2021)
+    assert p['TipoAlumno'] in {'excelente','regular','malo'}
+
+
+def test_ayuda_economica_conditional():
+    """P(excelente | ayuda) must be ~0.90 over large sample."""
+    from generar_datasets import generar_perfil
+    import numpy as np
+    rng = np.random.default_rng(42)
+    perfiles = [generar_perfil(f'ALU{i:04d}', rng) for i in range(2000)]
+    con_ayuda = [p for p in perfiles if p['AyudaFinanciera'] == 1]
+    assert len(con_ayuda) > 0
+    pct_excel = sum(1 for p in con_ayuda if p['TipoAlumno'] == 'excelente') / len(con_ayuda)
+    assert 0.80 <= pct_excel <= 0.99, f'P(excelente|ayuda) = {pct_excel:.2f}'
+    pct_ayuda = len(con_ayuda) / len(perfiles)
+    assert 0.10 <= pct_ayuda <= 0.20, f'P(ayuda) = {pct_ayuda:.2f}'
+
+
+def test_colegio_tecnico_by_tipo():
+    """Excelente ~90%, regular ~40%, malo ~1%."""
+    from generar_datasets import generar_perfil
+    import numpy as np
+    rng = np.random.default_rng(0)
+    perfiles = [generar_perfil(f'ALU{i:04d}', rng) for i in range(3000)]
+    for tipo, lo, hi in [('excelente', 0.80, 0.99), ('regular', 0.28, 0.55), ('malo', 0.0, 0.06)]:
+        grp = [p for p in perfiles if p['TipoAlumno'] == tipo]
+        pct = sum(1 for p in grp if p['ColegioTecnico'] == 1) / len(grp)
+        assert lo <= pct <= hi, f'{tipo} colegio_tecnico = {pct:.2f}, expected [{lo},{hi}]'
