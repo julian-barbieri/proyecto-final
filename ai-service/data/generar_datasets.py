@@ -232,3 +232,108 @@ def generar_perfil(alumno_id: str, rng) -> dict:
         'FechaNac':              fecha_nac.strftime('%d-%m-%Y'),
         'Genero':                genero,
     }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CAPA 3: SIMULACIÓN DE EXÁMENES POR MATERIA
+# ─────────────────────────────────────────────────────────────────────────────
+
+def simular_cursada(materia_code: int, tipo_mat: str, cuatr: int, anio: int,
+                    tipo_notas: str, tipo_asist: str, ayuda: bool,
+                    aprobadas: set, notas_aprobadas: dict,
+                    n_veces_recursada: int, n_materias_simultaneas: int,
+                    rng) -> tuple:
+    """
+    Simula una cursada completa.
+    Returns: (registros_examen: list[dict], aprobada: bool, nota_final: float | None)
+    """
+    _, _, ano_plan, _ = MATERIAS[materia_code]
+    asistencia     = generar_asistencia(tipo_asist, rng, ayuda)
+    ind_bloqueo    = calcular_indice_bloqueo_materia(aprobadas, materia_code)
+    nota_prom_corr = calcular_promedio_correlativas(notas_aprobadas, materia_code)
+
+    registros = []
+
+    def _reg(tipo_examen, instancia, nota, fecha):
+        return {
+            'Materia':                    materia_code,
+            'Tipo':                       tipo_mat,
+            'Cuatrimestre':               0 if tipo_mat == 'A' else cuatr,
+            'Anio':                       anio,
+            'TipoExamen':                 tipo_examen,
+            'Instancia':                  instancia,
+            'Asistencia':                 round(asistencia, 2),
+            'VecesRecursada':             n_veces_recursada,
+            'AñoCarrera':                 ano_plan,
+            'NotaPromedioCorrelativas':   nota_prom_corr,
+            'MateriasAprobadasHastaMomento': len(aprobadas),
+            'CargaSimultanea':            n_materias_simultaneas,
+            'IndiceBloqueo':              ind_bloqueo,
+            'ExamenRendido':              1,
+            'AusenteExamen':              0,
+            'Nota':                       round(nota, 2),
+            'FechaExamen':                fecha.strftime('%d-%m-%Y'),
+        }
+
+    # ── Flujo cuatrimestral (tipo C) ─────────────────────────────────────────
+    if tipo_mat == 'C':
+        nota_p1 = generar_nota(tipo_notas, rng, ayuda)
+        registros.append(_reg('Parcial', 1, nota_p1,
+                              fecha_parcial('C', cuatr, anio, 1, rng)))
+        if nota_p1 < 4:
+            nota_r1 = generar_nota(tipo_notas, rng, ayuda)
+            registros.append(_reg('Recuperatorio', 1, nota_r1,
+                                  fecha_recuperatorio('C', cuatr, anio, 1, rng)))
+            nota_p1_final = nota_r1
+        else:
+            nota_p1_final = nota_p1
+
+        if nota_p1_final < 4 or asistencia < 0.75:
+            return registros, False, None
+
+        for inst in range(1, 4):
+            nota_f = round(generar_nota(tipo_notas, rng, ayuda), 2)
+            registros.append(_reg('Final', inst, nota_f,
+                                  fecha_final('C', cuatr, anio, inst, rng)))
+            if nota_f >= 4:
+                return registros, True, nota_f
+
+        return registros, False, None
+
+    # ── Flujo anual (tipo A) ──────────────────────────────────────────────────
+    nota_p1 = generar_nota(tipo_notas, rng, ayuda)
+    registros.append(_reg('Parcial', 1, nota_p1,
+                          fecha_parcial('A', 0, anio, 1, rng)))
+    if nota_p1 < 4:
+        nota_r1 = generar_nota(tipo_notas, rng, ayuda)
+        registros.append(_reg('Recuperatorio', 1, nota_r1,
+                              fecha_recuperatorio('A', 0, anio, 1, rng)))
+        nota_p1_final = nota_r1
+    else:
+        nota_p1_final = nota_p1
+
+    if nota_p1_final < 4:
+        return registros, False, None
+
+    nota_p2 = generar_nota(tipo_notas, rng, ayuda)
+    registros.append(_reg('Parcial', 2, nota_p2,
+                          fecha_parcial('A', 0, anio, 2, rng)))
+    if nota_p2 < 4:
+        nota_r2 = generar_nota(tipo_notas, rng, ayuda)
+        registros.append(_reg('Recuperatorio', 2, nota_r2,
+                              fecha_recuperatorio('A', 0, anio, 2, rng)))
+        nota_p2_final = nota_r2
+    else:
+        nota_p2_final = nota_p2
+
+    if nota_p2_final < 4 or asistencia < 0.75:
+        return registros, False, None
+
+    for inst in range(1, 4):
+        nota_f = round(generar_nota(tipo_notas, rng, ayuda), 2)
+        registros.append(_reg('Final', inst, nota_f,
+                              fecha_final('A', 0, anio, inst, rng)))
+        if nota_f >= 4:
+            return registros, True, nota_f
+
+    return registros, False, None
