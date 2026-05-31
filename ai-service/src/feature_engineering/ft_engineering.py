@@ -219,23 +219,16 @@ def ft_engineering_procesado(dataset: str = 'examen'):
             0.0
         )
 
-        # -- 0c) Features desde nivel_examen por IdAlumno (rendimiento general) -
-        # Captura el rendimiento global del alumno en TODAS las materias,
-        # independientemente de cual se este prediciendo
-        ex_general = ex_presentes_mat.groupby('IdAlumno').agg(
-            # Promedio de notas general del alumno en todos los examenes rendidos
-            PromedioNotaGeneral    = ('Nota', 'mean'),
-            # Cantidad de examenes aprobados en total (para calcular la tasa general)
-            CantAprobadosGeneral   = ('Nota', lambda x: (x >= 4).sum()),
-            CantRendidosGeneral    = ('Nota', 'count'),
+        # -- 0c) PromedioNotaGeneral por IdAlumno (leave-one-materia-out) -
+        # Exclude current materia's exams so failing finals don't encode Recursa target
+        _ex_global = ex_presentes_mat.groupby('IdAlumno').agg(
+            _global_sum=('Nota', 'sum'),
+            _global_cnt=('Nota', 'count'),
         ).reset_index()
-        
-        # Proporcion general de aprobacion: indica el perfil academico global del alumno
-        ex_general['TasaAprobacionGeneral'] = np.where(
-            ex_general['CantRendidosGeneral'] > 0,
-            ex_general['CantAprobadosGeneral'] / ex_general['CantRendidosGeneral'],
-            0.0
-        )
+        _ex_self = ex_presentes_mat.groupby(['IdAlumno', 'Materia']).agg(
+            _self_sum=('Nota', 'sum'),
+            _self_cnt=('Nota', 'count'),
+        ).reset_index()
 
         # -- 0d) Join y relleno de nulos ----------------------------------------
         # Join por (IdAlumno, Materia): cada fila de materia recibe su historial
@@ -249,17 +242,23 @@ def ft_engineering_procesado(dataset: str = 'examen'):
         # Join VecesRecursada desde materia (conteo de cursadas con Recursa=1)
         df = df.merge(veces_recursada, on=['IdAlumno', 'Materia'], how='left')
         
-        # Join por IdAlumno: cada fila recibe el rendimiento global del alumno
-        df = df.merge(
-            ex_general[['IdAlumno', 'PromedioNotaGeneral', 'TasaAprobacionGeneral']],
-            on='IdAlumno', how='left'
+        # Join por IdAlumno y Materia: leave-one-materia-out para PromedioNotaGeneral
+        df = df.merge(_ex_global, on='IdAlumno', how='left')
+        df = df.merge(_ex_self, on=['IdAlumno', 'Materia'], how='left')
+        for _c in ['_global_sum', '_global_cnt', '_self_sum', '_self_cnt']:
+            df[_c] = df[_c].fillna(0)
+        _remaining = (df['_global_cnt'] - df['_self_cnt']).clip(lower=1)
+        df['PromedioNotaGeneral'] = np.where(
+            df['_global_cnt'] > df['_self_cnt'],
+            (df['_global_sum'] - df['_self_sum']) / _remaining,
+            0.0,
         )
+        df = df.drop(columns=['_global_sum', '_global_cnt', '_self_sum', '_self_cnt'])
 
         # Alumnos sin historial de examenes para esta materia o en general -> 0
         fill_zero = [
             'VecesRendidaExamenMateria', 'VecesAusenteMateria',
             'PromedioNotaMateria', 'TasaAprobacionMateria',
-            'PromedioNotaGeneral', 'TasaAprobacionGeneral',
             'VecesRecursada',
         ]
         df[fill_zero] = df[fill_zero].fillna(0)
@@ -351,11 +350,25 @@ def ft_engineering_procesado(dataset: str = 'examen'):
         ex_nota_general = examen[examen['AusenteExamen'] == 0].groupby('IdAlumno').agg(
             PromedioNotaGeneral   = ('Nota', 'mean'),
             TasaAprobacionGeneral = ('Nota', lambda x: (x >= 4).mean()),
+            _n_exams              = ('Nota', 'count'),
         ).reset_index()
         df = df.merge(ex_nota_general, on='IdAlumno', how='left')
-        df[['PromedioNotaGeneral', 'TasaAprobacionGeneral']] = (
-            df[['PromedioNotaGeneral', 'TasaAprobacionGeneral']].fillna(0)
+        df[['PromedioNotaGeneral', 'TasaAprobacionGeneral', '_n_exams']] = (
+            df[['PromedioNotaGeneral', 'TasaAprobacionGeneral', '_n_exams']].fillna(0)
         )
+        # LOO: remove current exam's contribution to avoid leakage into target Nota
+        df['PromedioNotaGeneral'] = np.where(
+            df['_n_exams'] > 1,
+            (df['PromedioNotaGeneral'] * df['_n_exams'] - df['Nota']) / (df['_n_exams'] - 1),
+            0.0,
+        )
+        df['TasaAprobacionGeneral'] = np.where(
+            df['_n_exams'] > 1,
+            (df['TasaAprobacionGeneral'] * df['_n_exams']
+             - (df['Nota'] >= 4).astype(int)) / (df['_n_exams'] - 1),
+            0.0,
+        )
+        df = df.drop(columns=['_n_exams'])
 
         # -- 0e) NotaPromedioCorrelativas: promedio de notas en correlativas ----
         # Para esta materia, obtener el promedio de notas que tiene el alumno en
