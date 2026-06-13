@@ -1,9 +1,4 @@
-import sys
-from pathlib import Path
-
 import pytest
-
-sys.path.insert(0, str(Path(__file__).parents[1] / 'src'))
 
 from feature_engineering.ft_engineering import ft_engineering_procesado
 
@@ -44,7 +39,7 @@ def test_split_proporcional(dataset):
     """Train debe ser ~4x más grande que test (80/20)."""
     X_train, X_test, y_train, y_test = ft_engineering_procesado(dataset)
     total = len(X_train) + len(X_test)
-    assert len(X_test) == pytest.approx(total * 0.2, abs=5)
+    assert len(X_test) == pytest.approx(total * 0.2, rel=0.05)
 
 
 @pytest.mark.parametrize('dataset', ['alumno', 'materia'])
@@ -62,11 +57,12 @@ def test_target_nota_rango():
         assert y.between(0, 10).all(), "Nota fuera del rango [0, 10]"
 
 
-def test_sin_nulos_examen():
-    """El feature set de examen no debe tener nulos después del preprocesamiento."""
-    X_train, X_test, _, _ = ft_engineering_procesado('examen')
-    assert not X_train.isnull().any().any(), "X_train de examen tiene nulos"
-    assert not X_test.isnull().any().any(), "X_test de examen tiene nulos"
+@pytest.mark.parametrize('dataset', ['alumno', 'materia', 'examen'])
+def test_sin_nulos(dataset):
+    """El feature set no debe tener nulos después del preprocesamiento."""
+    X_train, X_test, _, _ = ft_engineering_procesado(dataset)
+    assert not X_train.isnull().any().any(), f"X_train de {dataset} tiene nulos"
+    assert not X_test.isnull().any().any(), f"X_test de {dataset} tiene nulos"
 
 
 def test_materia_es_numerica():
