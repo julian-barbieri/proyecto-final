@@ -1,12 +1,6 @@
 Variable,ImportanciaMedia
-Asistencia,0.12402002558691311
-PromedioColegio,0.014569749918404037
-Materia,0.010415846235546452
-PromedioNotaGeneral,0.007062359271163187
-TasaAprobacionGeneral,0.0022577712129354995
-Edad,0.0
-AniosDesdeIngreso,0.0
-IndiceBloqueo,0.0
-Genero,0.0
-AyudaFinanciera,0.0
-ColegioTecnico,0.0
+PromedioAsistencia,1.5403787833394715
+PromedioNotaGeneral,0.8443041705943828
+Materia,0.07561659545018465
+PromedioColegio,0.05366128617203235
+AyudaFinanciera,0.014053266825307647
