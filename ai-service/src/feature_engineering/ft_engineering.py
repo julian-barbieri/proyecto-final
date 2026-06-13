@@ -370,40 +370,6 @@ def ft_engineering_procesado(dataset: str = 'examen'):
         )
         df = df.drop(columns=['_n_exams'])
 
-        # -- 0e) NotaPromedioCorrelativas: promedio de notas en correlativas ----
-        # Para esta materia, obtener el promedio de notas que tiene el alumno en
-        # las materias que son correlativas (requisitos previos)
-        def calcular_nota_promedio_correlativas(row):
-            """
-            Retorna el promedio de notas del alumno en las materias correlativas
-            de esta materia. Si no tiene correlativas o no las cursó, retorna 0.
-            """
-            materia_id = row['Materia']
-            id_alumno = row['IdAlumno']
-            
-            # Si no hay correlativas definidas, retorna 0
-            if materia_id not in CORRELATIVAS_MAP:
-                return 0.0
-            
-            correlativas = CORRELATIVAS_MAP[materia_id]
-            
-            # Obtener notas del alumno en las correlativas (solo presentes)
-            ex_alumno = examen[
-                (examen['IdAlumno'] == id_alumno) & 
-                (examen['AusenteExamen'] == 0) &
-                (examen['Materia'].isin(correlativas))
-            ]
-            
-            if len(ex_alumno) == 0:
-                return 0.0
-            
-            # Retorna el promedio de las notas en las correlativas
-            return ex_alumno['Nota'].mean()
-        
-        df['NotaPromedioCorrelativas'] = df.apply(
-            calcular_nota_promedio_correlativas, axis=1
-        )
-
         # -- 0g) Features derivadas del flujo academico (dominio especifico) ----
         # Basadas en las reglas del dataset: Parcial → Recuperatorio → Final
         # y los umbrales explicitos definidos en el dominio universitario
