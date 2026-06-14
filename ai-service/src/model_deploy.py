@@ -1,18 +1,11 @@
-# ---------------------------------------------------------------------------
-# 1) Importacion de librerias
-# ---------------------------------------------------------------------------
 import os
 import joblib
-import numpy as np
 import pandas as pd
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, create_model
 from typing import Any, Dict, List, Type
 
 
-# ---------------------------------------------------------------------------
-# 2) Instanciamos la aplicacion
-# ---------------------------------------------------------------------------
 app = FastAPI(
     title='API de Predicciones Academicas',
     description=(
@@ -25,20 +18,6 @@ app = FastAPI(
 )
 
 
-# ---------------------------------------------------------------------------
-# 3) Grupos OHE conocidos
-#    Prefijo → categorias posibles.
-#    Se detecta cuales estan presentes en cada modelo al cargar los .pkl.
-# ---------------------------------------------------------------------------
-_OHE_GROUPS: Dict[str, List[str]] = {
-    'TipoExamen': ['Final', 'Parcial', 'Recuperatorio'],
-    'Tipo':       ['A', 'C'],
-}
-
-
-# ---------------------------------------------------------------------------
-# 4) Carga de modelos entrenados
-# ---------------------------------------------------------------------------
 _MODELS_TRAINED_DIR = os.path.join(
     os.path.dirname(__file__), 'models', 'models-trained'
 )
@@ -50,117 +29,28 @@ try:
 except FileNotFoundError as exc:
     raise RuntimeError(
         f'Modelo no encontrado: {exc}. '
-        'Ejecuta python models/training/main.py antes de iniciar la API.'
+        'Ejecuta python src/train_models.py antes de iniciar la API.'
     ) from exc
 
-# Feature names leidas directamente del atributo que sklearn guarda en el fit().
-# Se convierten a str Python para evitar que numpy.str_ cause problemas en Pydantic.
 _ALUMNO_COLS  = [str(f) for f in model_alumno.feature_names_in_]
 _MATERIA_COLS = [str(f) for f in model_materia.feature_names_in_]
 _EXAMEN_COLS  = [str(f) for f in model_examen.feature_names_in_]
-# Features calculadas internamente por la API; no se exponen en el schema de entrada.
-_INTERNAL_EXAMEN   = frozenset({'ProbRecursa'})
-_EXAMEN_COLS_INPUT = [c for c in _EXAMEN_COLS if c not in _INTERNAL_EXAMEN]
 
 
-# ---------------------------------------------------------------------------
-# 5) Funciones auxiliares
-# ---------------------------------------------------------------------------
-
-def _detectar_ohe(feature_names: List[str]) -> Dict[str, List[str]]:
-    """Retorna los grupos OHE presentes en feature_names."""
-    ohe_found: Dict[str, List[str]] = {}
-    for prefix, categories in _OHE_GROUPS.items():
-        present = [cat for cat in categories if f'{prefix}_{cat}' in feature_names]
-        if present:
-            ohe_found[prefix] = present
-    return ohe_found
-
-
-def _crear_pydantic_model(
-    name: str,
-    feature_names: List[str],
-    ohe_map: Dict[str, List[str]],
-) -> Type[BaseModel]:
-    """
-    Genera un Pydantic model dinamico a partir de feature_names:
-    - Columnas OHE se reemplazan por el campo raw categorico (str).
-    - PromedioColegio_x / _y (artifact del merge) se exponen como un unico
-      campo PromedioColegio (float).
-    - El resto son float con default 0.0.
-    """
-    ohe_cols         = {f'{prefix}_{cat}' for prefix, cats in ohe_map.items() for cat in cats}
-    promedio_dup_cols = {'PromedioColegio_x', 'PromedioColegio_y'}
-
-    fields: Dict[str, Any] = {}
-    seen:   set             = set()
-
-    for feat in feature_names:
-        if feat in ohe_cols:
-            continue
-        if feat in promedio_dup_cols:
-            if 'PromedioColegio' not in seen:
-                fields['PromedioColegio'] = (float, 0.0)
-                seen.add('PromedioColegio')
-            continue
-        fields[feat] = (float, 0.0)
-
-    for prefix, cats in ohe_map.items():
-        fields[prefix] = (str, cats[0] if cats else '')
-
+def _crear_pydantic_model(name: str, feature_names: List[str]) -> Type[BaseModel]:
+    fields: Dict[str, Any] = {feat: (float, 0.0) for feat in feature_names}
     return create_model(name, **fields)
 
 
-def _registros_a_df(
-    registros: list,
-    feature_names: List[str],
-    ohe_map: Dict[str, List[str]],
-) -> pd.DataFrame:
-    """Convierte una lista de instancias Pydantic a DataFrame listo para predict()."""
-    promedio_dup_cols = {'PromedioColegio_x', 'PromedioColegio_y'}
-    has_promedio_dup  = bool(set(feature_names) & promedio_dup_cols)
-
-    filas = []
-    for r in registros:
-        row = r.model_dump()
-
-        # Expansion OHE: reemplaza el campo raw por columnas binarias
-        for prefix, categories in ohe_map.items():
-            raw_val = row.pop(prefix, None)
-            for cat in categories:
-                col_name = f'{prefix}_{cat}'
-                if col_name in feature_names:
-                    row[col_name] = 1 if raw_val == cat else 0
-
-        # Durante el entrenamiento, el merge de nivel_alumno con los agregados
-        # de nivel_materia genero PromedioColegio_x y PromedioColegio_y.
-        # Ambas representan el mismo valor; se replican aqui para que los nombres
-        # del DataFrame coincidan con los que el modelo vio durante el fit().
-        if has_promedio_dup:
-            pc = row.pop('PromedioColegio', 0.0)
-            row['PromedioColegio_x'] = pc
-            row['PromedioColegio_y'] = pc
-
-        filas.append(row)
-
+def _registros_a_df(registros: list, feature_names: List[str]) -> pd.DataFrame:
+    filas = [r.model_dump() for r in registros]
     return pd.DataFrame(filas)[feature_names]
 
 
-# ---------------------------------------------------------------------------
-# 6) OHE maps y Pydantic models (generados al arrancar el servidor)
-# ---------------------------------------------------------------------------
-_alumno_ohe  = _detectar_ohe(_ALUMNO_COLS)
-_materia_ohe = _detectar_ohe(_MATERIA_COLS)
-_examen_ohe  = _detectar_ohe(_EXAMEN_COLS)
+AlumnoInput  = _crear_pydantic_model('AlumnoInput',  _ALUMNO_COLS)
+MateriaInput = _crear_pydantic_model('MateriaInput', _MATERIA_COLS)
+ExamenInput  = _crear_pydantic_model('ExamenInput',  _EXAMEN_COLS)
 
-AlumnoInput  = _crear_pydantic_model('AlumnoInput',  _ALUMNO_COLS,  _alumno_ohe)
-MateriaInput = _crear_pydantic_model('MateriaInput', _MATERIA_COLS, _materia_ohe)
-ExamenInput  = _crear_pydantic_model('ExamenInput',  _EXAMEN_COLS_INPUT, _examen_ohe)
-
-
-# ---------------------------------------------------------------------------
-# 7) Health check
-# ---------------------------------------------------------------------------
 
 @app.get('/health', summary='Health check', tags=['Sistema'])
 def health():
@@ -174,10 +64,6 @@ def health():
         },
     }
 
-
-# ---------------------------------------------------------------------------
-# 8) Endpoints de prediccion
-# ---------------------------------------------------------------------------
 
 @app.post(
     '/predict/alumno',
@@ -194,8 +80,7 @@ def predict_alumno(registros: List[AlumnoInput]):
     if not registros:
         raise HTTPException(status_code=422, detail='La lista de registros no puede estar vacia.')
 
-    df = _registros_a_df(registros, _ALUMNO_COLS, _alumno_ohe)
-
+    df = _registros_a_df(registros, _ALUMNO_COLS)
     predicciones   = model_alumno.predict(df).tolist()
     probabilidades = (
         model_alumno.predict_proba(df)[:, 1].tolist()
@@ -226,8 +111,7 @@ def predict_materia(registros: List[MateriaInput]):
     if not registros:
         raise HTTPException(status_code=422, detail='La lista de registros no puede estar vacia.')
 
-    df = _registros_a_df(registros, _MATERIA_COLS, _materia_ohe)
-
+    df = _registros_a_df(registros, _MATERIA_COLS)
     predicciones   = model_materia.predict(df).tolist()
     probabilidades = (
         model_materia.predict_proba(df)[:, 1].tolist()
@@ -253,20 +137,12 @@ def predict_examen(registros: List[ExamenInput]):
     Predice la nota (0-10) que obtendra un alumno en un examen.
 
     - **Nota**: nota predicha redondeada a 2 decimales.
-
-    ProbRecursa se calcula internamente usando modelo_materia; no es necesario
-    proveerla como input.
     """
     if not registros:
         raise HTTPException(status_code=422, detail='La lista de registros no puede estar vacia.')
 
-    df = _registros_a_df(registros, _EXAMEN_COLS_INPUT, _examen_ohe)
-
-    if 'ProbRecursa' in _EXAMEN_COLS:
-        X_mat = df.reindex(columns=list(_MATERIA_COLS), fill_value=0)
-        df['ProbRecursa'] = model_materia.predict_proba(X_mat)[:, 1]
-
-    predicciones = model_examen.predict(df[_EXAMEN_COLS]).tolist()
+    df = _registros_a_df(registros, _EXAMEN_COLS)
+    predicciones = model_examen.predict(df).tolist()
 
     return [
         {'Nota': round(float(pred), 2)}
