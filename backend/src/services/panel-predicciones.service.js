@@ -31,38 +31,36 @@ function setCachedPrediction(alumnoId, materiaId, data) {
 }
 
 function normalizeAlumnoPayload(payload) {
-  return payload;
+  return payload.map(({ PromedioNotaGeneral, PromedioAsistencia, AyudaFinanciera,
+                        CantExamenesRendidos, CantFinalesRendidos }) => ({
+    PromedioNotaGeneral:  Number(PromedioNotaGeneral),
+    PromedioAsistencia:   Number(PromedioAsistencia),
+    AyudaFinanciera:      Number(AyudaFinanciera),
+    CantExamenesRendidos: Number(CantExamenesRendidos),
+    CantFinalesRendidos:  Number(CantFinalesRendidos),
+  }));
 }
 
 function normalizeMateriaPayload(payload) {
-  return payload;
+  return payload.map(({ PromedioNotaGeneral, PromedioAsistencia, AyudaFinanciera,
+                        Materia, PromedioColegio }) => ({
+    PromedioNotaGeneral: Number(PromedioNotaGeneral),
+    PromedioAsistencia:  Number(PromedioAsistencia),
+    AyudaFinanciera:     Number(AyudaFinanciera),
+    Materia:             Number(Materia),
+    PromedioColegio:     Number(PromedioColegio),
+  }));
 }
 
 function normalizeExamenPayload(payload) {
-  return payload.map((item) => ({
-    ...item,
-    Materia: Number(item.Materia),
-    Instancia: Number(item.Instancia),
-    Asistencia: Number(item.Asistencia),
-    VecesRecursada: Number(item.VecesRecursada),
-    Genero: Number(item.Genero),
-    Edad: Number(item.Edad),
-    AyudaFinanciera: Number(item.AyudaFinanciera),
-    ColegioTecnico: Number(item.ColegioTecnico),
-    PromedioColegio: Number(item.PromedioColegio),
-    AniosDesdeIngreso: Number(item.AniosDesdeIngreso),
-    VecesCursadaMateria: Number(item.VecesCursadaMateria),
-    TasaRecursaMateria: Number(item.TasaRecursaMateria),
-    PromedioAsistenciaHistMateria: Number(item.PromedioAsistenciaHistMateria),
-    TotalCursadasGeneral: Number(item.TotalCursadasGeneral),
-    TasaRecursaGeneral: Number(item.TasaRecursaGeneral),
-    PromedioAsistenciaGeneral: Number(item.PromedioAsistenciaGeneral),
-    PromedioNotaGeneral: Number(item.PromedioNotaGeneral),
-    TasaAprobacionGeneral: Number(item.TasaAprobacionGeneral),
-    PosicionFlujo: Number(item.PosicionFlujo),
-    NotaPromedioParcialCursada: Number(item.NotaPromedioParcialCursada),
-    CantParcialesAprobados: Number(item.CantParcialesAprobados),
-    Anio: Number(item.Anio),
+  return payload.map(({ PromedioNotaGeneral, PromedioAsistencia, AyudaFinanciera,
+                        NotaPromedioParcialCursada, TasaRecursaGeneral, Materia }) => ({
+    PromedioNotaGeneral:        Number(PromedioNotaGeneral),
+    PromedioAsistencia:         Number(PromedioAsistencia),
+    AyudaFinanciera:            Number(AyudaFinanciera),
+    NotaPromedioParcialCursada: Number(NotaPromedioParcialCursada),
+    TasaRecursaGeneral:         Number(TasaRecursaGeneral),
+    Materia:                    Number(Materia),
   }));
 }
 
@@ -363,4 +361,7 @@ module.exports = {
   getRiskLevel,
   getRecursadoRiskLevel,
   getNotaLevel,
+  normalizeAlumnoPayload,
+  normalizeMateriaPayload,
+  normalizeExamenPayload,
 };
