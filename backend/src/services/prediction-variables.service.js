@@ -138,12 +138,14 @@ function calcularVariablesAbandono(legajo) {
   // -- COMENTADAS: CantMaterias, CantAniosCursados, CantAusencias, TasaAusencia,
   // -- CantAprobados, TasaAprobacion, Edad, Genero, ColegioTecnico, PromedioColegio
   return {
-    PromedioNotaGeneral: round4(promedioNota),
-    PromedioAsistencia: round4(promedioAsistencia),
-    AyudaFinanciera: Number(alumno.ayuda_financiera || 0),
-    CantExamenesRendidos: cantExamenesRendidos,
-    CantFinalesRendidos: cantFinalesRendidos,
-    _meta: {
+    variables: {
+      PromedioNotaGeneral: round4(promedioNota),
+      PromedioAsistencia: round4(promedioAsistencia),
+      AyudaFinanciera: Number(alumno.ayuda_financiera || 0),
+      CantExamenesRendidos: cantExamenesRendidos,
+      CantFinalesRendidos: cantFinalesRendidos,
+    },
+    meta: {
       nombre: alumno.nombre_completo,
       legajo,
       warningSinHistorial: cantMaterias === 0 && totalIntentos === 0,
@@ -203,12 +205,14 @@ function calcularVariablesRecursado(legajo, materiaId, anio) {
   // -- COMENTADAS: anioNac, Edad, AniosDesdeIngreso, Asistencia (especifica), IndiceBloqueo,
   // -- Genero, ColegioTecnico, TasaAprobacionGeneral
   return {
-    PromedioNotaGeneral: round4(promedioNotaGeneral),
-    PromedioAsistencia: round4(promedioAsistencia),
-    AyudaFinanciera: Number(alumno.ayuda_financiera || 0),
-    Materia: materia.codigo_plan || 0,
-    PromedioColegio: toNumber(alumno.promedio_colegio, 0),
-    _meta: {
+    variables: {
+      PromedioNotaGeneral: round4(promedioNotaGeneral),
+      PromedioAsistencia: round4(promedioAsistencia),
+      AyudaFinanciera: Number(alumno.ayuda_financiera || 0),
+      Materia: materia.codigo_plan || 0,
+      PromedioColegio: toNumber(alumno.promedio_colegio, 0),
+    },
+    meta: {
       nombre: alumno.nombre_completo,
       legajo,
       materia: materia.codigo,
@@ -348,13 +352,15 @@ function calcularVariablesExamen(legajo, materiaId, tipoExamen, instancia, anio)
   // -- TotalCursadasGeneral, TasaAprobacionGeneral, PosicionFlujo, CantParcialesAprobados,
   // -- Edad, TipoExamen, Tipo
   return {
-    PromedioNotaGeneral: round4(promedioNotaGeneral),
-    PromedioAsistencia: round4(promedioAsistenciaGeneral),
-    AyudaFinanciera: Number(alumno.ayuda_financiera || 0),
-    NotaPromedioParcialCursada: round4(notaPromedioParcialCursada),
-    TasaRecursaGeneral: round4(tasaRecursaGeneral),
-    Materia: materia.codigo_plan || 0,
-    _meta: {
+    variables: {
+      PromedioNotaGeneral: round4(promedioNotaGeneral),
+      PromedioAsistencia: round4(promedioAsistenciaGeneral),
+      AyudaFinanciera: Number(alumno.ayuda_financiera || 0),
+      NotaPromedioParcialCursada: round4(notaPromedioParcialCursada),
+      TasaRecursaGeneral: round4(tasaRecursaGeneral),
+      Materia: materia.codigo_plan || 0,
+    },
+    meta: {
       nombre: alumno.nombre_completo,
       legajo,
       materia: materia.codigo,

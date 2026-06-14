@@ -31,22 +31,7 @@ function setCachedPrediction(alumnoId, materiaId, data) {
 }
 
 function normalizeAlumnoPayload(payload) {
-  return payload.map((item) => {
-    if (
-      item &&
-      Object.prototype.hasOwnProperty.call(item, "PromedioColegio") &&
-      !Object.prototype.hasOwnProperty.call(item, "PromedioColegio_x") &&
-      !Object.prototype.hasOwnProperty.call(item, "PromedioColegio_y")
-    ) {
-      const { PromedioColegio, ...rest } = item;
-      return {
-        ...rest,
-        PromedioColegio_x: PromedioColegio,
-        PromedioColegio_y: PromedioColegio,
-      };
-    }
-    return item;
-  });
+  return payload;
 }
 
 function normalizeMateriaPayload(payload) {
@@ -72,12 +57,11 @@ function normalizeExamenPayload(payload) {
     TotalCursadasGeneral: Number(item.TotalCursadasGeneral),
     TasaRecursaGeneral: Number(item.TasaRecursaGeneral),
     PromedioAsistenciaGeneral: Number(item.PromedioAsistenciaGeneral),
+    PromedioNotaGeneral: Number(item.PromedioNotaGeneral),
+    TasaAprobacionGeneral: Number(item.TasaAprobacionGeneral),
     PosicionFlujo: Number(item.PosicionFlujo),
-    AsistenciaBajaRiesgo: Number(item.AsistenciaBajaRiesgo),
     NotaPromedioParcialCursada: Number(item.NotaPromedioParcialCursada),
     CantParcialesAprobados: Number(item.CantParcialesAprobados),
-    EsUltimaInstancia: Number(item.EsUltimaInstancia),
-    TieneFinalAM1: Number(item.TieneFinalAM1),
     Anio: Number(item.Anio),
   }));
 }
@@ -243,7 +227,7 @@ async function precalcularAbandonoParaAlumnos(alumnosIds) {
   try {
     const variablesPromises = alumnosIds.map(async (alumnoId) => {
       try {
-        const variables = calcularVariablesAbandono(alumnoId);
+        const { variables } = calcularVariablesAbandono(alumnoId);
         return { alumnoId, variables, error: null };
       } catch (error) {
         return { alumnoId, variables: null, error };
@@ -289,7 +273,7 @@ async function precalcularPrediccionesCompletas(alumnosIds, materiaId) {
     const variablesData = await Promise.all(
       alumnosAComputar.map(async (alumnoId) => {
         try {
-          const variables_abandono = calcularVariablesAbandono(alumnoId);
+          const { variables: variables_abandono } = calcularVariablesAbandono(alumnoId);
 
           const cursada = db
             .prepare(
@@ -302,7 +286,8 @@ async function precalcularPrediccionesCompletas(alumnosIds, materiaId) {
           let variables_recursado = null;
           if (cursada) {
             try {
-              variables_recursado = calcularVariablesRecursado(alumnoId, materiaId, cursada.anio);
+              const { variables: vars_rec } = calcularVariablesRecursado(alumnoId, materiaId, cursada.anio);
+              variables_recursado = vars_rec;
             } catch (e) {
               console.error(`Error vars recursado ${alumnoId}:`, e.message);
             }
@@ -314,13 +299,14 @@ async function precalcularPrediccionesCompletas(alumnosIds, materiaId) {
           if (proximosExamenes.length > 0) {
             const exam = proximosExamenes[0];
             try {
-              variables_examen = calcularVariablesExamen(
+              const { variables: vars_ex } = calcularVariablesExamen(
                 alumnoId,
                 materiaId,
                 exam.tipo,
                 exam.instancia,
                 exam.anio,
               );
+              variables_examen = vars_ex;
               examen_info = exam;
             } catch (e) {
               console.error(`Error vars examen ${alumnoId}:`, e.message);
