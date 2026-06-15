@@ -575,7 +575,7 @@ def generar_datasets(output_dir: str = None, n_alumnos: int = N_ALUMNOS) -> tupl
             'PrimerAñoCompleto':     int(mat_aprobadas >= 8),
             'MateriasRecursadasTotal': mat_recursadas,
             'AñosDesdeIngreso':      2026 - perfil['AnioIngreso'],
-            'IndiceBloqueo':         0.0,
+            'IndiceBloqueo':         calcular_indice_bloqueo_global(aprobadas_set),
         })
 
         audit.append({
