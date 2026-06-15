@@ -79,13 +79,17 @@ def ft_engineering_procesado(dataset: str = 'examen'):
         # de cada alumno a nivel de cursadas
         mat_agg = materia.groupby('IdAlumno').agg(
             # Total de materias cursadas (una fila en nivel_materia = una cursada)
-            CantMaterias      = ('Recursa',    'count'),
+            CantMaterias              = ('Recursa',           'count'),
             # Cuantas de esas cursadas termino recursando (Recursa=1)
-            CantRecursa       = ('Recursa',    'sum'),
+            CantRecursa               = ('Recursa',            'sum'),
             # Promedio de asistencia a clases a lo largo de todas las cursadas
-            PromedioAsistencia= ('Asistencia', 'mean'),
+            PromedioAsistencia        = ('Asistencia',         'mean'),
             # Cantidad de anos distintos en los que tuvo actividad academica
-            CantAniosCursados = ('AnioCursada','nunique'),
+            CantAniosCursados         = ('AnioCursada',        'nunique'),
+            # Promedio del indice de bloqueo academico por alumno
+            IndiceBloqueoPromedio     = ('IndiceBloqueo',      'mean'),
+            # Promedio del delay respecto al plan de estudios
+            DelayPromedioRespectoPlan = ('DelayRespectoPlan',  'mean'),
         ).reset_index()
         # Nota: PromedioColegio NO se agrega desde mat_agg porque alumno.csv
         # ya lo contiene directamente. Agregarlo causaria duplicados (_x/_y).
@@ -151,6 +155,7 @@ def ft_engineering_procesado(dataset: str = 'examen'):
             'PromedioAsistencia', 'CantAniosCursados',
             'CantExamenesRendidos', 'PromedioNotaGeneral', 'CantFinalesRendidos',
             'CantAusencias', 'TasaAusencia', 'CantAprobados',
+            'IndiceBloqueoPromedio', 'DelayPromedioRespectoPlan',
         ]
         df[fill_zero] = df[fill_zero].fillna(0)
 
@@ -450,6 +455,7 @@ def ft_engineering_procesado(dataset: str = 'examen'):
         alumno_vars = [
             'PromedioNotaGeneral', 'PromedioAsistencia', 'AyudaFinanciera',
             'CantExamenesRendidos', 'CantFinalesRendidos',
+            'IndiceBloqueoPromedio', 'DelayPromedioRespectoPlan',
             target
         ]
         # -- COMENTADAS: CantMaterias, CantAniosCursados, CantAusencias, TasaAusencia,
