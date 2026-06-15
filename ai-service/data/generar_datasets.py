@@ -505,6 +505,33 @@ _ALUMNO_COLS = [
 ]
 
 
+def _nivel_alumno_desde_snapshot(perfil: dict, snapshot_state: dict,
+                                  estado_final: str, snapshot_year: int) -> dict:
+    regs_mat       = snapshot_state['regs_mat']
+    aprobadas_snap = {r['Materia'] for r in regs_mat if r['Recursa'] == 0}
+    mat_aprobadas  = len(aprobadas_snap)
+    mat_recursadas = sum(1 for r in regs_mat if r['Recursa'] == 1)
+    return {
+        'IdAlumno':                perfil['IdAlumno'],
+        'FechaNac':                perfil['FechaNac'],
+        'Genero':                  perfil['Genero'],
+        'AyudaFinanciera':         perfil['AyudaFinanciera'],
+        'ColegioTecnico':          perfil['ColegioTecnico'],
+        'PromedioColegio':         perfil['PromedioColegio'],
+        'Fecha':                   '',
+        'Abandona':                0 if estado_final == 'graduado' else 1,
+        'AnioIngreso':             perfil['AnioIngreso'],
+        'EstadoFinal':             estado_final,
+        'MateriasAprobadas':       mat_aprobadas,
+        'AñoCarreraActual':        snapshot_year,
+        'TasaProgresion':          round(mat_aprobadas / 48, 3),
+        'PrimerAñoCompleto':       int(mat_aprobadas >= 8),
+        'MateriasRecursadasTotal': mat_recursadas,
+        'AñosDesdeIngreso':        snapshot_year,
+        'IndiceBloqueo':           calcular_indice_bloqueo_global(aprobadas_snap),
+    }
+
+
 def generar_datasets(output_dir: str = None, n_alumnos: int = N_ALUMNOS) -> tuple:
     if output_dir is None:
         output_dir = os.path.dirname(os.path.abspath(__file__))
@@ -561,6 +588,45 @@ def generar_datasets(output_dir: str = None, n_alumnos: int = N_ALUMNOS) -> tupl
 
         if i % 50 == 0:
             print(f'  {i}/{n_alumnos} alumnos procesados...')
+
+    # ── Fase 2: cohortes en-curso (100 alumnos × 5 años de carrera) ──────────
+    print('\nGenerando cohortes de alumnos en-curso...')
+    next_id = n_alumnos + 1
+
+    for snapshot_year in range(1, 6):
+        cohorte_count = 0
+        intentos      = 0
+        while cohorte_count < 100:
+            intentos   += 1
+            alumno_id   = f'ALU{next_id:04d}'
+            next_id    += 1
+            perfil      = generar_perfil(alumno_id, rng)
+            snapshot_anio = perfil['AnioIngreso'] + snapshot_year - 1
+
+            regs_ex, regs_mat, estado, fecha_ab, snap = simular_trayectoria(
+                perfil, rng, snapshot_anio=snapshot_anio
+            )
+
+            if snap is None:
+                continue
+
+            todos_alumnos.append(
+                _nivel_alumno_desde_snapshot(perfil, snap, estado, snapshot_year)
+            )
+            todos_materias.extend(snap['regs_mat'])
+            todos_examenes.extend(snap['regs_ex'])
+
+            audit.append({
+                'IdAlumno':                 alumno_id,
+                'TipoAlumno':               perfil['TipoAlumno'],
+                'TipoEfectivoNotas':        perfil['TipoEfectivoNotas'],
+                'TipoEfectivoAsistencia':   perfil['TipoEfectivoAsistencia'],
+                'TipoEfectivoAbandono':     perfil['TipoEfectivoAbandono'],
+            })
+
+            cohorte_count += 1
+
+        print(f'  Cohorte año-{snapshot_year}: 100 alumnos ({intentos} intentos)')
 
     df_ex  = pd.DataFrame(todos_examenes)[_EXAMEN_COLS]
     df_mat = pd.DataFrame(todos_materias)[_MATERIA_COLS]
