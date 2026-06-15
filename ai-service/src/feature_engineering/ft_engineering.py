@@ -476,6 +476,7 @@ def ft_engineering_procesado(dataset: str = 'examen'):
         materia_vars = [
             'PromedioNotaGeneral', 'PromedioAsistencia', 'AyudaFinanciera',
             'Materia', 'PromedioColegio',
+            'IndiceBloqueo', 'DelayRespectoPlan', 'NotaPromedioPrevias', 'EsMateriaBottleneck',
             target
         ]
         # -- COMENTADAS: Edad, AniosDesdeIngreso, IndiceBloqueo, Genero, ColegioTecnico,
