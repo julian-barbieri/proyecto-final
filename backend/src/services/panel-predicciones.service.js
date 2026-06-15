@@ -54,13 +54,17 @@ function normalizeMateriaPayload(payload) {
 
 function normalizeExamenPayload(payload) {
   return payload.map(({ PromedioNotaGeneral, PromedioAsistencia, AyudaFinanciera,
-                        NotaPromedioParcialCursada, TasaRecursaGeneral, Materia }) => ({
+                        NotaPromedioParcialCursada, TasaRecursaGeneral, Materia,
+                        NotaPromedioCorrelativas, IndiceBloqueo, CargaSimultanea }) => ({
     PromedioNotaGeneral:        Number(PromedioNotaGeneral),
     PromedioAsistencia:         Number(PromedioAsistencia),
     AyudaFinanciera:            Number(AyudaFinanciera),
     NotaPromedioParcialCursada: Number(NotaPromedioParcialCursada),
     TasaRecursaGeneral:         Number(TasaRecursaGeneral),
     Materia:                    Number(Materia),
+    NotaPromedioCorrelativas:   Number(NotaPromedioCorrelativas),
+    IndiceBloqueo:              Number(IndiceBloqueo),
+    CargaSimultanea:            Number(CargaSimultanea),
   }));
 }
 

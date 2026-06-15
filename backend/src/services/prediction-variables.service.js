@@ -346,19 +346,22 @@ function calcularVariablesExamen(legajo, materiaId, tipoExamen, instancia, anio)
   const posicionFlujo = posMap[`${tipoExamen}-${Number(instancia)}`] || 1;
 
   // -- COMENTADAS: Cuatrimestre, Anio, Instancia, Genero, ColegioTecnico, PromedioColegio,
-  // -- Asistencia (especifica), VecesRecursada, AñoCarrera, NotaPromedioCorrelativas,
-  // -- MateriasAprobadasHastaMomento, CargaSimultanea, IndiceBloqueo, AniosDesdeIngreso,
+  // -- Asistencia (especifica), VecesRecursada, AñoCarrera,
+  // -- MateriasAprobadasHastaMomento, AniosDesdeIngreso,
   // -- VecesCursadaMateria, TasaRecursaMateria, PromedioAsistenciaHistMateria,
   // -- TotalCursadasGeneral, TasaAprobacionGeneral, PosicionFlujo, CantParcialesAprobados,
   // -- Edad, TipoExamen, Tipo
   return {
     variables: {
-      PromedioNotaGeneral: round4(promedioNotaGeneral),
-      PromedioAsistencia: round4(promedioAsistenciaGeneral),
-      AyudaFinanciera: Number(alumno.ayuda_financiera || 0),
+      PromedioNotaGeneral:        round4(promedioNotaGeneral),
+      PromedioAsistencia:         round4(promedioAsistenciaGeneral),
+      AyudaFinanciera:            Number(alumno.ayuda_financiera || 0),
       NotaPromedioParcialCursada: round4(notaPromedioParcialCursada),
-      TasaRecursaGeneral: round4(tasaRecursaGeneral),
-      Materia: materia.codigo_plan || 0,
+      TasaRecursaGeneral:         round4(tasaRecursaGeneral),
+      Materia:                    materia.codigo_plan || 0,
+      NotaPromedioCorrelativas:   round4(notaPromedioCorrelativas),
+      IndiceBloqueo:              round4(indiceBloqueo),
+      CargaSimultanea:            Number(cargaSimultanea),
     },
     meta: {
       nombre: alumno.nombre_completo,

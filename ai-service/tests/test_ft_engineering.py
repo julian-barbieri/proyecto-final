@@ -82,9 +82,3 @@ def test_materia_incluye_features_nuevas():
     X_train, _, _, _ = ft_engineering_procesado('materia')
     for col in ['IndiceBloqueo', 'DelayRespectoPlan', 'NotaPromedioPrevias', 'EsMateriaBottleneck']:
         assert col in X_train.columns, f"Falta columna: {col}"
-
-
-def test_examen_incluye_features_nuevas():
-    X_train, _, _, _ = ft_engineering_procesado('examen')
-    for col in ['NotaPromedioCorrelativas', 'IndiceBloqueo', 'CargaSimultanea']:
-        assert col in X_train.columns, f"Falta columna: {col}"

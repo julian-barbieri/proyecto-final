@@ -14,7 +14,8 @@ ALUMNO_FEATURES  = {'PromedioNotaGeneral', 'PromedioAsistencia', 'AyudaFinancier
 MATERIA_FEATURES = {'PromedioNotaGeneral', 'PromedioAsistencia', 'AyudaFinanciera',
                     'Materia', 'PromedioColegio'}
 EXAMEN_FEATURES  = {'PromedioNotaGeneral', 'PromedioAsistencia', 'AyudaFinanciera',
-                    'NotaPromedioParcialCursada', 'TasaRecursaGeneral', 'Materia'}
+                    'NotaPromedioParcialCursada', 'TasaRecursaGeneral', 'Materia',
+                    'NotaPromedioCorrelativas', 'IndiceBloqueo', 'CargaSimultanea'}
 
 
 def test_crear_pydantic_model_campos_son_floats():
