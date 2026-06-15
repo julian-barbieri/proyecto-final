@@ -476,10 +476,10 @@ def ft_engineering_procesado(dataset: str = 'examen'):
         materia_vars = [
             'PromedioNotaGeneral', 'PromedioAsistencia', 'AyudaFinanciera',
             'Materia', 'PromedioColegio',
-            'IndiceBloqueo', 'DelayRespectoPlan', 'NotaPromedioPrevias', 'EsMateriaBottleneck',
+            'IndiceBloqueo', 'DelayRespectoPlan', 'NotaPromedioPrevias', 'EsMateriaBottleneck',  # explicit flag — faster split discovery than learning from Materia alone
             target
         ]
-        # -- COMENTADAS: Edad, AniosDesdeIngreso, IndiceBloqueo, Genero, ColegioTecnico,
+        # -- COMENTADAS: Edad, AniosDesdeIngreso, Genero, ColegioTecnico,
         # -- Asistencia (especifica de la cursada), TasaAprobacionGeneral
         # materia_vars_full = [
         #     'Edad', 'PromedioColegio', 'Asistencia', 'AniosDesdeIngreso',
