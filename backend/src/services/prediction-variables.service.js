@@ -93,7 +93,10 @@ function calcularVariablesAbandono(legajo) {
 
   const cursadasAlumno = db
     .prepare(
-      `SELECT c.id, c.anio, c.asistencia, c.estado FROM cursadas c WHERE c.alumno_id = ?`,
+      `SELECT c.id, c.anio, c.asistencia, c.estado, m.correlativas, m.anio_carrera
+       FROM cursadas c
+       JOIN materias m ON c.materia_id = m.id
+       WHERE c.alumno_id = ?`,
     )
     .all(legajo);
 
@@ -105,6 +108,26 @@ function calcularVariablesAbandono(legajo) {
       : 0;
   const cantAniosCursados = new Set(cursadasAlumno.map((c) => Number(c.anio)))
     .size;
+
+  // IndiceBloqueoPromedio: avg IndiceBloqueo per cursada across all the student's cursadas
+  const aprobadas = getAprobadas(legajo);
+  const indiceBloqueoPromedio =
+    cantMaterias > 0
+      ? cursadasAlumno.reduce((s, c) => {
+          const corrs = JSON.parse(c.correlativas || '[]');
+          return s + calcularIndiceBloqueo(aprobadas, corrs);
+        }, 0) / cantMaterias
+      : 0;
+
+  // DelayPromedioRespectoPlan: AVG(anio_cursada - (anio_ingreso + anio_carrera - 1))
+  const delayPromedioRespectoPlan =
+    cantMaterias > 0
+      ? cursadasAlumno.reduce((s, c) => {
+          const anioCarrera = toNumber(c.anio_carrera, 1);
+          const delay = toNumber(c.anio, anioIngreso) - (anioIngreso + anioCarrera - 1);
+          return s + delay;
+        }, 0) / cantMaterias
+      : 0;
 
   const examenesTodos = db
     .prepare(`SELECT id, tipo, rendido, nota, ausente FROM examenes WHERE alumno_id = ?`)
@@ -139,11 +162,13 @@ function calcularVariablesAbandono(legajo) {
   // -- CantAprobados, TasaAprobacion, Edad, Genero, ColegioTecnico, PromedioColegio
   return {
     variables: {
-      PromedioNotaGeneral: round4(promedioNota),
-      PromedioAsistencia: round4(promedioAsistencia),
-      AyudaFinanciera: Number(alumno.ayuda_financiera || 0),
-      CantExamenesRendidos: cantExamenesRendidos,
-      CantFinalesRendidos: cantFinalesRendidos,
+      PromedioNotaGeneral:      round4(promedioNota),
+      PromedioAsistencia:       round4(promedioAsistencia),
+      AyudaFinanciera:          Number(alumno.ayuda_financiera || 0),
+      CantExamenesRendidos:     cantExamenesRendidos,
+      CantFinalesRendidos:      cantFinalesRendidos,
+      IndiceBloqueoPromedio:    round4(indiceBloqueoPromedio),
+      DelayPromedioRespectoPlan: round4(delayPromedioRespectoPlan),
     },
     meta: {
       nombre: alumno.nombre_completo,
@@ -152,6 +177,8 @@ function calcularVariablesAbandono(legajo) {
     },
   };
 }
+
+const MATERIAS_BOTTLENECK = new Set([144, 147, 148, 152, 156, 162, 164]);
 
 // ──────────────────────────────────────────────────────────────────────────────
 // RECURSADO — features del modelo materia (11 features)
@@ -173,6 +200,7 @@ function calcularVariablesRecursado(legajo, materiaId, anio) {
   }
 
   const anioNac = getYearFromFecha(alumno.fecha_nac) || 2000;
+  const anioIngreso = Number(alumno.anio_ingreso || new Date().getFullYear());
 
   // Rendimiento general del alumno en exámenes (todas las materias)
   const todosExamenes = db
@@ -187,11 +215,19 @@ function calcularVariablesRecursado(legajo, materiaId, anio) {
         todosExamenes.length
       : 0;
 
-  // -- COMENTADAS: aprobadosGeneral, tasaAprobacionGeneral, indiceBloqueo
-  // const aprobadosGeneral = todosExamenes.filter((e) => toNumber(e.nota, 0) >= 4).length;
-  // const tasaAprobacionGeneral = todosExamenes.length > 0 ? aprobadosGeneral / todosExamenes.length : 0;
-  // const aprobadas = getAprobadas(legajo);
-  // const indiceBloqueo = calcularIndiceBloqueo(aprobadas, materia.correlativas);
+  // IndiceBloqueo: fraction of this materia's correlativas not yet approved
+  const aprobadas = getAprobadas(legajo);
+  const indiceBloqueo = calcularIndiceBloqueo(aprobadas, materia.correlativas);
+
+  // DelayRespectoPlan: anio_cursada - (anio_ingreso + anio_carrera - 1)
+  const anioCarrera = toNumber(materia.anio_carrera, 1);
+  const delayRespectoPlan = toNumber(cursada.anio, anioIngreso) - (anioIngreso + anioCarrera - 1);
+
+  // NotaPromedioPrevias: avg final grade of approved prerequisite (correlativas) courses
+  const notaPromedioPrevias = calcularNotaPromedioCorrelativas(legajo, materia.correlativas);
+
+  // EsMateriaBottleneck: 1 if materia is in the bottleneck set
+  const esMateriaBottleneck = MATERIAS_BOTTLENECK.has(Number(materia.codigo_plan)) ? 1 : 0;
 
   // Promedio de asistencia global del alumno (todas las cursadas)
   const todasCursadas = db
@@ -202,15 +238,19 @@ function calcularVariablesRecursado(legajo, materiaId, anio) {
       ? todasCursadas.reduce((s, c) => s + toNumber(c.asistencia, 0), 0) / todasCursadas.length
       : 0;
 
-  // -- COMENTADAS: anioNac, Edad, AniosDesdeIngreso, Asistencia (especifica), IndiceBloqueo,
+  // -- COMENTADAS: anioNac, Edad, AniosDesdeIngreso, Asistencia (especifica),
   // -- Genero, ColegioTecnico, TasaAprobacionGeneral
   return {
     variables: {
-      PromedioNotaGeneral: round4(promedioNotaGeneral),
-      PromedioAsistencia: round4(promedioAsistencia),
-      AyudaFinanciera: Number(alumno.ayuda_financiera || 0),
-      Materia: materia.codigo_plan || 0,
-      PromedioColegio: toNumber(alumno.promedio_colegio, 0),
+      PromedioNotaGeneral:  round4(promedioNotaGeneral),
+      PromedioAsistencia:   round4(promedioAsistencia),
+      AyudaFinanciera:      Number(alumno.ayuda_financiera || 0),
+      Materia:              materia.codigo_plan || 0,
+      PromedioColegio:      toNumber(alumno.promedio_colegio, 0),
+      IndiceBloqueo:        round4(indiceBloqueo),
+      DelayRespectoPlan:    round4(delayRespectoPlan),
+      NotaPromedioPrevias:  round4(notaPromedioPrevias),
+      EsMateriaBottleneck:  esMateriaBottleneck,
     },
     meta: {
       nombre: alumno.nombre_completo,

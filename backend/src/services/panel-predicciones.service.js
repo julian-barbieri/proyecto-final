@@ -32,23 +32,31 @@ function setCachedPrediction(alumnoId, materiaId, data) {
 
 function normalizeAlumnoPayload(payload) {
   return payload.map(({ PromedioNotaGeneral, PromedioAsistencia, AyudaFinanciera,
-                        CantExamenesRendidos, CantFinalesRendidos }) => ({
-    PromedioNotaGeneral:  Number(PromedioNotaGeneral),
-    PromedioAsistencia:   Number(PromedioAsistencia),
-    AyudaFinanciera:      Number(AyudaFinanciera),
-    CantExamenesRendidos: Number(CantExamenesRendidos),
-    CantFinalesRendidos:  Number(CantFinalesRendidos),
+                        CantExamenesRendidos, CantFinalesRendidos,
+                        IndiceBloqueoPromedio, DelayPromedioRespectoPlan }) => ({
+    PromedioNotaGeneral:       Number(PromedioNotaGeneral),
+    PromedioAsistencia:        Number(PromedioAsistencia),
+    AyudaFinanciera:           Number(AyudaFinanciera),
+    CantExamenesRendidos:      Number(CantExamenesRendidos),
+    CantFinalesRendidos:       Number(CantFinalesRendidos),
+    IndiceBloqueoPromedio:     Number(IndiceBloqueoPromedio),
+    DelayPromedioRespectoPlan: Number(DelayPromedioRespectoPlan),
   }));
 }
 
 function normalizeMateriaPayload(payload) {
   return payload.map(({ PromedioNotaGeneral, PromedioAsistencia, AyudaFinanciera,
-                        Materia, PromedioColegio }) => ({
+                        Materia, PromedioColegio,
+                        IndiceBloqueo, DelayRespectoPlan, NotaPromedioPrevias, EsMateriaBottleneck }) => ({
     PromedioNotaGeneral: Number(PromedioNotaGeneral),
     PromedioAsistencia:  Number(PromedioAsistencia),
     AyudaFinanciera:     Number(AyudaFinanciera),
     Materia:             Number(Materia),
     PromedioColegio:     Number(PromedioColegio),
+    IndiceBloqueo:       Number(IndiceBloqueo),
+    DelayRespectoPlan:   Number(DelayRespectoPlan),
+    NotaPromedioPrevias: Number(NotaPromedioPrevias),
+    EsMateriaBottleneck: Number(EsMateriaBottleneck),
   }));
 }
 

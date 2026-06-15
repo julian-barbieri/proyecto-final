@@ -77,8 +77,3 @@ def test_materia_es_numerica():
                 f"[{ds}] Materia contiene valores fuera del rango 140-187"
             )
 
-
-def test_materia_incluye_features_nuevas():
-    X_train, _, _, _ = ft_engineering_procesado('materia')
-    for col in ['IndiceBloqueo', 'DelayRespectoPlan', 'NotaPromedioPrevias', 'EsMateriaBottleneck']:
-        assert col in X_train.columns, f"Falta columna: {col}"

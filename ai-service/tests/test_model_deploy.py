@@ -10,9 +10,11 @@ from model_deploy import (
 )
 
 ALUMNO_FEATURES  = {'PromedioNotaGeneral', 'PromedioAsistencia', 'AyudaFinanciera',
-                    'CantExamenesRendidos', 'CantFinalesRendidos'}
+                    'CantExamenesRendidos', 'CantFinalesRendidos',
+                    'IndiceBloqueoPromedio', 'DelayPromedioRespectoPlan'}
 MATERIA_FEATURES = {'PromedioNotaGeneral', 'PromedioAsistencia', 'AyudaFinanciera',
-                    'Materia', 'PromedioColegio'}
+                    'Materia', 'PromedioColegio',
+                    'IndiceBloqueo', 'DelayRespectoPlan', 'NotaPromedioPrevias', 'EsMateriaBottleneck'}
 EXAMEN_FEATURES  = {'PromedioNotaGeneral', 'PromedioAsistencia', 'AyudaFinanciera',
                     'NotaPromedioParcialCursada', 'TasaRecursaGeneral', 'Materia',
                     'NotaPromedioCorrelativas', 'IndiceBloqueo', 'CargaSimultanea'}
