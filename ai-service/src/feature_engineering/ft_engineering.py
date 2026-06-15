@@ -494,6 +494,7 @@ def ft_engineering_procesado(dataset: str = 'examen'):
         examen_vars = [
             'PromedioNotaGeneral', 'PromedioAsistencia', 'AyudaFinanciera',
             'NotaPromedioParcialCursada', 'TasaRecursaGeneral', 'Materia',
+            'NotaPromedioCorrelativas', 'IndiceBloqueo', 'CargaSimultanea',
             target
         ]
         # -- COMENTADAS: TipoExamen, Tipo, ProbRecursa (stacking), VecesCursadaMateria,
