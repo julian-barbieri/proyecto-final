@@ -201,8 +201,8 @@ def check_volumen(df_ex, df_mat, df_alm):
     n_grad = (df_alm['Abandona'] == 0).sum()
     n_aban = (df_alm['Abandona'] == 1).sum()
 
-    rng_ex  = '✓' if 230_000 <= n_ex  <= 320_000 else '[WARN fuera de 230k-320k]'
-    rng_mat = '✓' if 40_000  <= n_mat <= 60_000  else '[WARN fuera de 40k-60k]'
+    rng_ex  = '✓' if 55_000 <= n_ex  <= 120_000 else '[WARN fuera de 55k-120k]'
+    rng_mat = '✓' if 25_000 <= n_mat <= 55_000  else '[WARN fuera de 25k-55k]'
     rng_alm = '✓' if 900     <= n_alm <= 1100    else '[WARN fuera de 900-1100]'
 
     print(f'  nivel_examen.csv  : {n_ex:>8,}  {rng_ex}')
@@ -211,8 +211,8 @@ def check_volumen(df_ex, df_mat, df_alm):
     print(f'  Graduados         : {n_grad:>8,}')
     print(f'  Abandonados       : {n_aban:>8,}')
 
-    if not (230_000 <= n_ex  <= 320_000): warn(f'Exámenes {n_ex:,} fuera del rango 230k-320k')
-    if not (40_000  <= n_mat <= 60_000):  warn(f'Cursadas {n_mat:,} fuera del rango 40k-60k')
+    if not (55_000 <= n_ex  <= 120_000): warn(f'Exámenes {n_ex:,} fuera del rango 55k-120k')
+    if not (25_000 <= n_mat <= 55_000):  warn(f'Cursadas {n_mat:,} fuera del rango 25k-55k')
     if not (900     <= n_alm <= 1100):    warn(f'Alumnos {n_alm} fuera del rango 900-1100')
 
 
