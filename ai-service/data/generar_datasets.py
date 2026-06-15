@@ -343,10 +343,11 @@ def simular_cursada(materia_code: int, tipo_mat: str, cuatr: int, anio: int,
 # CAPA 2: TRAYECTORIA CUATRIMESTRAL
 # ─────────────────────────────────────────────────────────────────────────────
 
-def simular_trayectoria(perfil: dict, rng) -> tuple:
+def simular_trayectoria(perfil: dict, rng, snapshot_anio: int = None) -> tuple:
     """
-    Returns: (registros_examen, registros_materia, estado_final, fecha_abandono)
+    Returns: (registros_examen, registros_materia, estado_final, fecha_abandono, snapshot_state)
     estado_final in {'graduado', 'abandonó', 'timeout-abandonó'}
+    snapshot_state: None si el alumno no estaba activo al snapshot_anio; dict con regs si sí.
     """
     alumno_id      = perfil['IdAlumno']
     tipo_notas     = perfil['TipoEfectivoNotas']
@@ -361,6 +362,7 @@ def simular_trayectoria(perfil: dict, rng) -> tuple:
 
     registros_examen  = []
     registros_materia = []
+    snapshot_state    = None
 
     carga_base = {'excelente': 5, 'regular': 4, 'malo': 3}[tipo_notas]
 
@@ -378,7 +380,7 @@ def simular_trayectoria(perfil: dict, rng) -> tuple:
                 mes = 6 if cuatr == 1 else 11
                 dia = int(rng.integers(1, 28))
                 fecha_ab = datetime(anio, mes, dia).strftime('%d-%m-%Y')
-                return registros_examen, registros_materia, 'abandonó', fecha_ab
+                return registros_examen, registros_materia, 'abandonó', fecha_ab, snapshot_state
 
             # ── Seleccionar materias ────────────────────────────────────────
             disponibles = [
@@ -404,6 +406,11 @@ def simular_trayectoria(perfil: dict, rng) -> tuple:
                 materias_cuatr += disponibles[:slots]
 
             if not materias_cuatr:
+                if snapshot_anio is not None and anio == snapshot_anio and cuatr == 2:
+                    snapshot_state = {
+                        'regs_ex':  list(registros_examen),
+                        'regs_mat': list(registros_materia),
+                    }
                 continue
 
             n_sim = len(materias_cuatr)
@@ -462,9 +469,15 @@ def simular_trayectoria(perfil: dict, rng) -> tuple:
                     pendiente_recursa[mat_code] = n_veces + 1
 
             if len(aprobadas) == 48:
-                return registros_examen, registros_materia, 'graduado', ''
+                return registros_examen, registros_materia, 'graduado', '', snapshot_state
 
-    return registros_examen, registros_materia, 'timeout-abandonó', ''
+            if snapshot_anio is not None and anio == snapshot_anio and cuatr == 2:
+                snapshot_state = {
+                    'regs_ex':  list(registros_examen),
+                    'regs_mat': list(registros_materia),
+                }
+
+    return registros_examen, registros_materia, 'timeout-abandonó', '', snapshot_state
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -509,7 +522,7 @@ def generar_datasets(output_dir: str = None, n_alumnos: int = N_ALUMNOS) -> tupl
         alumno_id = f'ALU{i:04d}'
         perfil    = generar_perfil(alumno_id, rng)
 
-        regs_ex, regs_mat, estado, fecha_ab = simular_trayectoria(perfil, rng)
+        regs_ex, regs_mat, estado, fecha_ab, _ = simular_trayectoria(perfil, rng)
 
         todos_examenes.extend(regs_ex)
         todos_materias.extend(regs_mat)
