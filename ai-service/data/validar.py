@@ -246,7 +246,7 @@ def check_cohortes_en_curso(df_alm: pd.DataFrame):
             ok(f'Cohorte año-{year}: {n} alumnos')
 
     # Anti-leakage: alumnos en-curso no deben tener fecha de abandono
-    en_curso_con_fecha = en_curso[en_curso['Fecha'].astype(str).str.strip() != '']
+    en_curso_con_fecha = en_curso[en_curso['Fecha'].fillna('').str.strip() != '']
     if len(en_curso_con_fecha) > 0:
         err(f'[LEAKAGE] {len(en_curso_con_fecha)} alumnos en-curso con Fecha != ""')
     else:
