@@ -212,7 +212,7 @@ def test_simular_trayectoria_closed_state():
     rng = np.random.default_rng(7)
     for i in range(30):
         perfil = generar_perfil(f'ALU{i:04d}', rng)
-        regs_ex, regs_mat, estado, _ = simular_trayectoria(perfil, rng)
+        regs_ex, regs_mat, estado, _, _ = simular_trayectoria(perfil, rng)
         assert estado in ('graduado', 'abandonó', 'timeout-abandonó'), \
             f'Estado inválido: {estado}'
         if regs_ex:
@@ -228,7 +228,7 @@ def test_r4_correlativas_respetadas():
     rng = np.random.default_rng(3)
     for i in range(20):
         perfil = generar_perfil(f'ALU{i:04d}', rng)
-        _, regs_mat, _, _ = simular_trayectoria(perfil, rng)
+        _, regs_mat, _, _, _ = simular_trayectoria(perfil, rng)
         aprobadas_por_anio = {}
         for r in sorted(regs_mat, key=lambda x: x['AnioCursada']):
             mat = r['Materia']
@@ -247,7 +247,7 @@ def test_r6_materia_aprobada_no_se_vuelve_a_cursar():
     rng = np.random.default_rng(5)
     for i in range(30):
         perfil = generar_perfil(f'ALU{i:04d}', rng)
-        _, regs_mat, _, _ = simular_trayectoria(perfil, rng)
+        _, regs_mat, _, _, _ = simular_trayectoria(perfil, rng)
         aprobadas = set()
         for r in sorted(regs_mat, key=lambda x: x['AnioCursada']):
             assert r['Materia'] not in aprobadas, \
