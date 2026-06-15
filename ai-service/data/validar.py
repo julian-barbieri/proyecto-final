@@ -180,7 +180,7 @@ def check_temporal(df_ex, df_alm):
     if df_alm['Abandona'].isnull().any():
         err('Existen alumnos sin estado Abandona definido')
     else:
-        ok('Abandona: todos los 500 alumnos tienen estado definido')
+        ok(f'Abandona: todos los {len(df_alm)} alumnos tienen estado definido')
 
     max_anio = df_ex['Anio'].max()
     if max_anio > 2025:
@@ -197,19 +197,60 @@ def check_volumen(df_ex, df_mat, df_alm):
     print('\n══ BLOQUE 4: Volumen ══')
     n_ex  = len(df_ex)
     n_mat = len(df_mat)
+    n_alm   = len(df_alm)
     n_grad = (df_alm['Abandona'] == 0).sum()
     n_aban = (df_alm['Abandona'] == 1).sum()
 
-    rng_ex  = '✓' if 190_000 <= n_ex  <= 260_000 else '[WARN fuera de 190k-260k]'
-    rng_mat = '✓' if 32_000  <= n_mat <= 45_000  else '[WARN fuera de 32k-45k]'
+    rng_ex  = '✓' if 230_000 <= n_ex  <= 320_000 else '[WARN fuera de 230k-320k]'
+    rng_mat = '✓' if 40_000  <= n_mat <= 60_000  else '[WARN fuera de 40k-60k]'
+    rng_alm = '✓' if 900     <= n_alm <= 1100    else '[WARN fuera de 900-1100]'
 
     print(f'  nivel_examen.csv  : {n_ex:>8,}  {rng_ex}')
     print(f'  nivel_materia.csv : {n_mat:>8,}  {rng_mat}')
+    print(f'  nivel_alumno.csv  : {n_alm:>8,}  {rng_alm}')
     print(f'  Graduados         : {n_grad:>8,}')
     print(f'  Abandonados       : {n_aban:>8,}')
 
-    if not (190_000 <= n_ex  <= 260_000): warn(f'Exámenes {n_ex:,} fuera del rango 190k-260k')
-    if not (32_000  <= n_mat <= 45_000):  warn(f'Cursadas {n_mat:,} fuera del rango 32k-45k')
+    if not (230_000 <= n_ex  <= 320_000): warn(f'Exámenes {n_ex:,} fuera del rango 230k-320k')
+    if not (40_000  <= n_mat <= 60_000):  warn(f'Cursadas {n_mat:,} fuera del rango 40k-60k')
+    if not (900     <= n_alm <= 1100):    warn(f'Alumnos {n_alm} fuera del rango 900-1100')
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# BLOQUE 4b: COHORTES EN-CURSO
+# ─────────────────────────────────────────────────────────────────────────────
+
+def check_cohortes_en_curso(df_alm: pd.DataFrame):
+    print('\n══ BLOQUE 4b: Cohortes en-curso ══')
+
+    # Terminales: AñosDesdeIngreso = 2026 - AnioIngreso ∈ {6..11}
+    # En-curso:   AñosDesdeIngreso = snapshot_year ∈ {1..5}
+    terminales = df_alm[df_alm['AñosDesdeIngreso'] > 5]
+    en_curso   = df_alm[df_alm['AñosDesdeIngreso'].between(1, 5)]
+
+    if not (450 <= len(terminales) <= 550):
+        warn(f'Terminales: {len(terminales)} (esperado ~500)')
+    else:
+        ok(f'Terminales: {len(terminales)}')
+
+    if not (450 <= len(en_curso) <= 550):
+        warn(f'En-curso: {len(en_curso)} (esperado ~500)')
+    else:
+        ok(f'En-curso total: {len(en_curso)}')
+
+    for year in range(1, 6):
+        n = (en_curso['AñosDesdeIngreso'] == year).sum()
+        if not (80 <= n <= 120):
+            warn(f'Cohorte año-{year}: {n} alumnos (esperado ~100)')
+        else:
+            ok(f'Cohorte año-{year}: {n} alumnos')
+
+    # Anti-leakage: alumnos en-curso no deben tener fecha de abandono
+    en_curso_con_fecha = en_curso[en_curso['Fecha'].astype(str).str.strip() != '']
+    if len(en_curso_con_fecha) > 0:
+        err(f'[LEAKAGE] {len(en_curso_con_fecha)} alumnos en-curso con Fecha != ""')
+    else:
+        ok('Anti-leakage: ningún alumno en-curso tiene fecha de abandono')
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -286,6 +327,7 @@ def main():
     check_distribuciones(df_ex, df_mat, df_alm, df_aud)
     check_temporal(df_ex, df_alm)
     check_volumen(df_ex, df_mat, df_alm)
+    check_cohortes_en_curso(df_alm)
     check_accuracy_baseline()
 
     print(f'\n══ REPORTE FINAL ══')
