@@ -5,6 +5,21 @@ const { authenticate, authorize } = require("../middleware/auth.middleware");
 const axios = require("axios");
 
 // ═══════════════════════════════════════════════════════════════════════════
+// GET /api/gestion-alumnos/alumnos
+// Devuelve la lista de todos los alumnos
+// ═══════════════════════════════════════════════════════════════════════════
+
+router.get('/alumnos', (req, res) => {
+  const alumnos = db
+    .prepare(
+      `SELECT id, COALESCE(nombre_completo, username) AS nombre_completo, username, email
+       FROM users WHERE role = 'alumno' ORDER BY nombre_completo ASC`,
+    )
+    .all();
+  return res.status(200).json(alumnos);
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
 // GET /api/gestion-alumnos/alumnos/:alumnoId
 // Devuelve el perfil completo del alumno con datos personales, académicos,
 // indicadores calculados y 3 predicciones ML automáticas
@@ -162,16 +177,7 @@ router.get(
 
         // ── Predicción 1: Abandono ──
         try {
-          const varsAbandono = calcularVariablesAbandono(id);
-          const bodyAbandono = { ...varsAbandono };
-          delete bodyAbandono._meta;
-
-          // Normalizar nombres de variables si es necesario
-          if (!bodyAbandono.PromedioColegio_x) {
-            bodyAbandono.PromedioColegio_x = bodyAbandono.PromedioColegio;
-            bodyAbandono.PromedioColegio_y = bodyAbandono.PromedioColegio;
-            delete bodyAbandono.PromedioColegio;
-          }
+          const { variables: bodyAbandono } = calcularVariablesAbandono(id);
 
           const respAbandono = await axios.post(
             `${AI_URL}/predict/alumno`,
@@ -197,13 +203,11 @@ router.get(
         try {
           const cursadaActiva = cursadas.find((c) => c.estado === "cursando");
           if (cursadaActiva) {
-            const varsRecursado = calcularVariablesRecursado(
+            const { variables: bodyRecursado } = calcularVariablesRecursado(
               id,
               cursadaActiva.materia_id,
               cursadaActiva.anio,
             );
-            const bodyRecursado = { ...varsRecursado };
-            delete bodyRecursado._meta;
 
             const respRecursado = await axios.post(
               `${AI_URL}/predict/materia`,
@@ -307,15 +311,13 @@ router.get(
 
               if (proximoExamen) {
                 try {
-                  const varsExamen = calcularVariablesExamen(
+                  const { variables: bodyExamen } = calcularVariablesExamen(
                     id,
                     cursadaActiva.materia_id,
                     proximoExamen.tipo,
                     proximoExamen.inst,
                     cursadaActiva.anio,
                   );
-                  const bodyExamen = { ...varsExamen };
-                  delete bodyExamen._meta;
 
                   const respExamen = await axios.post(
                     `${AI_URL}/predict/examen`,
@@ -324,8 +326,8 @@ router.get(
                   );
 
                   predicciones.proximas_notas.push({
-                    nota_predicha: respExamen.data[0].nota_predicha,
-                    aprobaria: respExamen.data[0].nota_predicha >= 4,
+                    nota_predicha: respExamen.data[0].Nota,
+                    aprobaria: (respExamen.data[0].Nota ?? 0) >= 4,
                     tipo_examen: proximoExamen.tipo,
                     instancia: proximoExamen.inst,
                     materia: cursadaActiva.materia_codigo,
@@ -527,17 +529,9 @@ router.post(
       } = require("../services/prediction-variables.service");
       const AI_URL = process.env.AI_SERVICE_URL || "http://localhost:8000";
 
-      const vars = calcularVariablesAbandono(id);
-      const body = { ...vars };
-      delete body._meta;
+      const { variables: body } = calcularVariablesAbandono(id);
 
       body.AyudaFinanciera = parseInt(ayuda_financiera);
-
-      if (!body.PromedioColegio_x) {
-        body.PromedioColegio_x = body.PromedioColegio;
-        body.PromedioColegio_y = body.PromedioColegio;
-        delete body.PromedioColegio;
-      }
 
       const resp = await axios.post(`${AI_URL}/predict/alumno`, [body], {
         timeout: 8000,
