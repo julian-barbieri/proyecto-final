@@ -200,7 +200,7 @@ router.get("/alumnos/:alumnoId", (req, res) => {
   let resumen;
 
   try {
-    const vars = calcularVariablesAbandono(alumnoId);
+    const { variables: vars } = calcularVariablesAbandono(alumnoId);
     resumen = {
       promedio_nota: vars.PromedioNotaGeneral ?? 0,
       promedio_asistencia: vars.PromedioAsistencia ?? 0,

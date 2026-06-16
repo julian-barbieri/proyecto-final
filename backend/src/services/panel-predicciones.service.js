@@ -376,4 +376,5 @@ module.exports = {
   normalizeAlumnoPayload,
   normalizeMateriaPayload,
   normalizeExamenPayload,
+  obtenerProximosExamenes,
 };
