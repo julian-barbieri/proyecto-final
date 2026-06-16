@@ -128,7 +128,10 @@ router.post(
     try {
       const { variables, meta } = calcularVariablesAbandono(Number(alumnoId));
       const response = await axios.post(`${AI_SERVICE_URL}/predict/alumno`, [variables]);
-      const pred = response.data[0];
+      const pred = response.data?.[0];
+      if (!pred) {
+        return res.status(502).json({ error: "Respuesta inválida del servicio de IA." });
+      }
 
       insertPredictionLog.run(
         req.user.id,
@@ -169,7 +172,10 @@ router.post(
         Number(anio),
       );
       const response = await axios.post(`${AI_SERVICE_URL}/predict/materia`, [variables]);
-      const pred = response.data[0];
+      const pred = response.data?.[0];
+      if (!pred) {
+        return res.status(502).json({ error: "Respuesta inválida del servicio de IA." });
+      }
 
       insertPredictionLog.run(
         req.user.id,
@@ -217,7 +223,10 @@ router.post(
         Number(anio),
       );
       const response = await axios.post(`${AI_SERVICE_URL}/predict/examen`, [variables]);
-      const pred = response.data[0];
+      const pred = response.data?.[0];
+      if (!pred) {
+        return res.status(502).json({ error: "Respuesta inválida del servicio de IA." });
+      }
 
       insertPredictionLog.run(
         req.user.id,
