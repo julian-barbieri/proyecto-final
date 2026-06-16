@@ -1,512 +1,85 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import api from "../../api/axios";
 
-const currentYear = new Date().getFullYear();
+const inputClass =
+  "mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100";
 
-const initialValues = {
-  Materia: "",
-  Cuatrimestre: "0",
-  Anio: String(currentYear),
-  Instancia: "1",
-  Genero: "0",
-  AyudaFinanciera: "0",
-  ColegioTecnico: "0",
-  PromedioColegio: "7",
-  Asistencia: "0.75",
-  VecesRecursada: "0",
-  AnoCarrera: "1",
-  NotaPromedioCorrelativas: "0",
-  MateriasAprobadasHastaMomento: "0",
-  CargaSimultanea: "1",
-  IndiceBloqueo: "0",
-  AnioIngreso: String(currentYear - 1),
-  AniosDesdeIngreso: "1",
-  VecesCursadaMateria: "1",
-  TasaRecursaMateria: "0",
-  PromedioAsistenciaHistMateria: "0.75",
-  TotalCursadasGeneral: "1",
-  TasaRecursaGeneral: "0",
-  PromedioAsistenciaGeneral: "0.75",
-  PosicionFlujo: "1",
-  NotaPromedioParcialCursada: "5",
-  CantParcialesAprobados: "0",
-  Edad: "20",
-  TipoExamen: "Parcial",
-  Tipo: "C",
-  AproboUltimoParcial: "",
-};
-
-// payloadFields exactamente en el orden/nombres de feature_names_in_ del modelo examen
-// TipoExamen y Tipo se envían como strings; el AI service los OHE internamente
-const payloadFields = [
-  "Materia",
-  "Cuatrimestre",
-  "Anio",
-  "Instancia",
-  "Genero",
-  "AyudaFinanciera",
-  "ColegioTecnico",
-  "PromedioColegio",
-  "Asistencia",
-  "VecesRecursada",
-  "AñoCarrera",
-  "NotaPromedioCorrelativas",
-  "MateriasAprobadasHastaMomento",
-  "CargaSimultanea",
-  "IndiceBloqueo",
-  "AniosDesdeIngreso",
-  "VecesCursadaMateria",
-  "TasaRecursaMateria",
-  "PromedioAsistenciaHistMateria",
-  "TotalCursadasGeneral",
-  "TasaRecursaGeneral",
-  "PromedioAsistenciaGeneral",
-  "PosicionFlujo",
-  "NotaPromedioParcialCursada",
-  "CantParcialesAprobados",
-  "Edad",
-  "TipoExamen",
-  "Tipo",
-];
-
-const sectionClassName = "rounded-xl border border-slate-200 bg-slate-50/70 p-5";
-const readOnlyClassName = "bg-slate-100 text-slate-600";
-
-const posicionFlujoMap = {
-  Parcial: { 1: 1, 2: 3 },
-  Recuperatorio: { 1: 2, 2: 4 },
-  Final: { 1: 5, 2: 6, 3: 7 },
-};
-
-// Determina cuál es el próximo examen a predecir cuando el tipo es Parcial.
-// Annual + instancia 1 aprobado → Parcial 2; cuatrimestral o instancia 2 aprobado → Final 1;
-// desaprobado → Recuperatorio de la misma instancia.
-function getNextExam(tipoExamen, instancia, aproboStr, tipo) {
-  if (tipoExamen !== "Parcial") return null;
-  const n = Number(instancia);
-  const aprobo = aproboStr === "true";
-  if (aprobo) {
-    if (tipo === "A" && n === 1) return { tipoExamen: "Parcial", instancia: "2" };
-    return { tipoExamen: "Final", instancia: "1" };
+function deriveTargetExam(proximo, aprobo) {
+  if (proximo.tipoExamen !== "Parcial") {
+    return proximo;
   }
-  return { tipoExamen: "Recuperatorio", instancia: String(n) };
-}
-
-function formatNextExamLabel(nextExam) {
-  if (!nextExam) return "";
-  const nombres = { Parcial: "Parcial", Recuperatorio: "Recuperatorio", Final: "Final" };
-  return `${nombres[nextExam.tipoExamen]} — Instancia ${nextExam.instancia}`;
-}
-
-function isEmptyValue(value) {
-  return value === "" || value === null || value === undefined;
-}
-
-function getInstanciaOptions(tipoExamen) {
-  if (tipoExamen === "Final") return ["1", "2", "3"];
-  return ["1", "2"];
-}
-
-function getMaxCantParcialesAprobados(tipoExamen, instancia) {
-  const n = Number(instancia || 1);
-  if (tipoExamen === "Parcial") return Math.min(2, Math.max(1, n));
-  return 2;
-}
-
-function buildPayload(formValues) {
-  const nextExam = getNextExam(
-    formValues.TipoExamen,
-    formValues.Instancia,
-    formValues.AproboUltimoParcial,
-    formValues.Tipo,
-  );
-  const targetTipoExamen = nextExam ? nextExam.tipoExamen : formValues.TipoExamen;
-  const targetInstancia = nextExam ? Number(nextExam.instancia) : Number(formValues.Instancia || 1);
-  const targetPosicionFlujo = posicionFlujoMap[targetTipoExamen]?.[targetInstancia] ?? 1;
-
-  return Object.fromEntries(
-    payloadFields.map((key) => {
-      if (key === "TipoExamen") return [key, targetTipoExamen];
-      if (key === "Tipo") return [key, formValues.Tipo];
-      if (key === "AñoCarrera") return [key, Number(formValues.AnoCarrera || 1)];
-      if (key === "Instancia") return [key, targetInstancia];
-      if (key === "PosicionFlujo") return [key, targetPosicionFlujo];
-      return [key, Number(formValues[key])];
-    }),
-  );
+  const inst = Number(proximo.instancia);
+  if (aprobo) {
+    if (inst === 1) return { tipoExamen: "Parcial", instancia: 2, anio: proximo.anio };
+    return { tipoExamen: "Final", instancia: 1, anio: proximo.anio };
+  }
+  return { tipoExamen: "Recuperatorio", instancia: inst, anio: proximo.anio };
 }
 
 export default function ExamenForm({
   onResult,
   isLoading = false,
-  initialData = {},
   onPredictStart,
   onPredictEnd,
   onPredictError,
 }) {
-  const resetValues = { ...initialValues, ...initialData };
-  const [formValues, setFormValues] = useState(resetValues);
-  const [errors, setErrors] = useState({});
-  const [errorMessage, setErrorMessage] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [alumnos, setAlumnos] = useState([]);
   const [materias, setMaterias] = useState([]);
-
-  const submitDisabled = isLoading || isSubmitting;
-  const instanciaOptions = getInstanciaOptions(formValues.TipoExamen);
-  const maxCantParcialesAprobados = getMaxCantParcialesAprobados(
-    formValues.TipoExamen,
-    formValues.Instancia,
-  );
-  const nextExamPreview =
-    formValues.TipoExamen === "Parcial" && formValues.AproboUltimoParcial !== ""
-      ? getNextExam(
-          formValues.TipoExamen,
-          formValues.Instancia,
-          formValues.AproboUltimoParcial,
-          formValues.Tipo,
-        )
-      : null;
+  const [alumnoId, setAlumnoId] = useState("");
+  const [materiaId, setMateriaId] = useState("");
+  const [proximo, setProximo] = useState(null);
+  const [proxLoading, setProxLoading] = useState(false);
+  const [proxError, setProxError] = useState("");
+  const [aproboStr, setAproboStr] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {
+    api
+      .get("/api/gestion-alumnos/alumnos")
+      .then((res) => setAlumnos(res.data || []))
+      .catch(() => setAlumnos([]));
     api
       .get("/api/gestion/materias")
       .then((res) => setMaterias(res.data || []))
       .catch(() => setMaterias([]));
   }, []);
 
-  const updateDerivedFields = (nextValues) => {
-    const anio = Number(nextValues.Anio || currentYear);
-    const anioIngreso = Number(nextValues.AnioIngreso || currentYear - 1);
-    const instancia = Number(nextValues.Instancia || 1);
-
-    const aniosDesdeIngreso = Math.max(0, anio - anioIngreso);
-    const posicionFlujo = posicionFlujoMap[nextValues.TipoExamen]?.[instancia] ?? 1;
-
-    // Auto-derivar Tipo y AñoCarrera desde la materia seleccionada
-    const materiaSeleccionada = materias.find(
-      (m) => String(m.codigo_plan) === String(nextValues.Materia),
-    );
-    const tipo = materiaSeleccionada?.tipo ?? nextValues.Tipo ?? "C";
-    const anoCarrera = materiaSeleccionada?.anio_carrera ?? nextValues.AnoCarrera ?? 1;
-    // Materias anuales (tipo 'A') tienen cuatrimestre = 0
-    const cuatrimestre =
-      tipo === "A" ? "0" : nextValues.Cuatrimestre ?? "1";
-
-    return {
-      ...nextValues,
-      AniosDesdeIngreso: String(aniosDesdeIngreso),
-      PosicionFlujo: String(posicionFlujo),
-      Tipo: tipo,
-      AnoCarrera: String(anoCarrera),
-      Cuatrimestre: cuatrimestre,
-    };
-  };
-
-  const fields = useMemo(
-    () => ({
-      examen: [
-        {
-          name: "Materia",
-          label: "Materia",
-          type: "select",
-          options: materias.map((m) => ({
-            label: `${m.codigo_plan} - ${m.nombre}`,
-            value: String(m.codigo_plan),
-          })),
-        },
-        {
-          name: "TipoExamen",
-          label: "Tipo de examen",
-          type: "select",
-          options: [
-            { label: "Parcial", value: "Parcial" },
-            { label: "Recuperatorio", value: "Recuperatorio" },
-            { label: "Final", value: "Final" },
-          ],
-        },
-        {
-          name: "Instancia",
-          label: "Instancia",
-          type: "select",
-          options: [],
-        },
-        ...(formValues.TipoExamen === "Parcial"
-          ? [
-              {
-                name: "AproboUltimoParcial",
-                label: "¿Aprobó este parcial?",
-                type: "select",
-                options: [
-                  { label: "Sí, aprobó", value: "true" },
-                  { label: "No, desaprobó", value: "false" },
-                ],
-              },
-            ]
-          : []),
-        {
-          name: "Anio",
-          label: "Año",
-          type: "number",
-          min: 2000,
-          max: currentYear,
-        },
-        {
-          name: "Asistencia",
-          label: "Asistencia (0 a 1)",
-          type: "number",
-          min: 0,
-          max: 1,
-          step: "0.01",
-        },
-        {
-          name: "Cuatrimestre",
-          label: "Cuatrimestre (0=anual, 1=1°C, 2=2°C)",
-          type: "select",
-          options: [
-            { label: "Anual (0)", value: "0" },
-            { label: "1° Cuatrimestre", value: "1" },
-            { label: "2° Cuatrimestre", value: "2" },
-          ],
-        },
-        {
-          name: "VecesRecursada",
-          label: "Veces que recursó esta materia",
-          type: "number",
-          min: 0,
-        },
-      ],
-      alumno: [
-        {
-          name: "Genero",
-          label: "Género",
-          type: "select",
-          options: [
-            { label: "Femenino", value: "0" },
-            { label: "Masculino", value: "1" },
-          ],
-        },
-        { name: "Edad", label: "Edad", type: "number", min: 17, max: 60 },
-        {
-          name: "AyudaFinanciera",
-          label: "Ayuda financiera",
-          type: "select",
-          options: [
-            { label: "No", value: "0" },
-            { label: "Sí", value: "1" },
-          ],
-        },
-        {
-          name: "ColegioTecnico",
-          label: "Colegio técnico",
-          type: "select",
-          options: [
-            { label: "No", value: "0" },
-            { label: "Sí", value: "1" },
-          ],
-        },
-        {
-          name: "PromedioColegio",
-          label: "Promedio en colegio",
-          type: "number",
-          min: 0,
-          max: 10,
-          step: "0.1",
-        },
-        {
-          name: "AnioIngreso",
-          label: "Año de ingreso",
-          type: "number",
-          min: 2000,
-          max: currentYear,
-        },
-        {
-          name: "AniosDesdeIngreso",
-          label: "Años desde el ingreso",
-          type: "number",
-          readOnly: true,
-        },
-        {
-          name: "AnoCarrera",
-          label: "Año de carrera (derivado de la materia)",
-          type: "number",
-          min: 1,
-          max: 5,
-          readOnly: true,
-        },
-      ],
-      contexto: [
-        {
-          name: "MateriasAprobadasHastaMomento",
-          label: "Materias aprobadas hasta el momento",
-          type: "number",
-          min: 0,
-        },
-        {
-          name: "CargaSimultanea",
-          label: "Materias cursadas simultáneamente",
-          type: "number",
-          min: 1,
-        },
-        {
-          name: "IndiceBloqueo",
-          label: "Índice de bloqueo (0=sin bloqueo, 1=bloqueado)",
-          type: "number",
-          min: 0,
-          max: 1,
-          step: "0.01",
-        },
-        {
-          name: "NotaPromedioCorrelativas",
-          label: "Promedio de notas en correlativas",
-          type: "number",
-          min: 0,
-          max: 10,
-          step: "0.1",
-        },
-      ],
-      historialMateria: [
-        {
-          name: "VecesCursadaMateria",
-          label: "Veces cursada esta materia",
-          type: "number",
-          min: 1,
-        },
-        {
-          name: "TasaRecursaMateria",
-          label: "Tasa de recursado en esta materia",
-          type: "number",
-          min: 0,
-          max: 1,
-          step: "0.01",
-        },
-        {
-          name: "PromedioAsistenciaHistMateria",
-          label: "Promedio de asistencia histórica en materia",
-          type: "number",
-          min: 0,
-          max: 1,
-          step: "0.01",
-        },
-      ],
-      historialGeneral: [
-        {
-          name: "TotalCursadasGeneral",
-          label: "Total de cursadas general",
-          type: "number",
-          min: 0,
-        },
-        {
-          name: "TasaRecursaGeneral",
-          label: "Tasa de recursado general",
-          type: "number",
-          min: 0,
-          max: 1,
-          step: "0.01",
-        },
-        {
-          name: "PromedioAsistenciaGeneral",
-          label: "Promedio de asistencia general",
-          type: "number",
-          min: 0,
-          max: 1,
-          step: "0.01",
-        },
-      ],
-      rendimiento: [
-        {
-          name: "NotaPromedioParcialCursada",
-          label: "Promedio de notas en parciales de esta cursada",
-          type: "number",
-          min: 0,
-          max: 10,
-          step: "0.1",
-        },
-        {
-          name: "CantParcialesAprobados",
-          label: "Cantidad de parciales aprobados",
-          type: "number",
-          min: 0,
-          max: 2,
-        },
-        {
-          name: "PosicionFlujo",
-          label: "Posición en el flujo académico (1-7)",
-          type: "number",
-          min: 1,
-          max: 7,
-          readOnly: true,
-        },
-      ],
-    }),
-    [materias, formValues.TipoExamen],
-  );
-
-  const validateForm = (values) => {
-    const skipKeys = new Set(["PosicionFlujo", "AnoCarrera", "Tipo"]);
-    const numericPayloadKeys = payloadFields.filter(
-      (k) => k !== "TipoExamen" && k !== "Tipo" && k !== "AñoCarrera",
-    );
-    const validationErrors = Object.fromEntries(
-      numericPayloadKeys
-        .filter((key) => {
-          const formKey = key === "AñoCarrera" ? "AnoCarrera" : key;
-          return !skipKeys.has(formKey) && isEmptyValue(values[formKey]);
-        })
-        .map((key) => {
-          const formKey = key === "AñoCarrera" ? "AnoCarrera" : key;
-          return [formKey, "Este campo es obligatorio"];
-        }),
-    );
-
-    if (values.TipoExamen === "Parcial" && isEmptyValue(values.AproboUltimoParcial)) {
-      validationErrors.AproboUltimoParcial = "Indicá si el alumno aprobó o no este parcial.";
+  useEffect(() => {
+    if (!alumnoId || !materiaId) {
+      setProximo(null);
+      setProxError("");
+      setAproboStr("");
+      return;
     }
 
-    const cant = Number(values.CantParcialesAprobados || 0);
-    if (cant > 2) {
-      validationErrors.CantParcialesAprobados =
-        "La cantidad de parciales aprobados no puede superar 2.";
-    } else if (cant > maxCantParcialesAprobados) {
-      validationErrors.CantParcialesAprobados = `Para ${values.TipoExamen.toLowerCase()} ${values.Instancia}, no puede superar ${maxCantParcialesAprobados}.`;
-    }
+    setProxLoading(true);
+    setProxError("");
+    setProximo(null);
+    setAproboStr("");
 
-    const notaPromedio = Number(values.NotaPromedioParcialCursada || 0);
-    if (cant === 0 && notaPromedio >= 4) {
-      validationErrors.NotaPromedioParcialCursada =
-        "Si no hay parciales aprobados, el promedio no debería ser aprobatorio.";
-    }
-    if (cant > 0 && notaPromedio === 0) {
-      validationErrors.NotaPromedioParcialCursada =
-        "Si hay parciales aprobados, el promedio no puede ser 0.";
-    }
+    api
+      .get(`/api/predict/examen-proximo/${alumnoId}/${materiaId}`)
+      .then((res) => {
+        setProximo(res.data.proximo);
+        if (!res.data.proximo) {
+          setProxError(
+            "No hay próximos exámenes pendientes para este alumno en esta materia.",
+          );
+        }
+      })
+      .catch(() =>
+        setProxError("No se pudo determinar el próximo examen."),
+      )
+      .finally(() => setProxLoading(false));
+  }, [alumnoId, materiaId]);
 
-    return validationErrors;
-  };
+  const submitDisabled = isLoading || isSubmitting || !proximo;
 
-  const handleChange = (event) => {
-    const { name, value } = event.target;
-    setFormValues((prev) => {
-      const nextValues = { ...prev, [name]: value };
-      if (name === "TipoExamen") {
-        nextValues.Instancia = "1";
-        nextValues.AproboUltimoParcial = "";
-      }
-      return updateDerivedFields(nextValues);
-    });
-    setErrors((prev) => {
-      if (!prev[name]) return prev;
-      const nextErrors = { ...prev };
-      delete nextErrors[name];
-      return nextErrors;
-    });
-  };
-
-  const handleReset = () => {
-    setFormValues(resetValues);
-    setErrors({});
-    setErrorMessage("");
-    onResult?.(null);
-  };
+  const targetExam =
+    proximo && (proximo.tipoExamen !== "Parcial" || aproboStr !== "")
+      ? deriveTargetExam(proximo, aproboStr === "true")
+      : null;
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -514,27 +87,40 @@ export default function ExamenForm({
     onResult?.(null);
     onPredictError?.("");
 
-    const validationErrors = validateForm(formValues);
-    setErrors(validationErrors);
-    if (Object.keys(validationErrors).length > 0) return;
+    if (!targetExam) {
+      setErrorMessage(
+        proximo?.tipoExamen === "Parcial"
+          ? "Indicá si el alumno aprobó o no este parcial."
+          : "Seleccioná un alumno y una materia.",
+      );
+      return;
+    }
 
     onPredictStart?.();
     setIsSubmitting(true);
 
     try {
-      const payload = buildPayload(formValues);
-      const response = await api.post("/api/predict/examen", [payload]);
-      const nextExam = getNextExam(
-        formValues.TipoExamen,
-        formValues.Instancia,
-        formValues.AproboUltimoParcial,
-        formValues.Tipo,
-      );
-      onResult?.({ ...response.data?.[0], _nextExam: nextExam });
+      const response = await api.post("/api/predict/examen-smart", {
+        alumnoId: Number(alumnoId),
+        materiaId: Number(materiaId),
+        tipoExamen: targetExam.tipoExamen,
+        instancia: targetExam.instancia,
+        anio: targetExam.anio,
+      });
+
+      onResult?.({
+        ...response.data,
+        _nextExam: response.data.examen_info
+          ? {
+              tipoExamen: response.data.examen_info.tipoExamen,
+              instancia: response.data.examen_info.instancia,
+            }
+          : null,
+      });
     } catch (error) {
       const message = !error?.response
         ? "No se pudo conectar con el backend. Verificá que esté corriendo en http://localhost:3001"
-        : error?.message || error?.response?.data?.error || "No se pudo obtener la predicción.";
+        : error?.response?.data?.error || "No se pudo obtener la predicción.";
       if (onPredictError) onPredictError(message);
       else setErrorMessage(message);
     } finally {
@@ -543,80 +129,8 @@ export default function ExamenForm({
     }
   };
 
-  const renderField = (field) => {
-    const sharedClassName = `mt-2 w-full rounded-lg border px-3 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 ${
-      errors[field.name] ? "border-red-500" : "border-slate-300"
-    } ${field.readOnly ? readOnlyClassName : "bg-white"}`;
-
-    if (field.type === "select") {
-      const options =
-        field.name === "Instancia"
-          ? instanciaOptions.map((v) => ({ label: v, value: v }))
-          : field.options;
-
-      return (
-        <select
-          id={field.name}
-          name={field.name}
-          value={formValues[field.name]}
-          onChange={handleChange}
-          className={sharedClassName}
-          required
-        >
-          {field.name === "Materia" && (
-            <option value="">-- Seleccionar materia --</option>
-          )}
-          {options.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-      );
-    }
-
-    return (
-      <input
-        id={field.name}
-        name={field.name}
-        type="number"
-        value={formValues[field.name]}
-        onChange={handleChange}
-        min={field.min}
-        max={
-          field.name === "CantParcialesAprobados"
-            ? maxCantParcialesAprobados
-            : field.max
-        }
-        step={field.step}
-        readOnly={field.readOnly}
-        className={sharedClassName}
-        required
-      />
-    );
-  };
-
-  const renderSection = (title, description, sectionFields) => (
-    <section className={sectionClassName}>
-      <div className="mb-4">
-        <h3 className="text-base font-semibold text-slate-900">{title}</h3>
-        <p className="mt-1 text-sm text-slate-600">{description}</p>
-      </div>
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {sectionFields.map((field) => (
-          <div key={field.name}>
-            <label htmlFor={field.name} className="text-sm font-medium text-slate-700">
-              {field.label}
-            </label>
-            {renderField(field)}
-            {errors[field.name] && (
-              <p className="mt-1 text-xs text-red-600">{errors[field.name]}</p>
-            )}
-          </div>
-        ))}
-      </div>
-    </section>
-  );
+  const examLabel = (tipo, instancia) =>
+    tipo ? `${tipo} — Instancia ${instancia}` : "";
 
   return (
     <form
@@ -624,50 +138,110 @@ export default function ExamenForm({
       className="space-y-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
     >
       <div>
-        <h2 className="text-xl font-semibold text-slate-900">Predicción de nota de examen</h2>
+        <h2 className="text-xl font-semibold text-slate-900">
+          Predicción de nota de examen
+        </h2>
         <p className="mt-1 text-sm text-slate-600">
-          {formValues.TipoExamen === "Parcial"
-            ? "Ingresá el resultado del parcial y los datos del alumno. El sistema determinará automáticamente la próxima instancia a predecir."
-            : "Cargá los datos del examen y del alumno para estimar la nota esperada."}
+          Seleccioná el alumno y la materia. El sistema detecta automáticamente
+          el próximo examen pendiente desde el historial académico.
         </p>
-        {nextExamPreview && (
-          <div className="mt-3 inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-700">
-            <span className="h-2 w-2 rounded-full bg-blue-500" />
-            Se predecirá: {formatNextExamLabel(nextExamPreview)}
-          </div>
-        )}
       </div>
 
-      {renderSection(
-        "Datos del examen",
-        "Información principal del examen a rendir.",
-        fields.examen,
-      )}
-      {renderSection(
-        "Datos del alumno",
-        "Datos demográficos y académicos base del alumno.",
-        fields.alumno,
-      )}
-      {renderSection(
-        "Contexto académico",
-        "Información sobre correlativas, carga simultánea y bloqueo.",
-        fields.contexto,
-      )}
-      {renderSection(
-        "Historial en esta materia",
-        "Indicadores históricos específicos de la materia.",
-        fields.historialMateria,
-      )}
-      {renderSection(
-        "Historial general",
-        "Indicadores históricos del desempeño general.",
-        fields.historialGeneral,
-      )}
-      {renderSection(
-        "Rendimiento en la cursada actual",
-        "Desempeño de la cursada vigente.",
-        fields.rendimiento,
-      )}
+      <section className="rounded-xl border border-slate-200 bg-slate-50/70 p-5 space-y-4">
+        <div>
+          <label htmlFor="alumnoId" className="text-sm font-medium text-slate-700">
+            Alumno
+          </label>
+          <select
+            id="alumnoId"
+            value={alumnoId}
+            onChange={(e) => {
+              setAlumnoId(e.target.value);
+              onResult?.(null);
+            }}
+            className={inputClass}
+            required
+          >
+            <option value="">-- Seleccionar alumno --</option>
+            {alumnos.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.nombre_completo} ({a.email})
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label htmlFor="materiaId" className="text-sm font-medium text-slate-700">
+            Materia
+          </label>
+          <select
+            id="materiaId"
+            value={materiaId}
+            onChange={(e) => {
+              setMateriaId(e.target.value);
+              onResult?.(null);
+            }}
+            className={inputClass}
+            required
+          >
+            <option value="">-- Seleccionar materia --</option>
+            {materias.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.codigo} — {m.nombre}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {proxLoading && (
+          <p className="text-sm text-slate-500">Buscando próximo examen...</p>
+        )}
+
+        {proxError && (
+          <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+            {proxError}
+          </p>
+        )}
+
+        {proximo && !proxLoading && (
+          <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2.5 text-sm text-blue-800">
+            <span className="font-medium">Próximo examen detectado: </span>
+            {examLabel(proximo.tipoExamen, proximo.instancia)}
+            {proximo.anio && ` (${proximo.anio})`}
+          </div>
+        )}
+
+        {proximo?.tipoExamen === "Parcial" && (
+          <div>
+            <label
+              htmlFor="aproboStr"
+              className="text-sm font-medium text-slate-700"
+            >
+              ¿El alumno aprobó este parcial?
+            </label>
+            <select
+              id="aproboStr"
+              value={aproboStr}
+              onChange={(e) => setAproboStr(e.target.value)}
+              className={inputClass}
+              required
+            >
+              <option value="">-- Seleccionar --</option>
+              <option value="true">Sí, aprobó</option>
+              <option value="false">No, desaprobó</option>
+            </select>
+            {targetExam && (
+              <p className="mt-2 text-xs text-slate-600">
+                Se predecirá:{" "}
+                <span className="font-medium">
+                  {examLabel(targetExam.tipoExamen, targetExam.instancia)}
+                </span>
+              </p>
+            )}
+          </div>
+        )}
+      </section>
 
       {errorMessage && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -675,23 +249,16 @@ export default function ExamenForm({
         </div>
       )}
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
-        <button
-          type="button"
-          onClick={handleReset}
-          className="w-full rounded-lg bg-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-300 sm:w-auto"
-        >
-          Limpiar
-        </button>
+      <div className="flex justify-end">
         <button
           type="submit"
           disabled={submitDisabled}
-          className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300 sm:w-auto"
+          className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300"
         >
-          {submitDisabled && (
+          {submitDisabled && !proximo && !proxLoading ? null : submitDisabled && (
             <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
           )}
-          {submitDisabled ? "Prediciendo..." : "Predecir"}
+          {isSubmitting ? "Prediciendo..." : "Predecir"}
         </button>
       </div>
     </form>
