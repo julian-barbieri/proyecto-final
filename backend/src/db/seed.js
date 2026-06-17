@@ -3600,6 +3600,18 @@ function seedMasivo500AlumnosCDU() {
 
     if (demoIds.length > 0) {
       const idPh = demoIds.map(() => "?").join(",");
+      // Delete mensajes referencing conversations where the demo user is involved
+      const convIds = db
+        .prepare(`SELECT id FROM conversaciones WHERE alumno_id IN (${idPh}) OR tutor_id IN (${idPh}) OR participante_a_id IN (${idPh}) OR participante_b_id IN (${idPh})`)
+        .all(...demoIds, ...demoIds, ...demoIds, ...demoIds)
+        .map((r) => r.id);
+      if (convIds.length > 0) {
+        const convPh = convIds.map(() => "?").join(",");
+        db.prepare(`DELETE FROM mensajes WHERE conversacion_id IN (${convPh})`).run(...convIds);
+        db.prepare(`DELETE FROM conversaciones WHERE id IN (${convPh})`).run(...convIds);
+      }
+      db.prepare(`DELETE FROM visualizaciones WHERE alumno_id IN (${idPh})`).run(...demoIds);
+      db.prepare(`DELETE FROM predictions_log WHERE user_id IN (${idPh})`).run(...demoIds);
       db.prepare(`DELETE FROM examenes WHERE alumno_id IN (${idPh})`).run(...demoIds);
       db.prepare(`DELETE FROM cursadas WHERE alumno_id IN (${idPh})`).run(...demoIds);
       db.prepare(`DELETE FROM inscripciones WHERE alumno_id IN (${idPh})`).run(...demoIds);
@@ -3757,6 +3769,7 @@ async function seedUsers() {
   seedPrediccionesAutomaticasCDU009();
   seedDemoAlumnosCDU010();
   seedDemoAlumnosAM2CDU014();
+  seedMasivo500AlumnosCDU();
 }
 
 if (require.main === module) {
