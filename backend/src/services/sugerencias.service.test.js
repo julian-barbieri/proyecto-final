@@ -227,3 +227,56 @@ describe('generarSugerencia', () => {
     expect(result).toBe('Sugerencia generada');
   });
 });
+
+describe('obtenerDatosAlumnoGlobal — aprobadas desde finales reales', () => {
+  beforeEach(() => {
+    jest.resetModules();
+    jest.mock('@google/genai', () => ({
+      GoogleGenAI: jest.fn().mockImplementation(() => ({
+        models: { generateContent: jest.fn() },
+      })),
+    }));
+    jest.mock('./estado-efectivo', () => ({
+      computarEstadoEfectivo: jest.fn((_, estadoDB) => estadoDB),
+    }));
+  });
+
+  test('cuenta aprobadas desde materias con Final >= 4, no desde cursadas.estado', () => {
+    jest.mock('../db/database', () => {
+      return {
+        prepare: jest.fn((sql) => {
+          // alumno query
+          if (sql.includes('FROM users WHERE id')) {
+            return { get: jest.fn().mockReturnValue({ id: 1, nombre_completo: 'Test', anio_ingreso: 2022, promedio_colegio: 7, ayuda_financiera: 0, colegio_tecnico: 0 }) };
+          }
+          // todasCursadas — 9 cursadas con estado='cursando'
+          if (sql.includes('SELECT c.materia_id, c.estado, c.asistencia')) {
+            return { all: jest.fn().mockReturnValue(Array(9).fill(null).map((_, i) => ({ materia_id: i + 1, estado: 'cursando', asistencia: 0.8, anio: 2026, materia_nombre: `Materia ${i + 1}` }))) };
+          }
+          // materiasAprobadas — 9 materias con Final aprobado
+          if (sql.includes('SELECT DISTINCT materia_id FROM examenes')) {
+            return { all: jest.fn().mockReturnValue(Array(9).fill(null).map((_, i) => ({ materia_id: i + 1 }))) };
+          }
+          // examenesConNota
+          if (sql.includes('SELECT e.nota FROM examenes e')) {
+            return { all: jest.fn().mockReturnValue([{ nota: 7 }]) };
+          }
+          // historialCursadas
+          if (sql.includes('SELECT c.materia_id, c.estado, c.anio')) {
+            return { all: jest.fn().mockReturnValue([]) };
+          }
+          // getExamenesStmt
+          if (sql.includes('SELECT tipo, rendido, nota FROM examenes')) {
+            return { all: jest.fn().mockReturnValue([]) };
+          }
+          return { get: jest.fn().mockReturnValue(null), all: jest.fn().mockReturnValue([]) };
+        }),
+      };
+    });
+
+    const { obtenerDatosAlumnoGlobal } = require('./sugerencias.service');
+    const result = obtenerDatosAlumnoGlobal(1);
+    expect(result.indicadores.aprobadas).toBe(9);
+    expect(result.indicadores.cursando).toBe(0);
+  });
+});

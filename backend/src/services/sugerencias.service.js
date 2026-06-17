@@ -2,6 +2,7 @@ const { GoogleGenAI } = require('@google/genai');
 const db = require('../db/database');
 const { calcularVariablesAbandono } = require('./prediction-variables.service');
 const { precalcularPrediccionesCompletas } = require('./panel-predicciones.service');
+const { computarEstadoEfectivo } = require('./estado-efectivo');
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
@@ -181,17 +182,28 @@ function obtenerDatosAlumnoGlobal(alumnoId) {
 
   const todasCursadas = db
     .prepare(
-      `SELECT c.estado, c.asistencia, c.anio, m.nombre AS materia_nombre
+      `SELECT c.materia_id, c.estado, c.asistencia, c.anio, m.nombre AS materia_nombre
        FROM cursadas c JOIN materias m ON m.id = c.materia_id
        WHERE c.alumno_id = ?
        ORDER BY c.anio DESC`,
     )
     .all(alumnoId);
 
-  const aprobadas = todasCursadas.filter((c) => c.estado === 'aprobada');
-  const recursadas = todasCursadas.filter((c) => c.estado === 'recursada');
-  const cursando = todasCursadas.filter((c) => c.estado === 'cursando');
-  const abandonadas = todasCursadas.filter((c) => c.estado === 'abandonada');
+  // Conjuntos de materia_id con final aprobado (efectivamente aprobadas)
+  const materiasAprobadas = new Set(
+    db
+      .prepare(
+        `SELECT DISTINCT materia_id FROM examenes
+         WHERE alumno_id = ? AND tipo = 'Final' AND rendido = 1 AND nota >= 4`,
+      )
+      .all(alumnoId)
+      .map((r) => r.materia_id),
+  );
+
+  const aprobadas_count = materiasAprobadas.size;
+  const recursadas_count = todasCursadas.filter((c) => c.estado === 'recursada' && !materiasAprobadas.has(c.materia_id)).length;
+  const cursando_count = todasCursadas.filter((c) => c.estado === 'cursando' && !materiasAprobadas.has(c.materia_id)).length;
+  const abandonadas_count = todasCursadas.filter((c) => c.estado === 'abandonada').length;
 
   const examenesConNota = db
     .prepare(
@@ -210,9 +222,10 @@ function obtenerDatosAlumnoGlobal(alumnoId) {
       ? todasCursadas.reduce((s, c) => s + Number(c.asistencia || 0), 0) / todasCursadas.length
       : null;
 
+  // Historial con estado_efectivo calculado desde exámenes reales
   const historialCursadas = db
     .prepare(
-      `SELECT c.estado, c.anio, m.nombre AS materia_nombre
+      `SELECT c.materia_id, c.estado, c.anio, m.nombre AS materia_nombre
        FROM cursadas c JOIN materias m ON m.id = c.materia_id
        WHERE c.alumno_id = ?
        ORDER BY c.anio DESC
@@ -220,25 +233,40 @@ function obtenerDatosAlumnoGlobal(alumnoId) {
     )
     .all(alumnoId);
 
+  const getExamenesStmt = db.prepare(
+    `SELECT tipo, rendido, nota FROM examenes
+     WHERE alumno_id = ? AND materia_id = ? AND anio = ?`,
+  );
+
   const historialTexto =
     historialCursadas.length > 0
-      ? historialCursadas.map((c) => `- ${c.anio}: ${c.materia_nombre} (${c.estado})`).join('\n')
+      ? historialCursadas
+          .map((c) => {
+            const exams = getExamenesStmt.all(alumnoId, c.materia_id, c.anio);
+            const estadoEfectivo = computarEstadoEfectivo(exams, c.estado);
+            return `- ${c.anio}: ${c.materia_nombre} (${estadoEfectivo})`;
+          })
+          .join('\n')
       : 'Sin historial registrado';
+
+  const materiasEnCurso = todasCursadas
+    .filter((c) => c.estado === 'cursando' && !materiasAprobadas.has(c.materia_id))
+    .map((c) => ({ nombre: c.materia_nombre }));
 
   return {
     alumno,
     indicadores: {
       total_cursadas: todasCursadas.length,
-      aprobadas: aprobadas.length,
-      recursadas: recursadas.length,
-      cursando: cursando.length,
-      abandonadas: abandonadas.length,
+      aprobadas: aprobadas_count,
+      recursadas: recursadas_count,
+      cursando: cursando_count,
+      abandonadas: abandonadas_count,
       promedio_notas: promedio_notas != null ? Number(promedio_notas.toFixed(2)) : null,
       asistencia_promedio: asistencia_promedio != null
         ? Number(asistencia_promedio.toFixed(4))
         : null,
     },
-    materiasEnCurso: cursando.map((c) => ({ nombre: c.materia_nombre })),
+    materiasEnCurso,
     historialTexto,
   };
 }
