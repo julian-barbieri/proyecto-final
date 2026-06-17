@@ -121,6 +121,7 @@ def simular_trayectoria_seed(perfil: dict, rng, snapshot_anio: int) -> tuple:
                 and m not in pendiente_recursa
                 and all(c in aprobadas for c in MATERIAS[m][3])
                 and (MATERIAS[m][1] == 'C' or cuatr == 1)
+                and MATERIAS[m][2] <= anio_relativo
             ]
             recursa_disp = [
                 m for m in pendiente_recursa
