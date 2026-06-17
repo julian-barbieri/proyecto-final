@@ -3563,6 +3563,125 @@ function seedExamenes2026() {
   }
 }
 
+function seedMasivo500AlumnosCDU() {
+  try {
+    const existing = db
+      .prepare("SELECT COUNT(*) as count FROM users WHERE username LIKE 'seed_%'")
+      .get();
+    if (existing.count > 0) {
+      console.log("Seed masivo: ya existen alumnos seed_*, saltando.");
+      return;
+    }
+
+    const jsonPath = path.join(__dirname, "seed-masivo-data.json");
+    if (!fs.existsSync(jsonPath)) {
+      console.warn(
+        "⚠️  seed-masivo-data.json no encontrado. Correr ai-service/data/seed-data-generator.py primero.",
+      );
+      return;
+    }
+    const { alumnos } = JSON.parse(fs.readFileSync(jsonPath, "utf-8"));
+
+    const DEMO_USERNAMES = [
+      "lucas.martinez", "valentina.gomez", "mateo.fernandez", "sofia.rodriguez",
+      "nicolas.lopez", "joaquin.perez", "camila.torres", "sebastian.diaz",
+      "agustina.romero", "ignacio.sanchez", "martina.villareal", "tomas.acosta",
+      "pedro.quintero", "ana.benitez", "rodrigo.molina", "luciana.herrera",
+      "diego.castro", "florencia.ramos", "ezequiel.vargas", "camila.mendez",
+      "martin.ibarra", "natalia.quispe", "pablo.luna", "valeria.mora",
+      "gabriel.silva", "antonella.reyes",
+    ];
+
+    const ph = DEMO_USERNAMES.map(() => "?").join(",");
+    const demoIds = db
+      .prepare(`SELECT id FROM users WHERE username IN (${ph})`)
+      .all(...DEMO_USERNAMES)
+      .map((r) => r.id);
+
+    if (demoIds.length > 0) {
+      const idPh = demoIds.map(() => "?").join(",");
+      db.prepare(`DELETE FROM examenes WHERE alumno_id IN (${idPh})`).run(...demoIds);
+      db.prepare(`DELETE FROM cursadas WHERE alumno_id IN (${idPh})`).run(...demoIds);
+      db.prepare(`DELETE FROM inscripciones WHERE alumno_id IN (${idPh})`).run(...demoIds);
+      db.prepare(`DELETE FROM users WHERE id IN (${idPh})`).run(...demoIds);
+    }
+
+    const stmtInsertUser = db.prepare(`
+      INSERT OR IGNORE INTO users
+        (username, password, role, nombre_completo, email,
+         oauth_provider, google_id, genero, fecha_nac,
+         ayuda_financiera, colegio_tecnico, promedio_colegio, anio_ingreso)
+      VALUES (?, NULL, 'alumno', ?, ?, 'google', ?, ?, ?, ?, ?, ?, ?)
+    `);
+    const stmtGetUser    = db.prepare("SELECT id FROM users WHERE username = ?");
+    const stmtGetMateria = db.prepare("SELECT id FROM materias WHERE codigo_plan = ?");
+    const stmtInsertCursada = db.prepare(`
+      INSERT OR IGNORE INTO cursadas (alumno_id, materia_id, anio, asistencia, estado)
+      VALUES (?, ?, ?, ?, ?)
+    `);
+    const stmtInsertExamen = db.prepare(`
+      INSERT OR IGNORE INTO examenes
+        (alumno_id, materia_id, anio, tipo, instancia,
+         rendido, nota, ausente, veces_recursada, asistencia, fecha_examen)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    const stmtInsertInscr = db.prepare(`
+      INSERT OR IGNORE INTO inscripciones (alumno_id, materia_id, anio, estado)
+      VALUES (?, ?, ?, 'activa')
+    `);
+
+    const seedAll = db.transaction(() => {
+      for (const alumno of alumnos) {
+        stmtInsertUser.run(
+          alumno.username,
+          alumno.nombre_completo,
+          alumno.email,
+          alumno.google_id,
+          alumno.genero,
+          alumno.fecha_nac,
+          alumno.ayuda_financiera,
+          alumno.colegio_tecnico,
+          alumno.promedio_colegio,
+          alumno.anio_ingreso,
+        );
+
+        const row = stmtGetUser.get(alumno.username);
+        if (!row) continue;
+        const aId = row.id;
+
+        for (const c of alumno.cursadas) {
+          const m = stmtGetMateria.get(c.materia_codigo_plan);
+          if (!m) continue;
+          stmtInsertCursada.run(aId, m.id, c.anio, c.asistencia, c.estado);
+        }
+
+        for (const e of alumno.examenes) {
+          const m = stmtGetMateria.get(e.materia_codigo_plan);
+          if (!m) continue;
+          stmtInsertExamen.run(
+            aId, m.id, e.anio, e.tipo, e.instancia,
+            e.rendido, e.nota ?? null, e.ausente,
+            e.veces_recursada, e.asistencia, e.fecha_examen,
+          );
+        }
+
+        for (const c of alumno.cursadas.filter(
+          (c) => c.anio === 2026 && c.estado === "cursando",
+        )) {
+          const m = stmtGetMateria.get(c.materia_codigo_plan);
+          if (!m) continue;
+          stmtInsertInscr.run(aId, m.id, 2026);
+        }
+      }
+    });
+
+    seedAll();
+    console.log(`Seed masivo: ${alumnos.length} alumnos insertados.`);
+  } catch (error) {
+    console.error("Error en seed masivo:", error.message);
+  }
+}
+
 async function seedUsers() {
   const users = [
     {
@@ -3636,6 +3755,8 @@ async function seedUsers() {
   seedGestionMateriasCDU005();
   seedGestionContenidoCDU008();
   seedPrediccionesAutomaticasCDU009();
+  seedDemoAlumnosCDU010();
+  seedDemoAlumnosAM2CDU014();
 }
 
 if (require.main === module) {
