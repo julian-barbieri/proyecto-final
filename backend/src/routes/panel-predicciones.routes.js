@@ -239,46 +239,155 @@ router.get("/alumnos/:alumnoId", (req, res) => {
   });
 });
 
+function getAprobadosAlumnos(materiaId) {
+  return db
+    .prepare(
+      `SELECT DISTINCT
+         u.id,
+         COALESCE(u.nombre_completo, u.username) AS nombre_completo,
+         (
+           SELECT e2.nota FROM examenes e2
+           WHERE e2.alumno_id = u.id AND e2.materia_id = @materiaId
+             AND e2.tipo = 'Final' AND e2.rendido = 1 AND e2.nota >= 4
+           ORDER BY e2.anio DESC, e2.instancia DESC
+           LIMIT 1
+         ) AS nota_final
+       FROM users u
+       JOIN cursadas c ON c.alumno_id = u.id AND c.materia_id = @materiaId
+       WHERE u.role = 'alumno'
+         AND EXISTS (
+           SELECT 1 FROM examenes e
+           WHERE e.alumno_id = u.id AND e.materia_id = @materiaId
+             AND e.tipo = 'Final' AND e.rendido = 1 AND e.nota >= 4
+         )
+       GROUP BY u.id
+       ORDER BY nombre_completo ASC`,
+    )
+    .all({ materiaId });
+}
+
+function getRecursadosAlumnos(materiaId) {
+  const candidatos = db
+    .prepare(
+      `SELECT DISTINCT
+         u.id,
+         COALESCE(u.nombre_completo, u.username) AS nombre_completo,
+         (SELECT MAX(c2.anio) FROM cursadas c2
+          WHERE c2.alumno_id = u.id AND c2.materia_id = @materiaId) AS ultimo_anio
+       FROM users u
+       JOIN cursadas c ON c.alumno_id = u.id AND c.materia_id = @materiaId
+       WHERE u.role = 'alumno'
+         AND NOT EXISTS (
+           SELECT 1 FROM examenes e
+           WHERE e.alumno_id = u.id AND e.materia_id = @materiaId
+             AND e.tipo = 'Final' AND e.rendido = 1 AND e.nota >= 4
+         )
+       GROUP BY u.id`,
+    )
+    .all({ materiaId });
+
+  const getExamenesStmt = db.prepare(
+    `SELECT tipo, nota FROM examenes
+     WHERE alumno_id = ? AND materia_id = ? AND anio = ? AND rendido = 1`,
+  );
+
+  const result = [];
+  for (const candidato of candidatos) {
+    const examenes = getExamenesStmt.all(candidato.id, materiaId, candidato.ultimo_anio);
+
+    const recupFallido = examenes.find(
+      (e) => e.tipo === 'Recuperatorio' && e.nota !== null && Number(e.nota) < 4,
+    );
+    if (recupFallido) {
+      result.push({
+        id: candidato.id,
+        nombre_completo: candidato.nombre_completo,
+        nota_examen: recupFallido.nota,
+        tipo_examen: 'Recuperatorio',
+      });
+      continue;
+    }
+
+    const finalesFallidos = examenes.filter(
+      (e) => e.tipo === 'Final' && e.nota !== null && Number(e.nota) < 4,
+    );
+    if (finalesFallidos.length >= 3) {
+      result.push({
+        id: candidato.id,
+        nombre_completo: candidato.nombre_completo,
+        nota_examen: finalesFallidos[finalesFallidos.length - 1].nota,
+        tipo_examen: 'Final',
+      });
+    }
+  }
+
+  return result.sort((a, b) => a.nombre_completo.localeCompare(b.nombre_completo));
+}
+
 function getCursandoAlumnos(materiaId) {
   return db
     .prepare(
-      `
-      SELECT DISTINCT
-        u.id,
-        COALESCE(u.nombre_completo, u.username) AS nombre_completo,
-        u.email,
-        u.genero,
-        u.fecha_nac,
-        u.promedio_colegio,
-        u.anio_ingreso,
-        MAX(c.anio) AS ultimo_anio,
-        MAX(c.asistencia) AS ultima_asistencia,
-        COUNT(c.id) AS veces_cursada,
-        (
-          SELECT ROUND(AVG(e.nota), 2)
-          FROM examenes e
-          WHERE e.alumno_id = u.id
-            AND e.materia_id = ?
-            AND e.rendido = 1
-            AND e.nota IS NOT NULL
-        ) AS promedio_nota
-      FROM users u
-      JOIN cursadas c ON c.alumno_id = u.id AND c.materia_id = ?
-      WHERE u.role = 'alumno'
-        AND NOT EXISTS (
-          SELECT 1 FROM examenes e2
-          WHERE e2.alumno_id = u.id
-            AND e2.materia_id = ?
-            AND e2.tipo = 'Final'
-            AND e2.rendido = 1
-            AND e2.nota >= 4
-        )
-      GROUP BY u.id
-      HAVING MAX(CASE WHEN c.estado = 'cursando' THEN 1 ELSE 0 END) = 1
-      ORDER BY nombre_completo ASC
-    `,
+      `SELECT DISTINCT
+         u.id,
+         COALESCE(u.nombre_completo, u.username) AS nombre_completo,
+         u.email,
+         u.genero,
+         u.fecha_nac,
+         u.promedio_colegio,
+         u.anio_ingreso,
+         MAX(c.anio) AS ultimo_anio,
+         MAX(c.asistencia) AS ultima_asistencia,
+         COUNT(c.id) AS veces_cursada,
+         (
+           SELECT ROUND(AVG(e.nota), 2)
+           FROM examenes e
+           WHERE e.alumno_id = u.id
+             AND e.materia_id = @materiaId
+             AND e.rendido = 1
+             AND e.nota IS NOT NULL
+         ) AS promedio_nota
+       FROM users u
+       JOIN cursadas c ON c.alumno_id = u.id AND c.materia_id = @materiaId
+       WHERE u.role = 'alumno'
+         AND NOT EXISTS (
+           SELECT 1 FROM examenes e2
+           WHERE e2.alumno_id = u.id
+             AND e2.materia_id = @materiaId
+             AND e2.tipo = 'Final'
+             AND e2.rendido = 1
+             AND e2.nota >= 4
+         )
+         AND NOT (
+           EXISTS (
+             SELECT 1 FROM examenes e_r
+             WHERE e_r.alumno_id = u.id
+               AND e_r.materia_id = @materiaId
+               AND e_r.tipo = 'Recuperatorio'
+               AND e_r.rendido = 1
+               AND e_r.nota < 4
+               AND e_r.anio = (
+                 SELECT MAX(c2.anio) FROM cursadas c2
+                 WHERE c2.alumno_id = u.id AND c2.materia_id = @materiaId
+               )
+           )
+           OR (
+             SELECT COUNT(*) FROM examenes e_f
+             WHERE e_f.alumno_id = u.id
+               AND e_f.materia_id = @materiaId
+               AND e_f.tipo = 'Final'
+               AND e_f.rendido = 1
+               AND e_f.nota < 4
+               AND e_f.anio = (
+                 SELECT MAX(c3.anio) FROM cursadas c3
+                 WHERE c3.alumno_id = u.id AND c3.materia_id = @materiaId
+               )
+           ) >= 3
+         )
+       GROUP BY u.id
+       HAVING MAX(CASE WHEN c.estado = 'cursando' THEN 1 ELSE 0 END) = 1
+       ORDER BY nombre_completo ASC`,
     )
-    .all(materiaId, materiaId, materiaId);
+    .all({ materiaId });
 }
 
 // GET /api/panel-predicciones/materias/:materiaId/panel-predicciones
@@ -312,10 +421,16 @@ router.get("/materias/:materiaId/panel-predicciones", async (req, res) => {
     const skipPredicciones = req.query.skipPredicciones === "true";
 
     if (skipPredicciones) {
+      const aprobados = getAprobadosAlumnos(materiaId);
+      const recursados = getRecursadosAlumnos(materiaId);
       return res.status(200).json({
         materia,
         cursando,
-        resumen: { total: cursando.length },
+        resumen: {
+          total: cursando.length,
+          aprobados: aprobados.length,
+          recursados: recursados.length,
+        },
       });
     }
 
@@ -386,6 +501,44 @@ router.get("/materias/:materiaId/predicciones", async (req, res) => {
       error: "Error al calcular predicciones",
       details: error.message,
     });
+  }
+});
+
+router.get('/materias/:materiaId/aprobados', (req, res) => {
+  const materiaId = toPositiveInt(req.params.materiaId);
+  if (!materiaId) return res.status(400).json({ error: 'Materia inválida.' });
+
+  if (req.user.role === 'docente') {
+    const asignada = db
+      .prepare('SELECT 1 FROM docente_materia WHERE docente_id = ? AND materia_id = ? AND activo = 1 LIMIT 1')
+      .get(req.user.id, materiaId);
+    if (!asignada) return res.status(403).json({ error: 'No tenés acceso a esta materia.' });
+  }
+
+  try {
+    return res.status(200).json({ aprobados: getAprobadosAlumnos(materiaId) });
+  } catch (error) {
+    console.error('Error en /aprobados:', error);
+    return res.status(500).json({ error: 'Error al obtener alumnos aprobados.' });
+  }
+});
+
+router.get('/materias/:materiaId/recursados', (req, res) => {
+  const materiaId = toPositiveInt(req.params.materiaId);
+  if (!materiaId) return res.status(400).json({ error: 'Materia inválida.' });
+
+  if (req.user.role === 'docente') {
+    const asignada = db
+      .prepare('SELECT 1 FROM docente_materia WHERE docente_id = ? AND materia_id = ? AND activo = 1 LIMIT 1')
+      .get(req.user.id, materiaId);
+    if (!asignada) return res.status(403).json({ error: 'No tenés acceso a esta materia.' });
+  }
+
+  try {
+    return res.status(200).json({ recursados: getRecursadosAlumnos(materiaId) });
+  } catch (error) {
+    console.error('Error en /recursados:', error);
+    return res.status(500).json({ error: 'Error al obtener alumnos recursados.' });
   }
 });
 
