@@ -28,17 +28,8 @@ async function obtenerPrediccionesAbandono(alumnosActivos) {
   // Calcular variables de todos los alumnos (sincrónico, DB local)
   const alumnosConVars = alumnosActivos.map((alumno) => {
     try {
-      const vars = calcularVariablesAbandono(alumno.id);
-      const body = { ...vars };
-      delete body._meta;
-
-      if (!body.PromedioColegio_x && body.PromedioColegio) {
-        body.PromedioColegio_x = body.PromedioColegio;
-        body.PromedioColegio_y = body.PromedioColegio;
-        delete body.PromedioColegio;
-      }
-
-      return { alumno, body };
+      const { variables } = calcularVariablesAbandono(alumno.id);
+      return { alumno, body: variables };
     } catch {
       return { alumno, body: null };
     }
@@ -66,9 +57,9 @@ async function obtenerPrediccionesAbandono(alumnosActivos) {
           abandona: resultado.Abandona,
           probabilidad: resultado.probabilidad,
           nivel_riesgo:
-            resultado.probabilidad >= 0.95
+            resultado.probabilidad >= 0.7
               ? "alto"
-              : resultado.probabilidad >= 0.7
+              : resultado.probabilidad >= 0.4
                 ? "medio"
                 : "bajo",
         };

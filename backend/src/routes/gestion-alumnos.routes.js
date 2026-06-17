@@ -10,12 +10,25 @@ const axios = require("axios");
 // ═══════════════════════════════════════════════════════════════════════════
 
 router.get('/alumnos', (req, res) => {
-  const alumnos = db
-    .prepare(
-      `SELECT id, COALESCE(nombre_completo, username) AS nombre_completo, username, email
-       FROM users WHERE role = 'alumno' ORDER BY nombre_completo ASC`,
-    )
-    .all();
+  const soloActivos = req.query.soloActivos === 'true';
+
+  const alumnos = soloActivos
+    ? db
+        .prepare(
+          `SELECT DISTINCT u.id, COALESCE(u.nombre_completo, u.username) AS nombre_completo, u.username, u.email
+           FROM users u
+           JOIN cursadas c ON c.alumno_id = u.id AND c.estado = 'cursando'
+           WHERE u.role = 'alumno'
+           ORDER BY nombre_completo ASC`,
+        )
+        .all()
+    : db
+        .prepare(
+          `SELECT id, COALESCE(nombre_completo, username) AS nombre_completo, username, email
+           FROM users WHERE role = 'alumno' ORDER BY nombre_completo ASC`,
+        )
+        .all();
+
   return res.status(200).json(alumnos);
 });
 
@@ -91,6 +104,13 @@ router.get(
         `,
           )
           .all(id, cursada.materia_id, cursada.anio);
+
+        if (cursada.estado === "cursando") {
+          const finalAprobado = cursada.examenes.some(
+            (e) => e.tipo === "Final" && Number(e.rendido) === 1 && Number(e.nota) >= 4,
+          );
+          if (finalAprobado) cursada.estado = "aprobada";
+        }
       }
 
       // ── 3. Indicadores calculados ────────────────────────────────────────

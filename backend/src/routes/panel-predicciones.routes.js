@@ -262,12 +262,20 @@ function getCursandoAlumnos(materiaId) {
       FROM users u
       JOIN cursadas c ON c.alumno_id = u.id AND c.materia_id = ?
       WHERE u.role = 'alumno'
+        AND NOT EXISTS (
+          SELECT 1 FROM examenes e2
+          WHERE e2.alumno_id = u.id
+            AND e2.materia_id = ?
+            AND e2.tipo = 'Final'
+            AND e2.rendido = 1
+            AND e2.nota >= 4
+        )
       GROUP BY u.id
       HAVING MAX(CASE WHEN c.estado = 'cursando' THEN 1 ELSE 0 END) = 1
       ORDER BY nombre_completo ASC
     `,
     )
-    .all(materiaId, materiaId);
+    .all(materiaId, materiaId, materiaId);
 }
 
 // GET /api/panel-predicciones/materias/:materiaId/panel-predicciones
