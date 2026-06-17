@@ -7,6 +7,7 @@ const {
 const {
   precalcularPrediccionesCompletas,
 } = require("../services/panel-predicciones.service");
+const { computarEstadoEfectivo } = require("../services/estado-efectivo");
 
 const router = express.Router();
 
@@ -195,6 +196,8 @@ router.get("/alumnos/:alumnoId", (req, res) => {
       `,
       )
       .all(alumnoId, cursada.materia_id, cursada.anio);
+
+    cursada.estado_efectivo = computarEstadoEfectivo(cursada.examenes, cursada.estado);
   }
 
   let resumen;

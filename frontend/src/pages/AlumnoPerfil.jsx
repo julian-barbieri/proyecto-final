@@ -48,7 +48,8 @@ function SkeletonLoader() {
 
 
 function AcordeonCursada({ cursada }) {
-  const [abierto, setAbierto] = useState(cursada.estado === "cursando");
+  const estadoDisplay = cursada.estado_efectivo ?? cursada.estado;
+  const [abierto, setAbierto] = useState(estadoDisplay === "cursando");
 
   const colorEstado = {
     cursando: "bg-blue-100 text-blue-700",
@@ -81,10 +82,10 @@ function AcordeonCursada({ cursada }) {
           </span>
           <span
             className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-              colorEstado[cursada.estado]
+              colorEstado[estadoDisplay] ?? colorEstado.cursando
             }`}
           >
-            {cursada.estado.charAt(0).toUpperCase() + cursada.estado.slice(1)}
+            {estadoDisplay.charAt(0).toUpperCase() + estadoDisplay.slice(1)}
           </span>
           <span
             className={`text-xs ${
