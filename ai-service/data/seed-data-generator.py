@@ -43,7 +43,7 @@ COHORTES = [
     (120, 2022, 5),
 ]
 
-TIPOS_PROB = [0.75, 0.20, 0.05]  # excelente, regular, malo
+TIPOS_PROB = [0.95, 0.04, 0.01]  # excelente, regular, malo
 
 
 def generar_perfil_seed(alumno_id: str, tipo: str, anio_ingreso: int, rng) -> dict:
