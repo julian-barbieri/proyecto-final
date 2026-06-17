@@ -1,7 +1,7 @@
 """
 Generador de datos para seed masivo — 500 alumnos activos.
 Reutiliza funciones de generar_datasets.py con ajustes:
-  - tipos: 75% excelente / 20% regular / 5% malo
+  - tipos: 95% excelente / 4% regular / 1% malo
   - anio_ingreso fijo por cohorte
   - abandono descartado (se regenera si ocurre)
   - snapshot al final de 2026 (cuatr 2)
@@ -81,7 +81,7 @@ def generar_perfil_seed(alumno_id: str, tipo: str, anio_ingreso: int, rng) -> di
 
 def simular_trayectoria_seed(perfil: dict, rng, snapshot_anio: int) -> tuple:
     """
-    Simula trayectoria hasta snapshot_anio (inclusive, cuatr 2).
+    Simula trayectoria hasta snapshot_anio (inclusive, cuatr 1).
     Retorna (abandono: bool, snapshot_state: dict | None).
     abandono=True → el caller debe descartar este alumno.
     snapshot_state=None → alumno graduó antes de tener cursadas en 2026.
@@ -104,7 +104,9 @@ def simular_trayectoria_seed(perfil: dict, rng, snapshot_anio: int) -> tuple:
     carga_base = {'excelente': 5, 'regular': 4, 'malo': 3}[tipo_notas]
 
     for anio in range(perfil['AnioIngreso'], snapshot_anio + 1):
-        for cuatr in [1, 2]:
+        cuatrs = [1] if anio == snapshot_anio else [1, 2]
+        anio_relativo = anio - perfil['AnioIngreso'] + 1
+        for cuatr in cuatrs:
             progreso      = len(aprobadas) / 48
             asist_acum    = float(np.mean(asistencia_hist)) if asistencia_hist else MU_ASIST[tipo_asist]
             ind_bloqueo_g = calcular_indice_bloqueo_global(aprobadas)
@@ -134,7 +136,7 @@ def simular_trayectoria_seed(perfil: dict, rng, snapshot_anio: int) -> tuple:
                 materias_cuatr += disponibles[:slots]
 
             if not materias_cuatr:
-                if anio == snapshot_anio and cuatr == 2:
+                if anio == snapshot_anio and cuatr == cuatrs[-1]:
                     snapshot_state = {
                         'regs_ex':  list(registros_examen),
                         'regs_mat': list(registros_materia),
@@ -190,7 +192,7 @@ def simular_trayectoria_seed(perfil: dict, rng, snapshot_anio: int) -> tuple:
                 }
                 return False, snapshot_state
 
-            if anio == snapshot_anio and cuatr == 2:
+            if anio == snapshot_anio and cuatr == cuatrs[-1]:
                 snapshot_state = {
                     'regs_ex':  list(registros_examen),
                     'regs_mat': list(registros_materia),
