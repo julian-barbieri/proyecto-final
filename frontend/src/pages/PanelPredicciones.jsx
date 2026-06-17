@@ -57,7 +57,7 @@ function getRiskLevel(prediccion) {
   if (abandono == null && recursado == null) return "sin_datos";
   const max = Math.max(abandono ?? 0, recursado ?? 0);
   if (max > 0.7) return "alto";
-  if (max > 0.5) return "medio";
+  if (max > 0.4) return "medio";
   return "bajo";
 }
 
@@ -66,7 +66,7 @@ function getRecursadoRiskLevel(prediccion) {
   const prob = prediccion.recursado?.probabilidad;
   if (prob == null) return "sin_datos";
   if (prob > 0.7) return "alto";
-  if (prob > 0.5) return "medio";
+  if (prob > 0.4) return "medio";
   return "bajo";
 }
 
@@ -121,8 +121,8 @@ function ProbCel({ value, loading }) {
   if (loading) return <LoadingDot />;
   if (value == null || Number.isNaN(Number(value))) return <span className="text-slate-400 text-xs">—</span>;
   const pct = Math.round(Number(value) * 100);
-  const color = pct > 70 ? "text-red-700 font-semibold" : pct > 50 ? "text-amber-700 font-medium" : "text-green-700";
-  const bar   = pct > 70 ? "bg-red-500" : pct > 50 ? "bg-amber-500" : "bg-green-500";
+  const color = pct > 70 ? "text-red-700 font-semibold" : pct > 40 ? "text-amber-700 font-medium" : "text-green-700";
+  const bar   = pct > 70 ? "bg-red-500" : pct > 40 ? "bg-amber-500" : "bg-green-500";
   return (
     <div className="flex items-center gap-2">
       <span className={`text-sm tabular-nums ${color}`}>{pct}%</span>
@@ -316,6 +316,124 @@ function TablaAlumnos({ alumnos, predicciones, loadingPredicciones, onViewDetail
   );
 }
 
+// ─── Tablas adicionales ───────────────────────────────────────────────────────
+
+function TablaAprobados({ aprobados, onViewDetail, onVerSugerencias }) {
+  return (
+    <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+      <table className="min-w-full">
+        <thead className="bg-brand-50 border-b border-surface-border">
+          <tr>
+            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Alumno</th>
+            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Nota Final</th>
+            <th className="px-4 py-3" />
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100">
+          {aprobados.map((alumno) => (
+            <tr key={alumno.id} className="hover:bg-surface-hover/80 transition-colors">
+              <td className="px-4 py-3">
+                <span className="text-sm font-semibold text-slate-900">{alumno.nombre_completo}</span>
+              </td>
+              <td className="px-4 py-3">
+                {alumno.nota_final != null ? (
+                  <span className="text-sm font-medium text-green-700 tabular-nums">
+                    {Number(alumno.nota_final).toFixed(2)}
+                  </span>
+                ) : (
+                  <span className="text-slate-400 text-xs">—</span>
+                )}
+              </td>
+              <td className="px-4 py-3 text-right">
+                <div className="flex items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => onVerSugerencias(alumno.id)}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-surface-border bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:border-brand-400 hover:text-brand-700 transition-colors whitespace-nowrap"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />
+                    Sugerencias
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onViewDetail(alumno.id)}
+                    className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 transition-colors whitespace-nowrap"
+                  >
+                    Ver detalles →
+                  </button>
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function TablaRecursados({ recursados, onViewDetail, onVerSugerencias }) {
+  return (
+    <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+      <table className="min-w-full">
+        <thead className="bg-brand-50 border-b border-surface-border">
+          <tr>
+            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Alumno</th>
+            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Nota</th>
+            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Tipo examen</th>
+            <th className="px-4 py-3" />
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100">
+          {recursados.map((alumno) => (
+            <tr key={alumno.id} className="hover:bg-surface-hover/80 transition-colors">
+              <td className="px-4 py-3">
+                <span className="text-sm font-semibold text-slate-900">{alumno.nombre_completo}</span>
+              </td>
+              <td className="px-4 py-3">
+                {alumno.nota_examen != null ? (
+                  <span className="text-sm font-medium text-red-700 tabular-nums">
+                    {Number(alumno.nota_examen).toFixed(2)}
+                  </span>
+                ) : (
+                  <span className="text-slate-400 text-xs">—</span>
+                )}
+              </td>
+              <td className="px-4 py-3">
+                <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                  alumno.tipo_examen === 'Recuperatorio'
+                    ? 'bg-amber-50 text-amber-700'
+                    : 'bg-red-50 text-red-700'
+                }`}>
+                  {alumno.tipo_examen}
+                </span>
+              </td>
+              <td className="px-4 py-3 text-right">
+                <div className="flex items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => onVerSugerencias(alumno.id)}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-surface-border bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:border-brand-400 hover:text-brand-700 transition-colors whitespace-nowrap"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />
+                    Sugerencias
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onViewDetail(alumno.id)}
+                    className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 transition-colors whitespace-nowrap"
+                  >
+                    Ver detalles →
+                  </button>
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 // ─── Página principal ─────────────────────────────────────────────────────────
 
 const PAGE_SIZE = 10;
@@ -344,6 +462,10 @@ export default function PanelPredicciones() {
   const [filtroRiesgo,        setFiltroRiesgo]        = useState("todos");
   const [sugerencias,         setSugerencias]         = useState({});
   const [modalAlumnoId,       setModalAlumnoId]       = useState(null);
+  const [tabActiva,   setTabActiva]   = useState('cursando');
+  const [aprobados,   setAprobados]   = useState(null);
+  const [recursados,  setRecursados]  = useState(null);
+  const [loadingTab,  setLoadingTab]  = useState(false);
 
   const activeMateriaRef = useRef(null);
   const getRiskFn = user?.role === "docente" ? getRecursadoRiskLevel : getRiskLevel;
@@ -378,6 +500,9 @@ export default function PanelPredicciones() {
     setPredicciones({});
     setBusqueda("");
     setFiltroRiesgo("todos");
+    setTabActiva('cursando');
+    setAprobados(null);
+    setRecursados(null);
 
     try {
       const response = await api.get(
@@ -441,6 +566,29 @@ export default function PanelPredicciones() {
     handleVerSugerencias(alumnoId);
   };
 
+  const handleClickTab = async (tab) => {
+    setTabActiva(tab);
+    if (tab === 'cursando') return;
+
+    // lazy load: solo cargar si aún no se cargó
+    if (tab === 'aprobados' && aprobados !== null) return;
+    if (tab === 'recursados' && recursados !== null) return;
+
+    setLoadingTab(true);
+    try {
+      const resp = await api.get(
+        `/api/panel-predicciones/materias/${materiaActiva.id}/${tab}`,
+      );
+      if (tab === 'aprobados') setAprobados(resp.data.aprobados ?? []);
+      if (tab === 'recursados') setRecursados(resp.data.recursados ?? []);
+    } catch {
+      if (tab === 'aprobados') setAprobados([]);
+      if (tab === 'recursados') setRecursados([]);
+    } finally {
+      setLoadingTab(false);
+    }
+  };
+
   // Alumnos con predicciones mergeadas
   const alumnosConPred = useMemo(() => {
     return (datos?.cursando || []).map((a) => ({
@@ -497,23 +645,25 @@ export default function PanelPredicciones() {
               <option key={materia.id} value={materia.id}>{materia.nombre}</option>
             ))}
           </select>
-          <div className="relative flex-1 min-w-[220px]">
-            {/* Search SVG de lucide-react — reemplaza emoji 🔍 */}
-            <Search className="absolute inset-y-0 left-3 my-auto w-4 h-4 text-slate-400 pointer-events-none" aria-hidden="true" />
-            <input
-              type="text"
-              placeholder="Buscar alumno..."
-              value={busqueda}
-              onChange={(e) => setBusqueda(e.target.value)}
-              className="w-full rounded-lg border border-surface-border bg-white pl-9 pr-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
-            />
-          </div>
+          {tabActiva === 'cursando' && (
+            <div className="relative flex-1 min-w-[220px]">
+              {/* Search SVG de lucide-react — reemplaza emoji 🔍 */}
+              <Search className="absolute inset-y-0 left-3 my-auto w-4 h-4 text-slate-400 pointer-events-none" aria-hidden="true" />
+              <input
+                type="text"
+                placeholder="Buscar alumno..."
+                value={busqueda}
+                onChange={(e) => setBusqueda(e.target.value)}
+                className="w-full rounded-lg border border-surface-border bg-white pl-9 pr-3 py-2 text-sm text-slate-800 shadow-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+              />
+            </div>
+          )}
         </section>
       )}
 
       {/* KPIs + estado de carga */}
       {datos && (
-        <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-7">
           <article className="rounded-xl border border-slate-200 bg-white px-4 py-3">
             <p className="text-xs text-slate-500">Total cursando</p>
             <p className="text-2xl font-bold text-slate-900">{datos.resumen.total}</p>
@@ -540,11 +690,19 @@ export default function PanelPredicciones() {
               <p className="text-xs text-slate-500">Predicciones listas ✓</p>
             )}
           </article>
+          <article className="rounded-xl border border-green-200 bg-green-50 px-4 py-3">
+            <p className="text-xs text-green-600">Aprobados 2026</p>
+            <p className="text-2xl font-bold text-green-700">{datos.resumen.aprobados ?? 0}</p>
+          </article>
+          <article className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+            <p className="text-xs text-amber-600">Recursados 2026</p>
+            <p className="text-2xl font-bold text-amber-700">{datos.resumen.recursados ?? 0}</p>
+          </article>
         </section>
       )}
 
       {/* Filtros rápidos de riesgo */}
-      {datos && !loadingPredicciones && (
+      {datos && !loadingPredicciones && tabActiva === 'cursando' && (
         <div className="flex flex-wrap gap-2">
           {FILTROS_RIESGO.map(({ key, label, dot }) => (
             <button
@@ -573,43 +731,117 @@ export default function PanelPredicciones() {
         </div>
       )}
 
+      {/* Tab buttons */}
+      {datos && !loading && (
+        <div className="flex gap-2 mb-3">
+          <button
+            type="button"
+            onClick={() => handleClickTab('cursando')}
+            className={`inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium transition-colors border ${
+              tabActiva === 'cursando'
+                ? 'bg-brand-600 text-white border-brand-600'
+                : 'bg-white text-slate-600 border-surface-border hover:border-brand-400 hover:text-brand-600'
+            }`}
+          >
+            Cursando ({datos.resumen.total})
+          </button>
+          <button
+            type="button"
+            onClick={() => handleClickTab('aprobados')}
+            className={`inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium transition-colors border ${
+              tabActiva === 'aprobados'
+                ? 'bg-green-600 text-white border-green-600'
+                : 'bg-white text-slate-600 border-surface-border hover:border-green-400 hover:text-green-600'
+            }`}
+          >
+            Aprobados ({datos.resumen.aprobados ?? 0})
+          </button>
+          <button
+            type="button"
+            onClick={() => handleClickTab('recursados')}
+            className={`inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium transition-colors border ${
+              tabActiva === 'recursados'
+                ? 'bg-amber-600 text-white border-amber-600'
+                : 'bg-white text-slate-600 border-surface-border hover:border-amber-400 hover:text-amber-700'
+            }`}
+          >
+            Recursados ({datos.resumen.recursados ?? 0})
+          </button>
+        </div>
+      )}
+
       {/* Lista / tabla */}
       {loading ? (
         <LoadingSpinner size="md" text="Cargando alumnos..." />
       ) : datos ? (
         <section>
-          {(datos.cursando?.length ?? 0) > 0 ? (
+          {tabActiva === 'cursando' && (
             <>
-              <p className="mb-3 text-sm text-slate-500">
-                Mostrando{" "}
-                <span className="font-semibold text-slate-700">{alumnosFiltrados.length}</span>
-                {alumnosFiltrados.length !== datos.cursando.length && (
-                  <> de <span className="font-semibold text-slate-700">{datos.cursando.length}</span></>
-                )}{" "}
-                alumno{alumnosFiltrados.length !== 1 ? "s" : ""}.
-                {" "}Hacé click en un encabezado para ordenar.
-              </p>
-
-              {alumnosFiltrados.length > 0 ? (
-                <TablaAlumnos
-                  alumnos={alumnosFiltrados}
-                  predicciones={predicciones}
-                  loadingPredicciones={loadingPredicciones}
-                  onViewDetail={(id) => navigate(`/alumnos/${id}`)}
-                  onVerSugerencias={handleVerSugerencias}
-                  userRole={user?.role}
-                  getRiskFn={getRiskFn}
-                />
+              {(datos.cursando?.length ?? 0) > 0 ? (
+                <>
+                  <p className="mb-3 text-sm text-slate-500">
+                    Mostrando{" "}
+                    <span className="font-semibold text-slate-700">{alumnosFiltrados.length}</span>
+                    {alumnosFiltrados.length !== datos.cursando.length && (
+                      <> de <span className="font-semibold text-slate-700">{datos.cursando.length}</span></>
+                    )}{" "}
+                    alumno{alumnosFiltrados.length !== 1 ? "s" : ""}.
+                    {" "}Hacé click en un encabezado para ordenar.
+                  </p>
+                  {alumnosFiltrados.length > 0 ? (
+                    <TablaAlumnos
+                      alumnos={alumnosFiltrados}
+                      predicciones={predicciones}
+                      loadingPredicciones={loadingPredicciones}
+                      onViewDetail={(id) => navigate(`/alumnos/${id}`)}
+                      onVerSugerencias={handleVerSugerencias}
+                      userRole={user?.role}
+                      getRiskFn={getRiskFn}
+                    />
+                  ) : (
+                    <p className="text-sm text-slate-500 rounded-xl border border-slate-200 bg-white p-4">
+                      No se encontraron alumnos con ese criterio.
+                    </p>
+                  )}
+                </>
               ) : (
                 <p className="text-sm text-slate-500 rounded-xl border border-slate-200 bg-white p-4">
-                  No se encontraron alumnos con ese criterio.
+                  No hay alumnos cursando esta materia actualmente.
                 </p>
               )}
             </>
-          ) : (
-            <p className="text-sm text-slate-500 rounded-xl border border-slate-200 bg-white p-4">
-              No hay alumnos cursando esta materia actualmente.
-            </p>
+          )}
+
+          {tabActiva === 'aprobados' && (
+            loadingTab ? (
+              <LoadingSpinner size="md" text="Cargando aprobados..." />
+            ) : aprobados === null ? null : aprobados.length > 0 ? (
+              <TablaAprobados
+                aprobados={aprobados}
+                onViewDetail={(id) => navigate(`/alumnos/${id}`)}
+                onVerSugerencias={handleVerSugerencias}
+              />
+            ) : (
+              <p className="text-sm text-slate-500 rounded-xl border border-slate-200 bg-white p-4">
+                No hay alumnos aprobados en esta materia.
+              </p>
+            )
+          )}
+
+          {tabActiva === 'recursados' && (
+            loadingTab ? (
+              <LoadingSpinner size="md" text="Cargando recursados..." />
+            ) : recursados === null ? null : recursados.length > 0 ? (
+              <TablaRecursados
+                recursados={recursados}
+                onViewDetail={(id) => navigate(`/alumnos/${id}`)}
+                onVerSugerencias={handleVerSugerencias}
+              />
+            ) : (
+              <p className="text-sm text-slate-500 rounded-xl border border-slate-200 bg-white p-4">
+                No hay alumnos recursados en esta materia.
+              </p>
+            )
           )}
         </section>
       ) : null}
@@ -617,7 +849,10 @@ export default function PanelPredicciones() {
       {modalAlumnoId && sugerencias[modalAlumnoId] && (
         <ModalSugerencia
           alumnoNombre={
-            datos?.cursando?.find((a) => a.id === modalAlumnoId)?.nombre_completo ?? 'Alumno'
+            datos?.cursando?.find((a) => a.id === modalAlumnoId)?.nombre_completo ??
+            aprobados?.find((a) => a.id === modalAlumnoId)?.nombre_completo ??
+            recursados?.find((a) => a.id === modalAlumnoId)?.nombre_completo ??
+            'Alumno'
           }
           estado={sugerencias[modalAlumnoId]}
           onClose={() => setModalAlumnoId(null)}
