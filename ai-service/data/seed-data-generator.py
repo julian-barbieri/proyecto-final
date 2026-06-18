@@ -202,7 +202,8 @@ def simular_trayectoria_seed(perfil: dict, rng, snapshot_anio: int) -> tuple:
     return False, snapshot_state
 
 
-def snapshot_to_alumno(alumno_num: int, perfil: dict, snap: dict, anio_carrera: int) -> dict:
+def snapshot_to_alumno(alumno_num: int, perfil: dict, snap: dict, anio_carrera: int,
+                       keep_final: bool = False) -> dict:
     cursadas = []
     for r in snap['regs_mat']:
         anio_c = r['AnioCursada']
@@ -221,6 +222,8 @@ def snapshot_to_alumno(alumno_num: int, perfil: dict, snap: dict, anio_carrera: 
 
     examenes = []
     for r in snap['regs_ex']:
+        if r['Anio'] == SNAPSHOT_ANIO and r['TipoExamen'] == 'Final' and not keep_final:
+            continue  # alumno está mediados de Q1, todavía no rindió el Final
         examenes.append({
             'materia_codigo_plan': r['Materia'],
             'anio':                r['Anio'],
@@ -278,7 +281,9 @@ def generar_seed_data():
             if not has_2026:
                 continue
 
-            alumno = snapshot_to_alumno(alumno_num, perfil, snap, anio_carrera)
+            keep_final = bool(rng.random() < 0.10)
+            alumno = snapshot_to_alumno(alumno_num, perfil, snap, anio_carrera,
+                                        keep_final=keep_final)
             alumnos.append(alumno)
             alumno_num += 1
             generados  += 1
