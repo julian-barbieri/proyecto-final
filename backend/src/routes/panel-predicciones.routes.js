@@ -258,6 +258,7 @@ function getAprobadosAlumnos(materiaId) {
          ) AS nota_final
        FROM users u
        JOIN cursadas c ON c.alumno_id = u.id AND c.materia_id = @materiaId
+                AND c.estado = 'cursando'
        WHERE u.role = 'alumno'
          AND EXISTS (
            SELECT 1 FROM examenes e
