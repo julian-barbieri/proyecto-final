@@ -249,6 +249,10 @@ function getAprobadosAlumnos(materiaId) {
            SELECT e2.nota FROM examenes e2
            WHERE e2.alumno_id = u.id AND e2.materia_id = @materiaId
              AND e2.tipo = 'Final' AND e2.rendido = 1 AND e2.nota >= 4
+             AND e2.anio = (
+               SELECT MAX(c3.anio) FROM cursadas c3
+               WHERE c3.alumno_id = u.id AND c3.materia_id = @materiaId
+             )
            ORDER BY e2.anio DESC, e2.instancia DESC
            LIMIT 1
          ) AS nota_final
@@ -259,6 +263,10 @@ function getAprobadosAlumnos(materiaId) {
            SELECT 1 FROM examenes e
            WHERE e.alumno_id = u.id AND e.materia_id = @materiaId
              AND e.tipo = 'Final' AND e.rendido = 1 AND e.nota >= 4
+             AND e.anio = (
+               SELECT MAX(c2.anio) FROM cursadas c2
+               WHERE c2.alumno_id = u.id AND c2.materia_id = @materiaId
+             )
          )
        GROUP BY u.id
        ORDER BY nombre_completo ASC`,
