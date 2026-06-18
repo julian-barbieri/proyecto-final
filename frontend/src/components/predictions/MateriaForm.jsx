@@ -23,7 +23,7 @@ export default function MateriaForm({
 
   useEffect(() => {
     api
-      .get("/api/gestion-alumnos/alumnos")
+      .get("/api/gestion-alumnos/alumnos?soloActivos=true")
       .then((res) => setAlumnos(res.data || []))
       .catch(() => setAlumnos([]));
     api

@@ -15,7 +15,7 @@ export default function AlumnoForm({
 
   useEffect(() => {
     api
-      .get("/api/gestion-alumnos/alumnos")
+      .get("/api/gestion-alumnos/alumnos?soloActivos=true")
       .then((res) => setAlumnos(res.data || []))
       .catch(() => setAlumnos([]));
   }, []);

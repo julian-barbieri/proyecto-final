@@ -902,30 +902,6 @@ function seedDemoAlumnosCDU010() {
 
     const nuevosAlumnos = [
       [
-        "lucas.martinez",
-        "Lucas Martínez",
-        "lucas.martinez@usal.edu.ar",
-        "demo_lucas.martinez",
-        "Masculino",
-        "15-03-2007",
-        0,
-        0,
-        7.2,
-        2026,
-      ],
-      [
-        "valentina.gomez",
-        "Valentina Gómez",
-        "valentina.gomez@usal.edu.ar",
-        "demo_valentina.gomez",
-        "Femenino",
-        "22-08-2006",
-        0,
-        0,
-        7.8,
-        2026,
-      ],
-      [
         "mateo.fernandez",
         "Mateo Fernández",
         "mateo.fernandez@usal.edu.ar",
@@ -947,18 +923,6 @@ function seedDemoAlumnosCDU010() {
         0,
         0,
         6.9,
-        2026,
-      ],
-      [
-        "nicolas.lopez",
-        "Nicolás López",
-        "nicolas.lopez@usal.edu.ar",
-        "demo_nicolas.lopez",
-        "Masculino",
-        "30-07-2006",
-        0,
-        0,
-        6.5,
         2026,
       ],
       [
@@ -3580,7 +3544,7 @@ function seedMasivo500AlumnosCDU() {
       );
       return;
     }
-    const { alumnos } = JSON.parse(fs.readFileSync(jsonPath, "utf-8"));
+    const { alumnos } = JSON.parse(fs.readFileSync(jsonPath, "utf-8").replace(/^﻿/, ""));
 
     const DEMO_USERNAMES = [
       "lucas.martinez", "valentina.gomez", "mateo.fernandez", "sofia.rodriguez",
@@ -3694,6 +3658,202 @@ function seedMasivo500AlumnosCDU() {
   }
 }
 
+// ═════════════════════════════════════════════════════════════════════════════
+// Garantiza al menos 20 alumnos cursando en 2026 por materia.
+// Solo agrega lo que falta; no toca materias que ya superan el mínimo.
+// ═════════════════════════════════════════════════════════════════════════════
+function ensureMinAlumnosPorMateria() {
+  const TARGET = 23;
+
+  try {
+    // Build plan info: planId → { anioCarrera, corrs }
+    const planInfo = {};
+    for (const [planId, , , anioCarrera, corrs] of PLAN_CURRICULUM) {
+      planInfo[planId] = { anioCarrera, corrs: corrs || [] };
+    }
+
+    // Full transitive closure of prerequisites for a materia
+    function getClosure(planId, seen = new Set()) {
+      if (seen.has(planId)) return seen;
+      seen.add(planId);
+      for (const c of (planInfo[planId]?.corrs || [])) getClosure(c, seen);
+      return seen;
+    }
+
+    // Map codigo_plan → db materia id
+    const mapaMat = {};
+    db.prepare("SELECT id, codigo_plan FROM materias WHERE codigo_plan IS NOT NULL")
+      .all().forEach(m => { mapaMat[m.codigo_plan] = m.id; });
+
+    const materias = db.prepare(`
+      SELECT m.id, m.codigo_plan, m.nombre, m.anio_carrera,
+             COUNT(DISTINCT c.alumno_id) AS cursando_count
+      FROM materias m
+      LEFT JOIN cursadas c ON c.materia_id = m.id AND c.anio = 2026 AND c.estado = 'cursando'
+      GROUP BY m.id
+    `).all();
+
+    // Deterministic hash → [0, 1)
+    function dHash(seed) {
+      return Math.abs(Math.sin(seed * 127.1 + 0.3) * 43758.5453) % 1;
+    }
+    function rndNote(seed, min, max) {
+      return Math.round((min + dHash(seed) * (max - min)) * 10) / 10;
+    }
+
+    const stmtInsUser = db.prepare(`
+      INSERT OR IGNORE INTO users
+        (username, password, role, nombre_completo, email,
+         oauth_provider, google_id, genero, fecha_nac,
+         ayuda_financiera, colegio_tecnico, promedio_colegio, anio_ingreso)
+      VALUES (?, NULL, 'alumno', ?, ?, 'google', ?, ?, ?, 0, 0, 7.0, ?)
+    `);
+    const stmtGetUser    = db.prepare("SELECT id FROM users WHERE username = ?");
+    const stmtInsCursada = db.prepare(`
+      INSERT OR IGNORE INTO cursadas (alumno_id, materia_id, anio, asistencia, estado)
+      VALUES (?, ?, ?, ?, ?)
+    `);
+    const stmtInsExamen  = db.prepare(`
+      INSERT OR IGNORE INTO examenes
+        (alumno_id, materia_id, anio, tipo, instancia,
+         rendido, nota, ausente, veces_recursada, asistencia, fecha_examen)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)
+    `);
+    const stmtInsInscr   = db.prepare(`
+      INSERT OR IGNORE INTO inscripciones (alumno_id, materia_id, anio, estado)
+      VALUES (?, ?, 2026, 'activa')
+    `);
+
+    let fillBase = db.prepare(
+      "SELECT COUNT(*) as cnt FROM users WHERE username LIKE 'fill_%'"
+    ).get().cnt;
+    let totalAdded = 0;
+
+    for (const mat of materias) {
+      if (!mat.codigo_plan) continue;
+      const needed = Math.max(0, TARGET - mat.cursando_count);
+      if (needed === 0) continue;
+
+      const prereqs = getClosure(mat.codigo_plan);
+      prereqs.delete(mat.codigo_plan);
+
+      const anioCarreraTarget = mat.anio_carrera || 1;
+      // Año de ingreso: si cursa una materia de año N en 2026, ingresó en 2026-(N-1)
+      const anioIngreso = 2026 - (anioCarreraTarget - 1);
+
+      const doInsert = db.transaction(() => {
+        for (let i = 0; i < needed; i++) {
+          fillBase++;
+          const fIdx = fillBase;
+          const username = `fill_${String(fIdx).padStart(5, '0')}`;
+          const genero = fIdx % 2 === 0 ? 'Femenino' : 'Masculino';
+          const pool = genero === 'Masculino' ? NOMBRES_MASCULINOS : NOMBRES_FEMENINOS;
+          const nombre   = pool[fIdx % pool.length];
+          const apellido = APELLIDOS_ARG[fIdx % APELLIDOS_ARG.length];
+          const email    = `fill${fIdx}@usal.edu.ar`;
+          const birthYear = anioIngreso - 18 - (fIdx % 3);
+
+          stmtInsUser.run(
+            username, `${nombre} ${apellido}`, email,
+            `fill_${username}`, genero, `01-01-${birthYear}`, anioIngreso
+          );
+
+          const row = stmtGetUser.get(username);
+          if (!row) continue;
+          const aId = row.id;
+
+          // ── Materias previas (prerequisites): aprobadas con historia completa ──
+          for (const prereqPlanId of prereqs) {
+            const mId  = mapaMat[prereqPlanId];
+            if (!mId) continue;
+            const info = planInfo[prereqPlanId];
+            // Año en que cursó este prerequisito, según su año de carrera
+            const anioPrereq = anioIngreso + ((info?.anioCarrera || 1) - 1);
+
+            const s = fIdx * 1000 + prereqPlanId;
+            const asist = Math.round((0.75 + dHash(s * 3) * 0.20) * 100) / 100;
+
+            stmtInsCursada.run(aId, mId, anioPrereq, asist, 'aprobada');
+
+            // Parcial 1
+            const notaP1 = rndNote(s * 7, 3.5, 8.5);
+            stmtInsExamen.run(aId, mId, anioPrereq, 'Parcial', 1, 1, notaP1, 0, asist, `15-06-${anioPrereq}`);
+            if (notaP1 < 4) {
+              // Recuperatorio necesario para poder aprobar la cursada
+              const notaR1 = rndNote(s * 11, 5.0, 8.0);
+              stmtInsExamen.run(aId, mId, anioPrereq, 'Recuperatorio', 1, 1, notaR1, 0, asist, `25-06-${anioPrereq}`);
+            }
+
+            // Parcial 2 (presente en el 70% de los casos)
+            if (dHash(s * 13) < 0.70) {
+              const notaP2 = rndNote(s * 17, 4.0, 9.0);
+              stmtInsExamen.run(aId, mId, anioPrereq, 'Parcial', 2, 1, notaP2, 0, asist, `10-11-${anioPrereq}`);
+              if (notaP2 < 4) {
+                const notaR2 = rndNote(s * 19, 5.0, 7.5);
+                stmtInsExamen.run(aId, mId, anioPrereq, 'Recuperatorio', 2, 1, notaR2, 0, asist, `20-11-${anioPrereq}`);
+              }
+            }
+
+            // Final: al menos uno aprobado (la cursada es aprobada)
+            const notaF1 = rndNote(s * 23, 2.5, 8.0);
+            stmtInsExamen.run(aId, mId, anioPrereq, 'Final', 1, 1, notaF1, 0, asist, `12-12-${anioPrereq}`);
+            if (notaF1 < 4) {
+              // Falló primera instancia → aprobó en la segunda
+              const notaF2 = rndNote(s * 29, 4.5, 8.0);
+              stmtInsExamen.run(aId, mId, anioPrereq, 'Final', 2, 1, notaF2, 0, asist, `10-02-${anioPrereq + 1}`);
+            }
+          }
+
+          // ── Materia target: perfil estancado ─────────────────────────────
+          // 2025: recursada — llegó pero no pudo aprobar los finales
+          const sT = fIdx * 500 + (mat.codigo_plan || 0);
+          const vecesRec = 1;
+          const asist2025 = Math.round((0.60 + dHash(sT * 5) * 0.25) * 100) / 100;
+
+          stmtInsCursada.run(aId, mat.id, 2025, asist2025, 'recursada');
+
+          const notaP1_25 = rndNote(sT * 7, 2.0, 6.5);
+          stmtInsExamen.run(aId, mat.id, 2025, 'Parcial', 1, 1, notaP1_25, vecesRec, asist2025, `14-06-2025`);
+          if (notaP1_25 < 4) {
+            const notaR1_25 = rndNote(sT * 11, 1.5, 5.5);
+            stmtInsExamen.run(aId, mat.id, 2025, 'Recuperatorio', 1, 1, notaR1_25, vecesRec, asist2025, `24-06-2025`);
+          }
+          if (dHash(sT * 13) < 0.65) {
+            const notaP2_25 = rndNote(sT * 17, 2.0, 6.0);
+            stmtInsExamen.run(aId, mat.id, 2025, 'Parcial', 2, 1, notaP2_25, vecesRec, asist2025, `12-11-2025`);
+            if (notaP2_25 < 4) {
+              const notaR2_25 = rndNote(sT * 19, 1.5, 5.0);
+              stmtInsExamen.run(aId, mat.id, 2025, 'Recuperatorio', 2, 1, notaR2_25, vecesRec, asist2025, `21-11-2025`);
+            }
+          }
+          // Intentó finales en dic-2025 / feb-2026 pero no pasó → "estancado"
+          if (dHash(sT * 23) < 0.75) {
+            const notaF1_25 = rndNote(sT * 29, 1.0, 3.5);
+            stmtInsExamen.run(aId, mat.id, 2025, 'Final', 1, 1, notaF1_25, vecesRec, asist2025, `12-12-2025`);
+            if (dHash(sT * 31) < 0.50) {
+              const notaF2_25 = rndNote(sT * 37, 1.0, 3.5);
+              stmtInsExamen.run(aId, mat.id, 2025, 'Final', 2, 1, notaF2_25, vecesRec, asist2025, `06-02-2026`);
+            }
+          }
+
+          // 2026: cursando nuevamente (segunda o más recursada)
+          const asist2026 = Math.round((0.65 + dHash(sT * 41) * 0.20) * 100) / 100;
+          stmtInsCursada.run(aId, mat.id, 2026, asist2026, 'cursando');
+          stmtInsInscr.run(aId, mat.id);
+          totalAdded++;
+        }
+      });
+
+      doInsert();
+      console.log(`  🎓 ${mat.nombre}: +${needed} alumnos (${mat.cursando_count} → ${mat.cursando_count + needed})`);
+    }
+
+    console.log(`✅ ensureMinAlumnosPorMateria: ${totalAdded} alumnos fill añadidos.`);
+  } catch (err) {
+    console.error("❌ Error en ensureMinAlumnosPorMateria:", err.message);
+  }
+}
+
 async function seedUsers() {
   const users = [
     {
@@ -3767,9 +3927,10 @@ async function seedUsers() {
   seedGestionMateriasCDU005();
   seedGestionContenidoCDU008();
   seedPrediccionesAutomaticasCDU009();
-  seedDemoAlumnosCDU010();
-  seedDemoAlumnosAM2CDU014();
-  seedMasivo500AlumnosCDU();
+  //seedDemoAlumnosCDU010();
+  //seedDemoAlumnosAM2CDU014();
+  seedMasivo500AlumnosCDU(); // deshabilitado — alumnos seed eliminados manualmente
+  //ensureMinAlumnosPorMateria();
 }
 
 if (require.main === module) {

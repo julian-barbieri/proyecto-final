@@ -82,8 +82,8 @@ function getRiskLevel(probabilidad) {
   if (prob >= 0.7) {
     return { level: "ALTO", color: "red", label: "Riesgo alto de abandono", icon: "🔴" };
   }
-  if (prob >= 0.5) {
-    return { level: "MEDIO", color: "yellow", label: "Riesgo medio de abandono", icon: "🟡" };
+  if (prob >= 0.4) {
+    return { level: "MEDIO", color: "yellow", label: "Riesgo moderado de abandono", icon: "🟡" };
   }
   return { level: "BAJO", color: "green", label: "Bajo riesgo de abandono", icon: "🟢" };
 }
@@ -94,8 +94,8 @@ function getRecursadoRiskLevel(probabilidad) {
   if (prob >= 0.7) {
     return { level: "ALTO", color: "red", label: "Riesgo alto de recursado", icon: "🔴" };
   }
-  if (prob >= 0.5) {
-    return { level: "MEDIO", color: "yellow", label: "Riesgo medio de recursado", icon: "🟡" };
+  if (prob >= 0.4) {
+    return { level: "MEDIO", color: "yellow", label: "Riesgo moderado de recursado", icon: "🟡" };
   }
   return { level: "BAJO", color: "green", label: "Bajo riesgo de recursado", icon: "🟢" };
 }

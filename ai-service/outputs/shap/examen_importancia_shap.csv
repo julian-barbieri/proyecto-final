@@ -1,7 +1,10 @@
 Variable,ImportanciaMedia
-PromedioNotaGeneral,0.8692541490240991
-TasaRecursaGeneral,0.23204337953989349
-AyudaFinanciera,0.07364693610262364
-PromedioAsistencia,0.07346153838046432
-NotaPromedioParcialCursada,0.05975978370972704
-Materia,0.010937466710064516
+PromedioNotaGeneral,1.0967908583655506
+TasaRecursaGeneral,0.1146077610231999
+AyudaFinanciera,0.06743115756475886
+NotaPromedioParcialCursada,0.04776568737790086
+PromedioAsistencia,0.03853906893707745
+NotaPromedioCorrelativas,0.006366134806755481
+Materia,0.004379830774351944
+CargaSimultanea,0.0022208805203198564
+IndiceBloqueo,0.0

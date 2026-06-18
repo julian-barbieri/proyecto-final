@@ -103,14 +103,24 @@ MODELOS_INFO = {
 # FUNCIONES CACHEADAS
 # ===========================================================================
 
+def _mtime_modelos() -> str:
+    """Devuelve la fecha de modificación de los .pkl como string para invalidar caché."""
+    trained_dir = MODELS_DIR / 'models-trained'
+    mtimes = []
+    for key in ['alumno', 'materia', 'examen']:
+        pkl = trained_dir / f'modelo_{key}.pkl'
+        mtimes.append(str(pkl.stat().st_mtime) if pkl.exists() else '0')
+    return '_'.join(mtimes)
+
+
 @st.cache_resource(show_spinner=False)
-def _cargar_modelos() -> dict:
-    """Carga y cachea los tres modelos .pkl. Se ejecuta una sola vez."""
+def _cargar_modelos(mtime: str) -> dict:
+    """Carga y cachea los tres modelos .pkl. Se invalida automáticamente cuando cambian los archivos."""
     return cargar_modelos(str(MODELS_DIR))
 
 
 @st.cache_data(show_spinner=False)
-def _cargar_datos(dataset: str):
+def _cargar_datos(dataset: str, mtime: str):
     """Carga X_test e y_test desde los CSVs generados por el pipeline de entrenamiento."""
     test_dir = MODELS_DIR / 'dataset-test'
     X_test = pd.read_csv(test_dir / f'X_test_{dataset}.csv')
@@ -119,7 +129,7 @@ def _cargar_datos(dataset: str):
 
 
 @st.cache_data(show_spinner=False)
-def _calcular_shap(_model, _X_test: pd.DataFrame, nombre_modelo: str, tipo: str) -> np.ndarray:
+def _calcular_shap(_model, _X_test: pd.DataFrame, nombre_modelo: str, tipo: str, mtime: str = '') -> np.ndarray:
     """
     Calcula SHAP values para un modelo y los cachea.
     Llama a explicar_modelo() que guarda los .png como efecto secundario.
@@ -140,7 +150,7 @@ def _calcular_shap(_model, _X_test: pd.DataFrame, nombre_modelo: str, tipo: str)
 
 
 @st.cache_data(show_spinner=False)
-def _calcular_metricas(_model, _X_test: pd.DataFrame, _y_test: pd.Series, tipo: str, nombre_modelo: str = '') -> dict:
+def _calcular_metricas(_model, _X_test: pd.DataFrame, _y_test: pd.Series, tipo: str, nombre_modelo: str = '', mtime: str = '') -> dict:
     """
     Calcula métricas de evaluación en tiempo de ejecución.
     No usa valores hardcodeados: siempre usa el conjunto de test actual.
@@ -219,8 +229,10 @@ with st.sidebar:
 # CARGA DE DATOS Y MODELOS (con spinner)
 # ===========================================================================
 
+_mtime = _mtime_modelos()
+
 try:
-    modelos = _cargar_modelos()
+    modelos = _cargar_modelos(_mtime)
 except Exception as e:
     st.error(f'Error al cargar modelos: {e}')
     st.stop()
@@ -234,7 +246,7 @@ _datos_error = ''
 
 with st.spinner('Cargando datos de evaluación...'):
     try:
-        X_test, y_test = _cargar_datos(modelo_key)
+        X_test, y_test = _cargar_datos(modelo_key, _mtime)
         # Verificar que las columnas del CSV coincidan con el modelo actual
         model_cols = set(str(f) for f in modelo_activo.feature_names_in_)
         data_cols  = set(X_test.columns)
@@ -247,7 +259,7 @@ with st.spinner('Cargando datos de evaluación...'):
                 f'Sobran en CSV: {extras}\n'
                 f'Solución: ejecutá el pipeline de entrenamiento para regenerar los CSV de test.'
             )
-        shap_vals     = _calcular_shap(modelo_activo, X_test, modelo_key, tipo)
+        shap_vals     = _calcular_shap(modelo_activo, X_test, modelo_key, tipo, mtime=_mtime)
         feature_names = list(X_test.columns)
         _datos_ok     = True
     except Exception as e:
@@ -327,7 +339,7 @@ with tab_metricas:
     else:
         st.caption('Calculadas sobre el conjunto de test cada vez que se carga la app.')
 
-        metricas = _calcular_metricas(modelo_activo, X_test, y_test, tipo, nombre_modelo=modelo_key)
+        metricas = _calcular_metricas(modelo_activo, X_test, y_test, tipo, nombre_modelo=modelo_key, mtime=_mtime)
 
         cols_m = st.columns(len(metricas))
         for col_m, (nombre_m, valor_m) in zip(cols_m, metricas.items()):
@@ -368,8 +380,8 @@ with tab_comparacion:
         filas = []
         for mk, mi in MODELOS_INFO.items():
             try:
-                Xt, yt = _cargar_datos(mk)
-                mt     = _calcular_metricas(modelos[mk], Xt, yt, mi['tipo'], nombre_modelo=mk)
+                Xt, yt = _cargar_datos(mk, _mtime)
+                mt     = _calcular_metricas(modelos[mk], Xt, yt, mi['tipo'], nombre_modelo=mk, mtime=_mtime)
                 fila   = {'Modelo': f"{mi['icono']} {mi['nombre_display']}", 'Tipo': mi['tipo']}
                 fila.update(mt)
                 filas.append(fila)

@@ -98,9 +98,9 @@ function obtenerDatosAlumno(alumnoId, materiaId) {
 
   let vars;
   try {
-    vars = calcularVariablesAbandono(alumnoId);
+    vars = calcularVariablesAbandono(alumnoId).variables;
   } catch {
-    vars = { PromedioAsistencia: 0, PromedioNota: 0, CantRecursa: 0 };
+    vars = { PromedioAsistencia: 0, PromedioNotaGeneral: 0 };
   }
 
   const cursadaActual = db
