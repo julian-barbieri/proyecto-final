@@ -209,9 +209,9 @@ router.get(
             abandona: respAbandono.data[0].Abandona,
             probabilidad: respAbandono.data[0].probabilidad,
             nivel_riesgo:
-              respAbandono.data[0].probabilidad >= 0.6
+              respAbandono.data[0].probabilidad >= 0.7
                 ? "alto"
-                : respAbandono.data[0].probabilidad >= 0.3
+                : respAbandono.data[0].probabilidad >= 0.4
                   ? "medio"
                   : "bajo",
           };

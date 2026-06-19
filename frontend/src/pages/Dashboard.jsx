@@ -527,6 +527,7 @@ function SeccionResumen({
               {[
                 {
                   label: "Riesgo alto",
+                  rango: "70%–100%",
                   count: abandono.en_riesgo_alto,
                   bar: "bg-red-500",
                   text: "text-red-700",
@@ -536,6 +537,7 @@ function SeccionResumen({
                 },
                 {
                   label: "Riesgo medio",
+                  rango: "40%–69%",
                   count: abandono.en_riesgo_medio,
                   bar: "bg-amber-400",
                   text: "text-amber-700",
@@ -544,7 +546,8 @@ function SeccionResumen({
                   titulo: "Alumnos con riesgo medio de abandono",
                 },
                 {
-                  label: "Sin riesgo",
+                  label: "Riesgo bajo",
+                  rango: "0%–39%",
                   count: abandono.sin_riesgo,
                   bar: "bg-green-500",
                   text: "text-green-700",
@@ -562,7 +565,10 @@ function SeccionResumen({
                     className={`w-full text-left rounded-lg px-3 py-3 transition-colors ${barra.hover} group`}
                   >
                     <div className="flex items-center justify-between mb-1.5">
-                      <span className="text-sm text-gray-600 group-hover:text-gray-900 transition-colors">{barra.label}</span>
+                      <div className="flex flex-col">
+                        <span className="text-sm text-gray-600 group-hover:text-gray-900 transition-colors">{barra.label}</span>
+                        <span className="text-xs text-gray-400">{barra.rango}</span>
+                      </div>
                       <div className="flex items-center gap-2">
                         <span className={`text-sm font-semibold ${barra.text}`}>
                           {barra.count} <span className="font-normal text-gray-400">({pct}%)</span>
